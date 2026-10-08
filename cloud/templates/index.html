@@ -1,0 +1,1341 @@
+{% extends 'base_cloud.html' %}
+
+{% block title %}MyCloud — {% if folder %}{{ folder.name }}{% else %}Мой диск{% endif %}{% endblock %}
+
+{% block content %}
+
+{# === КВОТА (вверху) === #}
+<div class="cloud-quota">
+    <div class="quota-info">
+        <span>
+            Использовано: <strong>{{ quota.used | format_bytes }}</strong>
+            из {{ quota.total | format_bytes }}
+            ({{ quota.percent }}%)
+            {% if quota.trashed > 0 %}
+            <span class="trashed">— в корзине: {{ quota.trashed | format_bytes }}</span>
+            {% endif %}
+        </span>
+        <span>Свободно: <strong>{{ quota.free | format_bytes }}</strong></span>
+    </div>
+    <div class="quota-bar">
+        <div style="width: {{ quota.percent }}%;"></div>
+    </div>
+</div>
+
+{# === LAYOUT: дерево + разделитель + рабочая область === #}
+{# Затемнение фона под drawer #}
+<div class="tree-backdrop" id="treeBackdrop" onclick="closeTreeDrawer()"></div>
+<div class="cloud-layout" id="cloudLayout">
+
+    {# === ЛЕВАЯ КОЛОНКА: ДЕРЕВО ПАПОК === #}
+     <aside class="cloud-tree" id="cloudTree">
+        <button class="cloud-tree-close" onclick="closeTreeDrawer()" title="Закрыть">
+            <i class="bi bi-x-lg"></i>
+        </button>
+        <div class="cloud-tree-header">
+            <i class="bi bi-folder2-open"></i> Папки
+        </div>
+
+        {# Контейнер для дерева (заполняется через JS) #}
+        <div id="treeContainer"></div>
+
+        {# Пустое состояние (если папок нет) #}
+        <div class="cloud-tree-empty" id="treeEmpty" style="display: none;">
+            <i class="bi bi-info-circle"></i>
+            Папок пока нет
+        </div>
+    </aside>
+
+    {# === РАЗДЕЛИТЕЛЬ === #}
+    <div class="cloud-splitter" id="cloudSplitter"></div>
+
+    {# === ПРАВАЯ ЧАСТЬ: ПАНЕЛЬ + РАБОЧАЯ ОБЛАСТЬ === #}
+    <div class="cloud-main">
+
+        {# === TOOLBAR === #}
+        <div class="cloud-toolbar">
+
+            {# --- Путь (хлебные крошки) --- #}
+            <div class="cloud-path">
+                {% for crumb in breadcrumbs %}
+                {% if not loop.last %}
+                <a
+                    href="{% if crumb.id is none %}{{ url_for('index') }}{% else %}{{ url_for('index', folder_id=crumb.id) }}{% endif %}">
+                    {{ crumb.name }}
+                </a>
+                <span class="path-sep">›</span>
+                {% else %}
+                <span class="path-current">{{ crumb.name }}</span>
+                {% endif %}
+                {% endfor %}
+            </div>
+
+            {# --- Кнопки действий --- #}
+            <div class="cloud-actions">
+
+                {# Группа 1: навигация #}
+                <div class="cloud-actions-group">
+                    {# Кнопка «Папки» — только на мобильных #}
+                    <button class="btn-cloud btn-toggle-tree" onclick="toggleTreeDrawer()" title="Показать папки">
+                        <i class="bi bi-folder2-open"></i>
+                        <span class="btn-label">Папки</span>
+                    </button>
+
+                    <button class="btn-cloud" id="btnUp" onclick="navigateUp()" title="Вверх (к родительской папке)" {%
+                        if not folder %}disabled{% endif %}>
+                        <i class="bi bi-arrow-up"></i>
+                    </button>
+                    <button class="btn-cloud" onclick="window.location.reload()" title="Обновить">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </div>
+
+                <div class="cloud-actions-divider"></div>
+
+                {# Группа 2: создание #}
+                <div class="cloud-actions-group">
+                    <button class="btn-cloud btn-primary-cloud" onclick="openFolderModal()">
+                        <i class="bi bi-folder-plus"></i>
+                        <span class="btn-label">Новая папка</span>
+                    </button>
+                    <button class="btn-cloud btn-primary-cloud" onclick="document.getElementById('fileInput').click()">
+                        <i class="bi bi-cloud-upload"></i>
+                        <span class="btn-label">Загрузить</span>
+                    </button>
+                    <input type="file" id="fileInput" multiple style="display: none;">
+                </div>
+
+                <div class="cloud-actions-divider"></div>
+
+                {# Группа 3: действия с выделенным #}
+                <div class="cloud-actions-group" id="selectionActions">
+                    <button class="btn-cloud" id="btnRename"
+                            onclick="renameSelected()"
+                            title="Переименовать"
+                            disabled>
+                        <i class="bi bi-pencil"></i>
+                        <span class="btn-label">Переименовать</span>
+                    </button>
+                    <button class="btn-cloud" id="btnShare"
+                            onclick="shareSelected()"
+                            title="Поделиться"
+                            disabled>
+                        <i class="bi bi-link-45deg"></i>
+                        <span class="btn-label">Поделиться</span>
+                    </button>
+                    <button class="btn-cloud" id="btnMove"
+                            onclick="moveSelected()"
+                            title="Переместить в другую папку"
+                            disabled>
+                        <i class="bi bi-arrow-right-circle"></i>
+                        <span class="btn-label">Переместить</span>
+                    </button>
+                    <button class="btn-cloud" id="btnDownload"
+                            onclick="downloadSelected()"
+                            title="Скачать"
+                            disabled>
+                        <i class="bi bi-download"></i>
+                        <span class="btn-label">Скачать</span>
+                    </button>
+                    <button class="btn-cloud btn-danger-cloud" id="btnTrash"
+                            onclick="trashSelected()"
+                            title="Удалить в корзину"
+                            disabled>
+                        <i class="bi bi-trash"></i>
+                        <span class="btn-label">Удалить</span>
+                    </button>
+                </div>
+
+            </div>
+        </div>
+
+        {# === РАБОЧАЯ ОБЛАСТЬ: таблица файлов === #}
+        <div class="cloud-content">
+            {% if items %}
+            <table class="items-table" id="itemsTable">
+                <thead>
+                    <tr>
+                        <th>Имя</th>
+                        <th style="width: 120px;">Размер</th>
+                        <th style="width: 180px;">Изменён</th>
+                        <th style="width: 120px;">Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr data-id="{{ item.id }}" data-name="{{ item.name }}"
+                        data-isfolder="{{ 'true' if item.is_folder else 'false' }}">
+                        <td>
+                            <div class="item-name-cell">
+                                {% if item.is_folder %}
+                                <a href="{{ url_for('index', folder_id=item.id) }}" class="item-link"
+                                    onclick="event.stopPropagation();">
+                                    <span class="item-icon folder"><i class="bi bi-folder-fill"></i></span>
+                                </a>
+                                <a href="{{ url_for('index', folder_id=item.id) }}" class="item-link name"
+                                    onclick="event.stopPropagation();">{{ item.name }}</a>
+                                {% else %}
+                                {% set icon_class, icon_color = item.name | icon_for_file() %}
+                                <span class="item-icon file" style="color: {{ icon_color }};"><i
+                                        class="bi {{ icon_class }}"></i></span>
+                                <a href="{{ url_for('api_download', file_id=item.id) }}" class="item-link name"
+                                    title="Скачать файл" onclick="event.stopPropagation();">{{ item.name }}</a>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>{{ item.size_human() }}</td>
+                        <td>{{ item.updated_at.strftime('%d.%m.%Y %H:%M') if item.updated_at else '—' }}</td>
+                        <td>
+                            <div class="row-actions">
+                                <button class="btn-icon-action btn-share"
+                                    onclick="event.stopPropagation(); openShareModal({{ item.id }}, '{{ item.name | e }}', {{ 'true' if item.is_folder else 'false' }})"
+                                    title="Поделиться ссылкой"><i class="bi bi-link-45deg"></i></button>
+                                <button class="btn-icon-action"
+                                    onclick="event.stopPropagation(); openRenameModal({{ item.id }}, '{{ item.name | e }}', {{ 'true' if item.is_folder else 'false' }})"
+                                    title="Переименовать"><i class="bi bi-pencil"></i></button>
+                                <button class="btn-icon-action btn-trash"
+                                    onclick="event.stopPropagation(); trashItem({{ item.id }}, '{{ item.name | e }}', {{ 'true' if item.is_folder else 'false' }})"
+                                    title="Удалить в корзину"><i class="bi bi-trash"></i></button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-state">
+                <i class="bi bi-folder2-open"></i>
+                <h3>Папка пуста</h3>
+                <p>Здесь пока нет файлов и папок.</p>
+            </div>
+            {% endif %}
+        </div>
+
+    </div>
+
+</div>
+
+{# === МОДАЛЬНЫЕ ОКНА === #}
+
+<!-- Создать папку -->
+<div class="modal-overlay" id="folderModal">
+    <div class="modal-box">
+        <h3>📁 Новая папка</h3>
+        <input type="text" id="folderNameInput" placeholder="Введите имя папки" maxlength="255" autocomplete="off">
+        <div class="modal-error" id="folderError"></div>
+        <div class="modal-buttons">
+            <button class="btn-cancel" onclick="closeFolderModal()">Отмена</button>
+            <button class="btn-save" onclick="createFolder()">Создать</button>
+        </div>
+    </div>
+</div>
+
+<!-- Переименовать -->
+<div class="modal-overlay" id="renameModal">
+    <div class="modal-box">
+        <h3>✏️ Переименовать</h3>
+        <div style="font-size: 0.85rem; color: var(--color-text-muted); margin-bottom: 8px;" id="renameCurrentName">
+        </div>
+        <input type="text" id="renameNameInput" placeholder="Новое имя" maxlength="255" autocomplete="off">
+        <div class="modal-error" id="renameError"></div>
+        <div class="modal-buttons">
+            <button class="btn-cancel" onclick="closeRenameModal()">Отмена</button>
+            <button class="btn-save" onclick="performRename()">Сохранить</button>
+        </div>
+    </div>
+</div>
+
+<!-- Поделиться -->
+<div class="modal-overlay" id="shareModal">
+    <div class="modal-box" style="min-width: 480px;">
+        <h3>🔗 Поделиться ссылкой</h3>
+        <div id="shareCurrentName" style="font-size: 0.9rem; color: var(--color-text-muted); margin-bottom: 16px;">
+        </div>
+        <label style="display: block; font-size: 0.85rem; color: var(--color-text-muted); margin-bottom: 6px;">Публичная
+            ссылка:</label>
+        <input type="text" id="shareLinkInput" class="share-link-input" readonly onclick="this.select()">
+        <div class="share-success" id="shareSuccess"></div>
+        <div class="share-actions">
+            <button class="btn-copy" onclick="copyShareLink()">📋 Копировать</button>
+            <button class="btn-revoke" onclick="revokeShareLink()">🗑️ Отозвать</button>
+            <button style="background: var(--color-bg-alt); color: var(--color-text); margin-left: auto;"
+                onclick="closeShareModal()">Закрыть</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно: Переместить в… -->
+<div class="modal-overlay" id="moveModal">
+    <div class="modal-box" style="min-width: 420px; max-width: 500px;">
+        <h3><i class="bi bi-arrow-right-circle"></i> Переместить в…</h3>
+
+        <div id="moveItemsList" style="font-size: 0.9rem; color: var(--color-text-muted); margin-bottom: 16px;
+                    max-height: 100px; overflow-y: auto;">
+            <!-- Заполняется через JS -->
+        </div>
+
+        <label style="display: block; font-size: 0.85rem; color: var(--color-text-muted);
+                      margin-bottom: 8px;">
+            Выберите папку назначения:
+        </label>
+
+        <div id="moveTree" style="border: 1px solid var(--color-border); border-radius: var(--radius-sm);
+                    max-height: 300px; overflow-y: auto; padding: 4px 0;
+                    background: var(--color-bg-alt);">
+            <!-- Заполняется через JS -->
+        </div>
+
+        <div class="modal-error" id="moveError"></div>
+
+        <div class="modal-buttons">
+            <button class="btn-cancel" onclick="closeMoveModal()">Отмена</button>
+            <button class="btn-save" id="moveConfirmBtn" onclick="confirmMove()" disabled>
+                Переместить
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Drag&drop оверлей -->
+<div class="drop-overlay" id="dropOverlay">
+    <div class="drop-text">📥 Отпустите файлы для загрузки</div>
+</div>
+
+<!-- Прогресс загрузки -->
+<div class="upload-progress" id="uploadProgress">
+    <h4>📤 Загрузка…</h4>
+    <div id="uploadFilesList"></div>
+</div>
+
+<meta name="csrf-token" content="{{ csrf_token() }}">
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    (function () {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+
+        // Текущий folder_id
+        const currentFolderId = (function () {
+            const m = window.location.pathname.match(/\/folder\/(\d+)/);
+            return m ? parseInt(m[1], 10) : null;
+        })();
+
+        // ============= NAVIGATE UP =============
+        window.navigateUp = function() {
+            const parentId = {{ folder.parent_id if folder and folder.parent_id else 'null' }};
+            if (parentId !== null) {
+                window.location.href = '/folder/' + parentId;
+            } else if ({{ 'true' if folder else 'false' }}) {
+                window.location.href = '/';
+            }
+        };
+    // ============= SPLITTER RESIZE =============
+    const layout = document.getElementById('cloudLayout');
+    const tree = document.getElementById('cloudTree');
+    const splitter = document.getElementById('cloudSplitter');
+
+    // Загружаем сохранённую ширину
+    const savedWidth = localStorage.getItem('cloud_tree_width');
+    if (savedWidth) {
+        tree.style.flexBasis = savedWidth + 'px';
+        tree.style.width = savedWidth + 'px';
+    }
+
+    let isDragging = false;
+    let startX = 0;
+    let startWidth = 0;
+
+    splitter.addEventListener('mousedown', function (e) {
+        isDragging = true;
+        startX = e.clientX;
+        startWidth = tree.offsetWidth;
+        splitter.classList.add('is-dragging');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', function (e) {
+        if (!isDragging) return;
+        const delta = e.clientX - startX;
+        const newWidth = Math.max(180, Math.min(500, startWidth + delta));
+        tree.style.flexBasis = newWidth + 'px';
+        tree.style.width = newWidth + 'px';
+    });
+
+    document.addEventListener('mouseup', function () {
+        if (!isDragging) return;
+        isDragging = false;
+        splitter.classList.remove('is-dragging');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        // Сохраняем ширину
+        localStorage.setItem('cloud_tree_width', tree.offsetWidth);
+    });
+
+    // ============= МОБИЛЬНОЕ ДЕРЕВО (drawer) =============
+    const treeBackdrop = document.getElementById('treeBackdrop');
+
+    window.toggleTreeDrawer = function() {
+        if (tree.classList.contains('is-open')) {
+            closeTreeDrawer();
+        } else {
+            tree.classList.add('is-open');
+            treeBackdrop.classList.add('is-open');
+        }
+    };
+
+    window.closeTreeDrawer = function() {
+        tree.classList.remove('is-open');
+        treeBackdrop.classList.remove('is-open');
+    };
+
+    // Закрываем drawer при клике по узлу дерева (переход)
+    // Также при ресайзе на десктоп — убираем все мобильные классы
+    window.addEventListener('resize', function() {
+        if (window.innerWidth > 768) {
+            closeTreeDrawer();
+        }
+    });
+
+    // ============= ДЕРЕВО ПАПОК =============
+    const treeContainer = document.getElementById('treeContainer');
+    const treeEmpty = document.getElementById('treeEmpty');
+
+    // Текущая открытая папка (или null для корня)
+    const treeCurrentFolderId = currentFolderId;
+
+    // Загружаем все папки с сервера и строим дерево
+    async function loadTree() {
+        try {
+            const resp = await fetch('/api/tree');
+            const data = await resp.json();
+
+            if (!data.ok) {
+                console.error('tree error:', data);
+                return;
+            }
+
+            const folders = data.folders || [];
+            renderTree(folders);
+
+        } catch (e) {
+            console.error('tree load error:', e);
+        }
+    }
+
+    // Храним раскрытые узлы между перезагрузками страницы (sessionStorage)
+    let expandedIds = new Set();
+
+    function loadExpandedFromStorage() {
+        try {
+            const raw = sessionStorage.getItem('cloud_expanded');
+            if (raw) {
+                expandedIds = new Set(JSON.parse(raw));
+            }
+        } catch (e) {
+            expandedIds = new Set();
+        }
+    }
+
+    function saveExpandedToStorage() {
+        try {
+            sessionStorage.setItem('cloud_expanded', JSON.stringify(Array.from(expandedIds)));
+        } catch (e) { }
+    }
+
+    function renderTree(folders) {
+        if (!folders.length && expandedIds.size === 0) {
+            treeEmpty.style.display = 'block';
+            // даже если папок нет, покажем «Мой диск»
+        } else {
+            treeEmpty.style.display = 'none';
+        }
+
+        // Кэшируем список папок, чтобы использовать в toggle без перезагрузки
+        window.__folders = folders;
+
+        // Автоматически раскрываем всех родителей текущей папки
+        if (treeCurrentFolderId !== null) {
+            const findParents = (id) => {
+                const folder = folders.find(f => f.id === id);
+                if (!folder) return;
+                if (folder.parent_id !== null) {
+                    expandedIds.add(folder.parent_id);
+                    findParents(folder.parent_id);
+                }
+            };
+            findParents(treeCurrentFolderId);
+            saveExpandedToStorage();
+        }
+
+        // Строим Map<parent_id, children[]>
+        const byParent = new Map();
+        folders.forEach(f => {
+            const key = f.parent_id === null ? '__root__' : f.parent_id;
+            if (!byParent.has(key)) byParent.set(key, []);
+            byParent.get(key).push(f);
+        });
+
+        for (const arr of byParent.values()) {
+            arr.sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+        }
+
+        // Рендерим корень и рекурсивно все раскрытые узлы
+        const html = [];
+
+        // Корень
+        html.push(`
+            <div class="cloud-tree-node ${treeCurrentFolderId === null ? 'is-active' : ''}"
+                 onclick="window.location.href='/'">
+                <i class="bi bi-hdd-fill"></i>
+                <span class="node-name">Мой диск</span>
+            </div>
+        `);
+
+        const renderNodes = (parentKey, depth) => {
+            const children = byParent.get(parentKey) || [];
+            for (const node of children) {
+                const hasChildren = byParent.has(node.id) && byParent.get(node.id).length > 0;
+                const isExpanded = expandedIds.has(node.id);
+                const isActive = node.id === treeCurrentFolderId;
+                const indent = 12 + depth * 16;
+
+                html.push(`
+                    <div class="cloud-tree-node ${isActive ? 'is-active' : ''}"
+                         data-folder-id="${node.id}"
+                         data-has-children="${hasChildren ? 'true' : 'false'}"
+                         data-depth="${depth}"
+                         style="padding-left: ${indent}px;"
+                         onclick="onTreeClick(event, ${node.id})">
+                        ${hasChildren ? `
+                            <i class="bi bi-caret-${isExpanded ? 'down' : 'right'}-fill tree-toggle"
+                               onclick="event.stopPropagation(); toggleTreeNode(${node.id});"></i>
+                        ` : `<span class="tree-toggle-spacer"></span>`}
+                        <i class="bi bi-folder-fill"></i>
+                        <span class="node-name">${escapeHtml(node.name)}</span>
+                    </div>
+                `);
+
+                if (hasChildren && isExpanded) {
+                    renderNodes(node.id, depth + 1);
+                }
+            }
+        };
+
+        renderNodes('__root__', 0);
+
+        treeContainer.innerHTML = html.join('');
+    }
+
+    // Клик по имени узла — переход в папку
+    window.onTreeClick = function (event, folderId) {
+        if (event.target.closest('.tree-toggle')) return;
+        window.location.href = '/folder/' + folderId;
+    };
+
+    // Toggle раскрытия узла БЕЗ перехода в папку
+    window.toggleTreeNode = function (folderId) {
+        if (expandedIds.has(folderId)) {
+            expandedIds.delete(folderId);
+        } else {
+            expandedIds.add(folderId);
+        }
+        saveExpandedToStorage();
+
+        // Перерисовываем дерево
+        if (window.__folders) {
+            renderTree(window.__folders);
+        }
+    };
+
+    // Инициализация
+    loadExpandedFromStorage();
+    loadTree();
+
+    // Рендерим корень «Мой диск»
+    const html = [];
+
+    // Корневая кнопка
+    html.push(`
+            <div class="cloud-tree-node ${treeCurrentFolderId === null ? 'is-active' : ''}"
+                 data-folder-id="root"
+                 onclick="window.location.href='/'">
+                <i class="bi bi-hdd-fill"></i>
+                <span class="node-name">Мой диск</span>
+            </div>
+        `);
+
+    // Рекурсивная отрисовка
+    const renderNodes = (parentKey, depth) => {
+        const children = byParent.get(parentKey) || [];
+        for (const node of children) {
+            const hasChildren = byParent.has(node.id) && byParent.get(node.id).length > 0;
+            const isExpanded = expandedIds.has(node.id);
+            const isActive = node.id === treeCurrentFolderId;
+            const indent = 12 + depth * 16;
+
+            html.push(`
+                    <div class="cloud-tree-node ${isActive ? 'is-active' : ''}"
+                         data-folder-id="${node.id}"
+                         data-has-children="${hasChildren}"
+                         style="padding-left: ${indent}px;"
+                         onclick="onTreeClick(event, ${node.id})">
+                        ${hasChildren ? `
+                            <i class="bi bi-caret-${isExpanded ? 'down' : 'right'}-fill tree-toggle"
+                               onclick="event.stopPropagation(); toggleTreeNode(${node.id});"></i>
+                        ` : `<span style="display: inline-block; width: 12px;"></span>`}
+                        <i class="bi bi-folder-fill"></i>
+                        <span class="node-name">${escapeHtml(node.name)}</span>
+                    </div>
+                `);
+
+            if (hasChildren && isExpanded) {
+                renderNodes(node.id, depth + 1);
+            }
+        }
+    };
+
+    // Запуск
+    loadTree();
+
+    // ============= ВЫДЕЛЕНИЕ СТРОК =============
+    const table = document.getElementById('itemsTable');
+    const btnRename = document.getElementById('btnRename');
+    const btnShare = document.getElementById('btnShare');
+    const btnDownload = document.getElementById('btnDownload');
+    const btnTrash = document.getElementById('btnTrash');
+
+    let lastSelectedIndex = -1;
+
+    if (table) {
+        const rows = Array.from(table.querySelectorAll('tbody tr'));
+
+        rows.forEach((row, idx) => {
+            row.addEventListener('click', function (e) {
+                // Если клик по ссылке/кнопке — не выделяем
+                if (e.target.closest('a') || e.target.closest('button')) return;
+
+                const isCtrl = e.ctrlKey || e.metaKey;
+                const isShift = e.shiftKey;
+
+                if (isShift && lastSelectedIndex !== -1) {
+                    const start = Math.min(lastSelectedIndex, idx);
+                    const end = Math.max(lastSelectedIndex, idx);
+                    for (let i = start; i <= end; i++) {
+                        rows[i].classList.add('is-selected');
+                    }
+                } else if (isCtrl) {
+                    row.classList.toggle('is-selected');
+                    lastSelectedIndex = idx;
+                } else {
+                    rows.forEach(r => r.classList.remove('is-selected'));
+                    row.classList.add('is-selected');
+                    lastSelectedIndex = idx;
+                }
+
+                updateSelectionButtons();
+            });
+        });
+
+        // Клик по пустому месту = снять выделение
+        table.addEventListener('click', function (e) {
+            if (e.target === table || e.target.tagName === 'THEAD' || e.target.closest('thead')) {
+                rows.forEach(r => r.classList.remove('is-selected'));
+                updateSelectionButtons();
+            }
+        });
+    }
+
+    function getSelectedRows() {
+        if (!table) return [];
+        return Array.from(table.querySelectorAll('tbody tr.is-selected'));
+    }
+
+    function updateSelectionButtons() {
+        const selected = getSelectedRows();
+        const count = selected.length;
+
+        // Переименовать — только 1
+        btnRename.disabled = count !== 1;
+
+        // Поделиться — только 1
+        btnShare.disabled = count !== 1;
+
+        // Скачать — только 1 файл (не папка)
+        if (count === 1 && selected[0].dataset.isfolder === 'false') {
+            btnDownload.disabled = false;
+        } else {
+            btnDownload.disabled = true;
+        }
+
+        // Удалить — 1 или больше
+        btnTrash.disabled = count < 1;
+
+        // Переместить — 1 или больше
+        const btnMove = document.getElementById('btnMove');
+        if (btnMove) btnMove.disabled = count < 1;
+    }
+
+    // ============= DRAG & DROP (перемещение) =============
+    // Разрешаем тащить строки таблицы
+    // Разрешаем бросать на: узлы дерева (папки), строки-папки в таблице
+
+    let draggedItemIds = null;
+
+    // Навешиваем draggable на строки таблицы
+    if (table) {
+        const rows = table.querySelectorAll('tbody tr');
+        rows.forEach(row => {
+            row.setAttribute('draggable', 'true');
+
+            row.addEventListener('dragstart', function (e) {
+                // Не даём тащить, если тащат за кнопку или ссылку
+                if (e.target.closest('button') || e.target.closest('a')) {
+                    e.preventDefault();
+                    return;
+                }
+
+                // Если выделено несколько — тащим все
+                const selected = getSelectedRows();
+                if (selected.length > 1 && selected.includes(row)) {
+                    draggedItemIds = selected.map(r => parseInt(r.dataset.id, 10));
+                } else {
+                    draggedItemIds = [parseInt(row.dataset.id, 10)];
+                }
+
+                row.classList.add('is-dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', JSON.stringify(draggedItemIds));
+            });
+
+            row.addEventListener('dragend', function () {
+                row.classList.remove('is-dragging');
+                draggedItemIds = null;
+                clearDropTargets();
+            });
+        });
+
+        // === Drop-зоны: строки-папки ===
+        rows.forEach(row => {
+            const isFolder = row.dataset.isfolder === 'true';
+            if (!isFolder) return;
+
+            row.addEventListener('dragover', function (e) {
+                if (!draggedItemIds) return;
+                const targetId = parseInt(row.dataset.id, 10);
+                // Не подсвечиваем, если тащим на саму себя
+                if (draggedItemIds.includes(targetId)) return;
+
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                row.classList.add('drop-target');
+            });
+
+            row.addEventListener('dragleave', function () {
+                row.classList.remove('drop-target');
+            });
+
+            row.addEventListener('drop', async function (e) {
+                e.preventDefault();
+                row.classList.remove('drop-target');
+
+                if (!draggedItemIds) return;
+
+                const targetId = parseInt(row.dataset.id, 10);
+                if (draggedItemIds.includes(targetId)) return;
+
+                await performMove(draggedItemIds, targetId);
+            });
+        });
+    }
+
+    // === Drop-зоны: дерево ===
+    document.addEventListener('dragover', function (e) {
+        if (!draggedItemIds) return;
+
+        const treeNode = e.target.closest('.cloud-tree-node');
+        if (treeNode) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            clearDropTargets();
+            treeNode.classList.add('drop-target');
+        }
+    });
+
+    document.addEventListener('dragleave', function (e) {
+        const treeNode = e.target.closest('.cloud-tree-node');
+        if (treeNode) {
+            treeNode.classList.remove('drop-target');
+        }
+    });
+
+    document.addEventListener('drop', async function (e) {
+        if (!draggedItemIds) return;
+
+        const treeNode = e.target.closest('.cloud-tree-node');
+        if (treeNode) {
+            e.preventDefault();
+            treeNode.classList.remove('drop-target');
+
+            // Какой parent_id?
+            let targetFolderId;
+            if (treeNode.dataset.folderId === 'root') {
+                targetFolderId = null;
+            } else {
+                targetFolderId = parseInt(treeNode.dataset.folderId, 10);
+            }
+
+            if (draggedItemIds.includes(targetFolderId)) return;
+
+            await performMove(draggedItemIds, targetFolderId);
+        }
+    });
+
+    function clearDropTargets() {
+        document.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
+    }
+
+    async function performMove(itemIds, newParentId) {
+        try {
+            const resp = await fetch('/api/move', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify({
+                    item_ids: itemIds,
+                    new_parent_id: newParentId,
+                }),
+            });
+
+            const data = await resp.json();
+
+            if (!data.ok) {
+                alert('Ошибка: ' + (data.error || 'не удалось переместить'));
+                return;
+            }
+
+            if (data.errors && data.errors.length > 0) {
+                const msg = data.errors.map(e => e.error).join('\n');
+                alert('Некоторые элементы не перемещены:\n' + msg);
+            }
+
+            if (data.moved > 0) {
+                window.location.reload();
+            }
+        } catch (e) {
+            alert('Ошибка сети: ' + e.message);
+        }
+    }
+
+    // ============= ДЕЙСТВИЯ С ВЫДЕЛЕННЫМИ =============
+    window.renameSelected = function () {
+        const selected = getSelectedRows();
+        if (selected.length !== 1) return;
+        const row = selected[0];
+        const id = parseInt(row.dataset.id, 10);
+        const name = row.dataset.name;
+        const isFolder = row.dataset.isfolder === 'true';
+        openRenameModal(id, name, isFolder);
+    };
+
+    window.shareSelected = function () {
+        const selected = getSelectedRows();
+        if (selected.length !== 1) return;
+        const row = selected[0];
+        const id = parseInt(row.dataset.id, 10);
+        const name = row.dataset.name;
+        const isFolder = row.dataset.isfolder === 'true';
+        openShareModal(id, name, isFolder);
+    };
+
+    window.downloadSelected = function () {
+        const selected = getSelectedRows();
+        if (selected.length !== 1) return;
+        const row = selected[0];
+        if (row.dataset.isfolder === 'true') return;
+        const id = parseInt(row.dataset.id, 10);
+        window.location.href = '/api/download/' + id;
+    };
+
+    window.trashSelected = function () {
+        const selected = getSelectedRows();
+        if (selected.length < 1) return;
+        const names = selected.map(r => r.dataset.name);
+        const folders = selected.filter(r => r.dataset.isfolder === 'true').length;
+
+        let msg = selected.length === 1
+            ? `Переместить «${names[0]}» в корзину?`
+            : `Переместить ${selected.length} элементов в корзину?`;
+        if (folders > 0) {
+            msg += '\n\nВложенные файлы и папки тоже попадут в корзину.';
+        }
+        if (!window.confirm(msg)) return;
+
+        // Отправляем по одному
+        (async () => {
+            for (const row of selected) {
+                const id = parseInt(row.dataset.id, 10);
+                try {
+                    await fetch('/api/trash/' + id, {
+                        method: 'POST',
+                        headers: {'X-CSRFToken': csrfToken},
+                    });
+                } catch (e) {
+                    console.error('trash error id=' + id, e);
+                }
+            }
+            window.location.reload();
+        })();
+    };
+
+    // ============= СОЗДАНИЕ ПАПКИ =============
+    const folderModal = document.getElementById('folderModal');
+    const folderInput = document.getElementById('folderNameInput');
+    const folderError = document.getElementById('folderError');
+
+    window.openFolderModal = function () {
+        folderError.textContent = '';
+        folderInput.value = '';
+        folderModal.classList.add('is-open');
+        setTimeout(() => folderInput.focus(), 50);
+    };
+    window.closeFolderModal = function () {
+        folderModal.classList.remove('is-open');
+    };
+    window.createFolder = async function () {
+        const name = folderInput.value.trim();
+        if (!name) {folderError.textContent = 'Введите имя папки'; return;}
+        folderError.textContent = '';
+        try {
+            const resp = await fetch('/api/folder', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+                body: JSON.stringify({name, parent_id: currentFolderId}),
+            });
+            const data = await resp.json();
+            if (!data.ok) {folderError.textContent = data.error || 'Ошибка'; return;}
+            window.location.reload();
+        } catch (e) {
+            folderError.textContent = 'Ошибка сети: ' + e.message;
+        }
+    };
+    folderInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {e.preventDefault(); createFolder();}
+        if (e.key === 'Escape') closeFolderModal();
+    });
+    folderModal.addEventListener('click', function (e) {
+        if (e.target === folderModal) closeFolderModal();
+    });
+
+    // ============= ПЕРЕИМЕНОВАНИЕ =============
+    const renameModal = document.getElementById('renameModal');
+    const renameInput = document.getElementById('renameNameInput');
+    const renameError = document.getElementById('renameError');
+    const renameCurrentName = document.getElementById('renameCurrentName');
+    let renameItemId = null;
+
+    window.openRenameModal = function (id, name, isFolder) {
+        renameItemId = id;
+        renameInput.value = name;
+        renameCurrentName.textContent = (isFolder ? '📁 ' : '📄 ') + name;
+        renameError.textContent = '';
+        renameModal.classList.add('is-open');
+        setTimeout(() => {renameInput.focus(); renameInput.select();}, 50);
+    };
+    window.closeRenameModal = function () {
+        renameModal.classList.remove('is-open');
+        renameItemId = null;
+    };
+    window.performRename = async function () {
+        if (renameItemId === null) return;
+        const newName = renameInput.value.trim();
+        if (!newName) {renameError.textContent = 'Введите имя'; return;}
+        renameError.textContent = '';
+        try {
+            const resp = await fetch('/api/rename/' + renameItemId, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+                body: JSON.stringify({name: newName}),
+            });
+            const data = await resp.json();
+            if (!data.ok) {renameError.textContent = data.error || 'Ошибка'; return;}
+            window.location.reload();
+        } catch (e) {
+            renameError.textContent = 'Ошибка сети: ' + e.message;
+        }
+    };
+    renameInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {e.preventDefault(); performRename();}
+        if (e.key === 'Escape') closeRenameModal();
+    });
+    renameModal.addEventListener('click', function (e) {
+        if (e.target === renameModal) closeRenameModal();
+    });
+
+    // ============= УДАЛЕНИЕ В КОРЗИНУ (одиночное, для строк) =============
+    window.trashItem = async function (id, name, isFolder) {
+        const kind = isFolder ? 'папку' : 'файл';
+        const message = isFolder
+            ? `Переместить папку «${name}» в корзину?\n\nВложенные файлы и папки тоже попадут в корзину.`
+            : `Переместить файл «${name}» в корзину?`;
+        if (!window.confirm(message)) return;
+        try {
+            const resp = await fetch('/api/trash/' + id, {
+                method: 'POST', headers: {'X-CSRFToken': csrfToken},
+            });
+            const data = await resp.json();
+            if (!data.ok) {alert('Ошибка: ' + (data.error || '')); return;}
+            window.location.reload();
+        } catch (e) {
+            alert('Ошибка сети: ' + e.message);
+        }
+    };
+
+    // ============= ЗАГРУЗКА ФАЙЛОВ =============
+    const fileInput = document.getElementById('fileInput');
+    const dropOverlay = document.getElementById('dropOverlay');
+    const uploadProgress = document.getElementById('uploadProgress');
+    const uploadFilesList = document.getElementById('uploadFilesList');
+
+    fileInput.addEventListener('change', function () {
+        if (fileInput.files.length > 0) uploadFiles(Array.from(fileInput.files));
+    });
+
+    let dragCounter = 0;
+    window.addEventListener('dragenter', function (e) {
+        if (e.dataTransfer && e.dataTransfer.types.includes('Files')) {
+            dragCounter++;
+            dropOverlay.classList.add('is-active');
+        }
+    });
+    window.addEventListener('dragover', function (e) {
+        if (e.dataTransfer && e.dataTransfer.types.includes('Files')) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+        }
+    });
+    window.addEventListener('dragleave', function () {
+        dragCounter--;
+        if (dragCounter <= 0) {
+            dragCounter = 0;
+            dropOverlay.classList.remove('is-active');
+        }
+    });
+    window.addEventListener('drop', function (e) {
+        if (e.dataTransfer && e.dataTransfer.files.length > 0) {
+            e.preventDefault();
+            dragCounter = 0;
+            dropOverlay.classList.remove('is-active');
+            uploadFiles(Array.from(e.dataTransfer.files));
+        }
+    });
+
+    async function uploadFiles(files) {
+        if (!files.length) return;
+        uploadProgress.classList.add('is-open');
+        uploadFilesList.innerHTML = files
+            .map(f => `<div class="file-item" data-name="${escapeHtml(f.name)}">⏳ ${escapeHtml(f.name)} (${formatSize(f.size)})</div>`)
+            .join('');
+
+        const fd = new FormData();
+        for (const f of files) fd.append('files', f);
+        if (currentFolderId !== null) fd.append('parent_id', currentFolderId);
+
+        try {
+            const resp = await fetch('/api/upload', {
+                method: 'POST', headers: {'X-CSRFToken': csrfToken}, body: fd,
+            });
+            const data = await resp.json();
+
+            if (data.uploaded) {
+                for (const up of data.uploaded) {
+                    const el = uploadFilesList.querySelector(`[data-name="${cssEscape(up.name)}"]`);
+                    if (el) {el.className = 'file-item done'; el.innerHTML = `✅ ${escapeHtml(up.name)} (${up.size_human})`;}
+                }
+            }
+            if (data.errors) {
+                for (const err of data.errors) {
+                    const el = uploadFilesList.querySelector(`[data-name="${cssEscape(err.name)}"]`);
+                    if (el) {el.className = 'file-item error'; el.innerHTML = `❌ ${escapeHtml(err.name)}: ${escapeHtml(err.error)}`;}
+                }
+            }
+
+            if (resp.ok && data.uploaded && data.uploaded.length > 0) {
+                setTimeout(() => window.location.reload(), 800);
+            } else {
+                setTimeout(() => uploadProgress.classList.remove('is-open'), 3000);
+            }
+            fileInput.value = '';
+        } catch (e) {
+            uploadFilesList.innerHTML = `<div class="file-item error">❌ Ошибка сети: ${escapeHtml(e.message)}</div>`;
+            setTimeout(() => uploadProgress.classList.remove('is-open'), 3000);
+        }
+    }
+
+    // ============= ШАРИНГ =============
+    const shareModal = document.getElementById('shareModal');
+    const shareLinkInput = document.getElementById('shareLinkInput');
+    const shareCurrentName = document.getElementById('shareCurrentName');
+    const shareSuccess = document.getElementById('shareSuccess');
+    let shareCurrentShareId = null;
+
+    window.openShareModal = async function (id, name, isFolder) {
+        shareCurrentShareId = null;
+        shareSuccess.textContent = '';
+        shareLinkInput.value = 'Загрузка…';
+        shareCurrentName.textContent = (isFolder ? '📁 ' : '📄 ') + name;
+        shareModal.classList.add('is-open');
+        try {
+            const resp = await fetch('/api/share/' + id, {
+                method: 'POST', headers: {'X-CSRFToken': csrfToken},
+            });
+            const data = await resp.json();
+            if (!data.ok) {
+                shareLinkInput.value = '';
+                shareSuccess.style.color = 'var(--color-danger)';
+                shareSuccess.textContent = 'Ошибка: ' + (data.error || '');
+                return;
+            }
+            shareCurrentShareId = data.share.id;
+            shareLinkInput.value = data.share.url;
+        } catch (e) {
+            shareLinkInput.value = '';
+            shareSuccess.style.color = 'var(--color-danger)';
+            shareSuccess.textContent = 'Ошибка сети: ' + e.message;
+        }
+    };
+    window.closeShareModal = function () {
+        shareModal.classList.remove('is-open');
+        shareCurrentShareId = null;
+        shareSuccess.textContent = '';
+    };
+    window.copyShareLink = async function () {
+        const url = shareLinkInput.value;
+        if (!url || url === 'Загрузка…') return;
+        try {
+            await navigator.clipboard.writeText(url);
+            shareSuccess.style.color = 'var(--color-success)';
+            shareSuccess.textContent = '✓ Ссылка скопирована';
+        } catch (e) {
+            shareLinkInput.select();
+            document.execCommand('copy');
+            shareSuccess.style.color = 'var(--color-success)';
+            shareSuccess.textContent = '✓ Скопировано';
+        }
+        setTimeout(() => {shareSuccess.textContent = '';}, 2500);
+    };
+    window.revokeShareLink = async function () {
+        if (!shareCurrentShareId) return;
+        if (!window.confirm('Отозвать ссылку?\n\nВсе, у кого она есть, потеряют доступ.')) return;
+        try {
+            const resp = await fetch('/api/share/revoke/' + shareCurrentShareId, {
+                method: 'POST', headers: {'X-CSRFToken': csrfToken},
+            });
+            const data = await resp.json();
+            if (!data.ok) {alert('Ошибка: ' + (data.error || '')); return;}
+            shareSuccess.style.color = 'var(--color-success)';
+            shareSuccess.textContent = '✓ Ссылка отозвана';
+            shareLinkInput.value = '';
+            shareCurrentShareId = null;
+        } catch (e) {
+            alert('Ошибка сети: ' + e.message);
+        }
+    };
+    shareModal.addEventListener('click', function (e) {
+        if (e.target === shareModal) closeShareModal();
+    });
+
+    // ============= УТИЛИТЫ =============
+    function formatSize(bytes) {
+        if (bytes < 1024) return bytes + ' Б';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' КБ';
+        return (bytes / 1024 / 1024).toFixed(1) + ' МБ';
+    }
+    function escapeHtml(s) {
+        const div = document.createElement('div');
+        div.textContent = s;
+        return div.innerHTML;
+    }
+    function cssEscape(s) {
+        return s.replace(/(["\\])/g, '\\$1');
+    }
+
+    // ============= ПЕРЕМЕСТИТЬ В… =============
+    const moveModal = document.getElementById('moveModal');
+    const moveTree = document.getElementById('moveTree');
+    const moveItemsList = document.getElementById('moveItemsList');
+    const moveError = document.getElementById('moveError');
+    const moveConfirmBtn = document.getElementById('moveConfirmBtn');
+
+    let moveSelectedItems = [];   // [{id, name, isFolder}]
+    let moveSelectedTargetId = null;   // null = корень
+
+    window.moveSelected = function () {
+        const selected = getSelectedRows();
+        if (selected.length < 1) return;
+
+        moveSelectedItems = selected.map(row => ({
+            id: parseInt(row.dataset.id, 10),
+            name: row.dataset.name,
+            isFolder: row.dataset.isfolder === 'true',
+        }));
+        moveSelectedTargetId = null;
+
+        // Заполняем список перемещаемых
+        const count = moveSelectedItems.length;
+        moveItemsList.innerHTML = `
+            <div style="margin-bottom: 6px;">
+                Переместить ${count === 1 ? 'элемент' : count + ' элемента'}:
+            </div>
+            ${moveSelectedItems.map(it =>
+            `<div style="padding-left: 12px;">• ${escapeHtml(it.name)}</div>`
+        ).join('')}
+        `;
+
+        moveError.textContent = '';
+        moveModal.classList.add('is-open');
+        loadMoveTree();
+    };
+
+    window.closeMoveModal = function () {
+        moveModal.classList.remove('is-open');
+        moveSelectedItems = [];
+        moveSelectedTargetId = null;
+    };
+
+    function loadMoveTree() {
+        // Загружаем все папки (уже есть window.__folders после renderTree)
+        const folders = window.__folders || [];
+        renderMoveTree(folders);
+    }
+
+    function renderMoveTree(folders) {
+        // Простое дерево — все узлы раскрыты
+        const byParent = new Map();
+        folders.forEach(f => {
+            const key = f.parent_id === null ? '__root__' : f.parent_id;
+            if (!byParent.has(key)) byParent.set(key, []);
+            byParent.get(key).push(f);
+        });
+        for (const arr of byParent.values()) {
+            arr.sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+        }
+
+        // Запрещаем выбирать сами перемещаемые папки и их потомков
+        const forbiddenIds = new Set();
+        const addDescendants = (folderId) => {
+            forbiddenIds.add(folderId);
+            const children = byParent.get(folderId) || [];
+            for (const c of children) {
+                addDescendants(c.id);
+            }
+        };
+        moveSelectedItems.forEach(it => {
+            if (it.isFolder) {
+                addDescendants(it.id);
+            }
+        });
+
+        const html = [];
+
+        // Корень — всегда первый
+        html.push(`
+            <div class="move-tree-node ${moveSelectedTargetId === null ? 'is-selected' : ''}"
+                 onclick="selectMoveTarget('root', event)">
+                <i class="bi bi-hdd-fill"></i>
+                <span class="node-name">Мой диск</span>
+            </div>
+        `);
+
+        const renderNodes = (parentKey, depth) => {
+            const children = byParent.get(parentKey) || [];
+            for (const node of children) {
+                const isForbidden = forbiddenIds.has(node.id);
+                const isSelected = node.id === moveSelectedTargetId;
+                const indent = 16 + depth * 16;
+
+                html.push(`
+                    <div class="move-tree-node ${isSelected ? 'is-selected' : ''} ${isForbidden ? 'is-disabled' : ''}"
+                         style="padding-left: ${indent}px; ${isForbidden ? 'opacity: 0.4; cursor: not-allowed;' : ''}"
+                         onclick="${isForbidden ? '' : `selectMoveTarget(${node.id}, event)`}">
+                        <i class="bi bi-folder-fill"></i>
+                        <span class="node-name">${escapeHtml(node.name)}</span>
+                    </div>
+                `);
+
+                renderNodes(node.id, depth + 1);
+            }
+        };
+
+        renderNodes('__root__', 0);
+
+        moveTree.innerHTML = html.join('');
+    }
+
+    window.selectMoveTarget = function (idOrRoot, event) {
+        moveSelectedTargetId = idOrRoot === 'root' ? null : idOrRoot;
+        moveError.textContent = '';
+
+        // Обновляем выделение
+        moveTree.querySelectorAll('.move-tree-node').forEach(el => {
+            el.classList.remove('is-selected');
+        });
+        if (event && event.currentTarget) {
+            event.currentTarget.classList.add('is-selected');
+        }
+
+        // Активируем кнопку
+        moveConfirmBtn.disabled = false;
+    };
+
+    window.confirmMove = async function () {
+        if (moveSelectedItems.length < 1) return;
+        if (moveSelectedTargetId === undefined) return;
+
+        const itemIds = moveSelectedItems.map(it => it.id);
+
+        try {
+            const resp = await fetch('/api/move', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify({
+                    item_ids: itemIds,
+                    new_parent_id: moveSelectedTargetId,
+                }),
+            });
+
+            const data = await resp.json();
+
+            if (!data.ok) {
+                moveError.textContent = data.error || 'Ошибка перемещения';
+                return;
+            }
+
+            if (data.errors && data.errors.length > 0) {
+                moveError.textContent = data.errors.map(e => e.error).join('; ');
+                return;
+            }
+
+            window.location.reload();
+
+        } catch (e) {
+            moveError.textContent = 'Ошибка сети: ' + e.message;
+        }
+    };
+
+    // Клик по фону = закрыть
+    moveModal.addEventListener('click', function (e) {
+        if (e.target === moveModal) closeMoveModal();
+    });
+
+}) ();
+</script>
+{% endblock %}

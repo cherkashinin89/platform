@@ -1,0 +1,313 @@
+{% extends 'base_cloud.html' %}
+
+{% block title %}MyCloud — Мои ссылки{% endblock %}
+
+{% block head %}
+<style>
+    .page-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: var(--space-md);
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .page-title h2 {
+        margin: 0;
+        font-size: 1.3rem;
+        color: var(--color-text);
+    }
+
+    .btn-back {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #fff;
+        color: var(--color-primary);
+        border: 2px solid var(--color-primary);
+        padding: 8px 16px;
+        border-radius: var(--radius-sm);
+        font-size: 0.9rem;
+        font-weight: 500;
+        text-decoration: none;
+        transition: all var(--transition-base);
+    }
+
+    .btn-back:hover {
+        background: var(--color-primary);
+        color: #fff;
+    }
+
+    .items-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: var(--color-card-bg);
+        border-radius: var(--radius-md);
+        overflow: hidden;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .items-table th {
+        background: var(--color-bg-alt);
+        text-align: left;
+        padding: 12px 16px;
+        font-weight: 600;
+        border-bottom: 1px solid var(--color-border);
+        font-size: 0.9rem;
+    }
+
+    .items-table td {
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--color-bg-alt);
+        font-size: 0.95rem;
+    }
+
+    .items-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .items-table tr:hover td {
+        background: var(--color-primary-soft);
+    }
+
+    .item-icon {
+        font-size: 1.1rem;
+        margin-right: 6px;
+    }
+
+    .item-icon.folder {
+        color: var(--color-primary);
+    }
+
+    .item-icon.file {
+        color: var(--color-text-muted);
+    }
+
+    .item-link {
+        color: var(--color-text);
+        text-decoration: none;
+    }
+
+    .item-link:hover {
+        color: var(--color-primary);
+    }
+
+    .token-code {
+        font-family: var(--font-mono);
+        font-size: 0.85rem;
+        color: var(--color-text-muted);
+        background: var(--color-bg-alt);
+        padding: 3px 8px;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+    }
+
+    .token-code:hover {
+        background: #e9ecef;
+        color: var(--color-text);
+    }
+
+    .btn-icon-action {
+        background: transparent;
+        border: 1px solid var(--color-border);
+        color: var(--color-text-muted);
+        width: 32px;
+        height: 32px;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        font-size: 0.9rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all var(--transition-fast);
+        text-decoration: none;
+    }
+
+    .btn-icon-action:hover {
+        border-color: var(--color-primary);
+        color: var(--color-primary);
+        background: var(--color-primary-soft);
+    }
+
+    .btn-icon-action.btn-copy:hover {
+        border-color: #0d6efd;
+        color: #0d6efd;
+        background: #cfe2ff;
+    }
+
+    .btn-icon-action.btn-open:hover {
+        border-color: var(--color-success);
+        color: var(--color-success);
+        background: #d1e7dd;
+    }
+
+    .btn-icon-action.btn-revoke:hover {
+        border-color: var(--color-danger);
+        color: var(--color-danger);
+        background: #f8d7da;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        background: var(--color-bg-alt);
+        border-radius: var(--radius-md);
+        color: var(--color-text-muted);
+    }
+
+    .empty-state h3 {
+        color: var(--color-text);
+        margin-bottom: 8px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-title">
+    <h2>🔗 Мои ссылки</h2>
+    <a href="{{ url_for('index') }}" class="btn-back">← К файлам</a>
+</div>
+
+{% if shares %}
+<table class="items-table">
+    <thead>
+        <tr>
+            <th>Файл / папка</th>
+            <th>Токен</th>
+            <th style="width: 150px;">Создана</th>
+            <th style="width: 110px;">Скачиваний</th>
+            <th style="width: 130px;">Действия</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for s in shares %}
+        <tr>
+            <td>
+                {% if s.file.is_folder %}
+                <span class="item-icon folder"><i class="bi bi-folder-fill"></i></span>
+                {% else %}
+                {% set icon_class, icon_color = s.file.name | icon_for_file() %}
+                <span class="item-icon file" style="color: {{ icon_color }};"><i class="bi {{ icon_class }}"></i></span>
+                {% endif %}
+                <a href="/s/{{ s.token }}" target="_blank" class="item-link">{{ s.file.name }}</a>
+                <a href="/s/{{ s.token }}" target="_blank" class="item-link">{{ s.file.name }}</a>
+            </td>
+            <td>
+                <span class="token-code" onclick="copyToClipboard('{{ s.token }}')"
+                    title="Кликните, чтобы скопировать полную ссылку">
+                    /s/{{ s.token[:12] }}…
+                </span>
+            </td>
+            <td>
+                {% if s.created_at %}
+                {{ s.created_at.strftime('%d.%m.%Y %H:%M') }}
+                {% else %}—{% endif %}
+            </td>
+            <td>
+                {{ s.download_count or 0 }}
+                {% if s.max_downloads %}
+                <span style="color: var(--color-text-light);">/ {{ s.max_downloads }}</span>
+                {% endif %}
+            </td>
+            <td style="display: flex; gap: 6px;">
+                <button class="btn-icon-action btn-copy" onclick="copyToClipboard('{{ s.token }}')"
+                    title="Скопировать ссылку">📋</button>
+                <a href="/s/{{ s.token }}" target="_blank" class="btn-icon-action btn-open"
+                    title="Открыть в новой вкладке">↗️</a>
+                <button class="btn-icon-action btn-revoke" onclick="revokeShare({{ s.id }}, '{{ s.file.name | e }}')"
+                    title="Отозвать">🗑️</button>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div style="margin-top: 16px; font-size: 0.85rem; color: var(--color-text-muted); text-align: center;">
+    Всего ссылок: <strong>{{ shares|length }}</strong>
+</div>
+{% else %}
+<div class="empty-state">
+    <h3>Ссылок пока нет</h3>
+    <p>Поделитесь файлом или папкой — они появятся здесь.</p>
+    <a href="{{ url_for('index') }}" class="btn-back" style="margin-top: 16px;">← Вернуться к файлам</a>
+</div>
+{% endif %}
+
+<meta name="csrf-token" content="{{ csrf_token() }}">
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    (function () {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+        const baseUrl = window.location.origin;
+
+        window.copyToClipboard = async function (token) {
+            const url = baseUrl + '/s/' + token;
+            try {
+                await navigator.clipboard.writeText(url);
+                showToast('✓ Ссылка скопирована');
+            } catch (e) {
+                const tmp = document.createElement('input');
+                tmp.value = url;
+                document.body.appendChild(tmp);
+                tmp.select();
+                document.execCommand('copy');
+                document.body.removeChild(tmp);
+                showToast('✓ Ссылка скопирована');
+            }
+        };
+
+        window.revokeShare = async function (shareId, name) {
+            if (!window.confirm(`Отозвать ссылку на «${name}»?\n\nВсе, у кого она есть, потеряют доступ.`)) return;
+            try {
+                const resp = await fetch('/api/share/revoke/' + shareId, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrfToken },
+                });
+                const data = await resp.json();
+                if (!data.ok) {
+                    alert('Ошибка: ' + (data.error || 'не удалось отозвать'));
+                    return;
+                }
+                window.location.reload();
+            } catch (e) {
+                alert('Ошибка сети: ' + e.message);
+            }
+        };
+
+        let toastTimer = null;
+        function showToast(message) {
+            let toast = document.getElementById('__toast');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = '__toast';
+                toast.style.cssText = `
+                position: fixed;
+                bottom: 24px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: var(--color-success);
+                color: white;
+                padding: 12px 24px;
+                border-radius: 8px;
+                font-size: 0.95rem;
+                box-shadow: var(--shadow-lg);
+                z-index: 9999;
+                opacity: 0;
+                transition: opacity 0.25s;
+                pointer-events: none;
+            `;
+                document.body.appendChild(toast);
+            }
+            toast.textContent = message;
+            toast.style.opacity = '1';
+            if (toastTimer) clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => { toast.style.opacity = '0'; }, 2000);
+        }
+    })();
+</script>
+{% endblock %}

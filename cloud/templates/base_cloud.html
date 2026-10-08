@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}MyCloud{% endblock %}</title>
+
+    {# === BOOTSTRAP 5 (локально, через Nginx-алиас) === #}
+    <link rel="stylesheet" href="/static/shared/vendor/bootstrap/bootstrap.min.css">
+
+    {# === ОБЩИЕ СТИЛИ ИЗ MYFRAMEWORK === #}
+    <link rel="stylesheet" href="/static/shared/vendor/bootstrap-icons/bootstrap-icons.css">
+    <link rel="stylesheet" href="/static/shared/css/style.css">
+
+    {% if site_settings and site_settings.active_theme %}
+    <link rel="stylesheet" href="/static/shared/themes/{{ site_settings.active_theme }}/style.css">
+    {% endif %}
+
+    {# === СВОИ СТИЛИ ОБЛАКА === #}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/cloud.css') }}">
+
+    {% block head %}{% endblock %}
+</head>
+
+<body>
+
+    {# ============================================================
+    ОБЩАЯ ШАПКА (partials/header.html)
+    Задаём переменные для корректной работы ссылок:
+    - header_is_cloud — флаг «мы в облаке»
+    - header_site_url — ссылка на главную сайта
+    - header_mail_url — ссылка на почту
+    - header_login_url / header_logout_url — абсолютные URL
+    (потому что логин и выход живут в myframework)
+    ============================================================ #}
+    {% set header_current = 'cloud' %}
+    {% set header_site_url = site_settings.site_base_url %}
+    {% set header_cloud_url = site_settings.cloud_base_url %}
+    {% set header_mail_url = site_settings.mail_base_url %}
+    {% set header_login_url = header_site_url ~ '/login' %}
+    {% set header_logout_url = header_site_url ~ '/logout' %}
+    {# Абсолютные ссылки на админку (для admin и editor) #}
+    {% set header_admin_url = header_site_url ~ '/admin/' %}
+    {% set header_admin_editor_url = header_site_url ~ '/admin/articles/' %}
+    {% include 'partials/header.html' %}
+
+    {# ============================================================
+    МЕНЮ ОБЛАКА (своё, не из myframework)
+    ============================================================ #}
+    <nav class="site-nav">
+        <div class="container">
+            <ul class="site-nav-list">
+                <li class="site-nav-item">
+                    <a href="{{ url_for('index') }}"
+                        class="site-nav-link {% if request.endpoint in ('index',) %}is-active{% endif %}">
+                        <i class="bi bi-folder2-open"></i> Мои файлы
+                    </a>
+                </li>
+                <li class="site-nav-item">
+                    <a href="{{ url_for('shares') }}"
+                        class="site-nav-link {% if request.endpoint == 'shares' %}is-active{% endif %}">
+                        <i class="bi bi-link-45deg"></i> Ссылки
+                    </a>
+                </li>
+                <li class="site-nav-item">
+                    <a href="{{ url_for('trash') }}"
+                        class="site-nav-link {% if request.endpoint == 'trash' %}is-active{% endif %}">
+                        <i class="bi bi-trash"></i> Корзина
+                        {% if quota and quota.trashed > 0 %}
+                        <span class="badge" style="background: var(--color-primary-soft);
+                                                    color: var(--color-primary-dark);
+                                                    padding: 2px 8px;
+                                                    border-radius: 10px;
+                                                    font-size: 0.75rem;
+                                                    margin-left: 6px;">
+                            {{ quota.trashed | format_bytes }}
+                        </span>
+                        {% endif %}
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    {# ============================================================
+    КОНТЕНТ СТРАНИЦЫ
+    ============================================================ #}
+    <main class="container my-4">
+        {% block content %}{% endblock %}
+    </main>
+
+    {# === BOOTSTRAP JS (bundle — с Popper) === #}
+    <script src="/static/shared/vendor/bootstrap/bootstrap.bundle.min.js"></script>
+
+    {# === СКРИПТЫ СТРАНИЦЫ === #}
+    {% block scripts %}{% endblock %}
+
+</body>
+
+</html>

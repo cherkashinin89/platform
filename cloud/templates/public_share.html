@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ item.name }} — MyCloud</title>
+
+    <link rel="stylesheet" href="/static/shared/vendor/bootstrap/bootstrap.min.css">
+    <link rel="stylesheet" href="/static/shared/vendor/bootstrap-icons/bootstrap-icons.css">
+    <link rel="stylesheet" href="/static/shared/css/style.css">
+    {% if site_settings and site_settings.active_theme %}
+    <link rel="stylesheet" href="/static/shared/themes/{{ site_settings.active_theme }}/style.css">
+    {% endif %}
+
+    <style>
+        body {
+            font-family: var(--font-base);
+            background: var(--color-bg-alt);
+            min-height: 100vh;
+            margin: 0;
+            padding: 40px 20px;
+            color: var(--color-text);
+        }
+        .share-container { max-width: 800px; margin: 0 auto; }
+        .share-header { text-align: center; margin-bottom: 24px; }
+        .share-header h1 { color: var(--color-text); margin: 0 0 8px 0; font-size: 1.8rem; }
+        .share-header .meta { color: var(--color-text-muted); font-size: 0.9rem; }
+
+        .share-card {
+            background: var(--color-card-bg);
+            border-radius: var(--radius-md);
+            padding: 32px;
+            box-shadow: var(--shadow-md);
+        }
+
+        /* === ФАЙЛ === */
+        .file-big {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+        .file-big .icon {
+            font-size: 3rem;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+        .file-big .info { flex: 1; min-width: 0; }
+        .file-big .name {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--color-text);
+            word-break: break-all;
+        }
+        .file-big .size {
+            color: var(--color-text-muted);
+            font-size: 0.9rem;
+            margin-top: 4px;
+        }
+        .btn-download {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--color-primary);
+            color: #fff;
+            padding: 14px 32px;
+            border-radius: var(--radius-md);
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: background var(--transition-base);
+            border: none;
+            cursor: pointer;
+        }
+        .btn-download:hover {
+            background: var(--color-primary-hover);
+            color: #fff;
+        }
+
+        /* === ПАПКА === */
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 8px;
+        }
+        .items-table th {
+            text-align: left;
+            padding: 12px 16px;
+            font-weight: 600;
+            border-bottom: 1px solid var(--color-border);
+            font-size: 0.9rem;
+            color: var(--color-text-muted);
+        }
+        .items-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--color-bg-alt);
+        }
+        .items-table tr:last-child td { border-bottom: none; }
+        .items-table tr:hover td { background: var(--color-primary-soft); }
+
+        .item-link {
+            color: var(--color-text);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .item-link:hover { color: var(--color-primary); }
+
+        .item-icon { font-size: 1.15rem; }
+        .item-icon.folder { color: var(--color-primary); }
+
+        .download-btn-sm {
+            background: transparent;
+            border: 1px solid var(--color-border);
+            color: var(--color-text-muted);
+            width: 32px;
+            height: 32px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--transition-fast);
+        }
+        .download-btn-sm:hover {
+            border-color: var(--color-primary);
+            color: var(--color-primary);
+            background: var(--color-primary-soft);
+        }
+
+        .breadcrumbs {
+            font-size: 0.95rem;
+            margin-bottom: 16px;
+            padding: 10px 16px;
+            background: var(--color-bg-alt);
+            border-radius: var(--radius-sm);
+        }
+        .breadcrumbs a { color: var(--color-primary); text-decoration: none; }
+        .breadcrumbs a:hover { text-decoration: underline; }
+        .breadcrumbs .sep { color: var(--color-text-light); margin: 0 6px; }
+        .breadcrumbs .current { color: var(--color-text); font-weight: 600; }
+
+        .empty-folder {
+            text-align: center;
+            padding: 40px;
+            color: var(--color-text-muted);
+        }
+        .empty-folder .icon {
+            font-size: 3rem;
+            margin-bottom: 12px;
+            color: var(--color-text-light);
+            opacity: 0.5;
+        }
+
+        .footer-brand {
+            text-align: center;
+            margin-top: 32px;
+            color: var(--color-text-light);
+            font-size: 0.85rem;
+        }
+        .footer-brand a { color: var(--color-primary); text-decoration: none; }
+        .footer-brand a:hover { text-decoration: underline; }
+
+        @media (max-width: 600px) {
+            .share-card { padding: 20px; }
+            .file-big .icon { font-size: 2rem; }
+            .file-big .name { font-size: 1.1rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="share-container">
+        <div class="share-header">
+            <h1>📦 Общий доступ</h1>
+            <div class="meta">
+                Поделился: <strong>{{ share.created_by.username }}</strong>
+                • {{ share.created_at.strftime('%d.%m.%Y') }}
+            </div>
+        </div>
+
+        <div class="share-card">
+            {% if not item.is_folder %}
+                {# === ОДИНОЧНЫЙ ФАЙЛ === #}
+                {% set icon_class, icon_color = item.name | icon_for_file() %}
+                <div class="file-big">
+                    <div class="icon" style="color: {{ icon_color }};">
+                        <i class="bi {{ icon_class }}"></i>
+                    </div>
+                    <div class="info">
+                        <div class="name">{{ item.name }}</div>
+                        <div class="size">
+                            {{ item.size_human() }}
+                            {% if item.mime_type %}• {{ item.mime_type }}{% endif %}
+                        </div>
+                    </div>
+                </div>
+                <a href="/s/{{ token }}/download" class="btn-download">
+                    <i class="bi bi-download"></i> Скачать
+                </a>
+            {% else %}
+                {# === ПАПКА === #}
+                {% if breadcrumbs %}
+                <div class="breadcrumbs">
+                    {% for crumb in breadcrumbs %}
+                        {% if not loop.last %}
+                            <a href="{{ crumb.url }}"><i class="bi bi-folder-fill"></i> {{ crumb.name }}</a>
+                            <span class="sep">›</span>
+                        {% else %}
+                            <span class="current"><i class="bi bi-folder-fill"></i> {{ crumb.name }}</span>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if items %}
+                <table class="items-table">
+                    <thead>
+                        <tr>
+                            <th>Имя</th>
+                            <th style="width: 120px;">Размер</th>
+                            <th style="width: 60px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for it in items %}
+                        <tr>
+                            <td>
+                                {% if it.is_folder %}
+                                    <a href="/s/{{ token }}?folder={{ it.id }}" class="item-link">
+                                        <span class="item-icon folder"><i class="bi bi-folder-fill"></i></span>{{ it.name }}
+                                    </a>
+                                {% else %}
+                                    {% set icon_class, icon_color = it.name | icon_for_file() %}
+                                    <span class="item-link" style="cursor: default;">
+                                        <span class="item-icon" style="color: {{ icon_color }};"><i class="bi {{ icon_class }}"></i></span>{{ it.name }}
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if not it.is_folder %}{{ it.size_human() }}{% else %}—{% endif %}
+                            </td>
+                            <td>
+                                {% if not it.is_folder %}
+                                <a href="/s/{{ token }}/download/{{ it.id }}"
+                                   class="download-btn-sm"
+                                   title="Скачать"><i class="bi bi-download"></i></a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="empty-folder">
+                    <div class="icon"><i class="bi bi-folder2-open"></i></div>
+                    <div>Папка пуста</div>
+                </div>
+                {% endif %}
+            {% endif %}
+        </div>
+
+        <div class="footer-brand">
+            Создано в <a href="{{ site_settings.cloud_base_url if site_settings else '#' }}">MyCloud</a>
+            • Ссылка действительна
+            {% if share.expires_at %}
+                до {{ share.expires_at.strftime('%d.%m.%Y') }}
+            {% else %}
+                бессрочно
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>
