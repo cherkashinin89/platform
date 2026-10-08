@@ -1,4 +1,4 @@
-# app.py - Основной файл приложения !! 
+# app.py - Основной файл приложения framework
 import os
 from datetime import datetime
 from flask import (
@@ -8,45 +8,48 @@ from flask import (
 from flask_login import (
     login_user, logout_user, login_required, current_user
 )
-from auth_utils import admin_required, editor_required, user_required, role_required
+from jinja2 import ChoiceLoader, FileSystemLoader
+
 from config import Config
-from extensions import db, login_manager, csrf, migrate
 from forms import (
     LoginForm, UserForm, ArticleForm, PageForm, MenuItemForm,
     UploadFileForm, ArchiveForm, AlbumForm, AlbumPhotosForm,
     SiteSettingsForm
 )
-from file_utils import (
-    get_file_type, guess_mime, make_stored_name,
-    human_size, create_archive
+from search_service import (
+    search_all, search_articles, search_pages, search_files, highlight
 )
-from image_utils import (
-    can_thumbnail, thumbnail_name_for, create_thumbnail
-)
-from system_stats import get_system_stats
-from dotenv import load_dotenv
-load_dotenv()
-from backup_utils import (
-    is_mounted, get_disk_info, create_full_backup, list_backups,
-    mount_disk, unmount_disk, sync_buffers
-)
-from models import (
+
+# === Общий пакет core ===
+from core.auth import admin_required, editor_required, user_required, role_required
+from core.extensions import db, login_manager, csrf, migrate
+from core.models import (
     User, Article, Page, MenuItem, UploadedFile,
     Album, Photo, SiteSettings, CloudFile, CloudShare,
     FileUsage, AuditLog,
 )
-from search_service import (
-    search_all, search_articles, search_pages, search_files, highlight
+from core.file_utils import (
+    get_file_type, guess_mime, make_stored_name,
+    human_size, create_archive
 )
-from slug_utils import slugify, unique_slug
-from cloud_utils import (
+from core.image_utils import (
+    can_thumbnail, thumbnail_name_for, create_thumbnail
+)
+from core.system_stats import get_system_stats
+from core.backup_utils import (
+    is_mounted, get_disk_info, create_full_backup, list_backups,
+    mount_disk, unmount_disk, sync_buffers
+)
+from core.slug_utils import slugify, unique_slug
+from core.cloud_utils import (
     get_cloud_file, get_cloud_path, media_url,
     list_cloud_files, user_used_bytes,
 )
-from content_service import (
+from core.content_service import (
     register_file_usages, unregister_file_usages,
     register_album_photos, check_file_usage, find_unused_files,
 )
+from core.files_icons import format_bytes, icon_for_file, icon_for_folder
 
 # === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
 
@@ -214,14 +217,29 @@ def create_app(config_class=Config):
     app.config.from_object(config_class)
     app.config['TEMPLATES_AUTO_RELOAD'] = True
 
+    # === Подключаем шаблоны core (общие) + локальные ===
+    # Flask ищет шаблоны в нескольких папках по порядку:
+    #   1. framework/templates/  (приоритет)
+    #   2. core/templates/       (общие)
+    core_templates = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), '..', 'core', 'templates'
+    )
+    app.jinja_loader = ChoiceLoader([
+        app.jinja_loader,                                       # framework/templates/
+        FileSystemLoader(core_templates),                       # core/templates/
+    ])
+
     # Инициализация расширений
     db.init_app(app)
     login_manager.init_app(app)
     csrf.init_app(app)
     migrate.init_app(app, db)
 
-    # Фильтр Jinja для размеров файлов
+    # Фильтры Jinja
     app.jinja_env.filters['human_size_bytes'] = human_size
+    app.jinja_env.filters['format_bytes'] = format_bytes
+    app.jinja_env.filters['icon_for_file'] = icon_for_file
+    app.jinja_env.filters['icon_for_folder'] = icon_for_folder
 
     # Загрузчик пользователя для Flask-Login
     @login_manager.user_loader
