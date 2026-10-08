@@ -1,0 +1,28 @@
+[Unit]
+Description=Platform Framework (сайт + админка)
+After=network.target
+
+[Service]
+Type=notify
+User=__SERVICE_USER__
+Group=__SERVICE_USER__
+WorkingDirectory=/home/deploy/apps/platform/framework
+EnvironmentFile=/home/deploy/apps/platform/.env
+
+ExecStart=/home/deploy/apps/platform/framework/venv/bin/gunicorn \
+    --workers 2 \
+    --bind 127.0.0.1:5000 \
+    --access-logfile - \
+    --error-logfile - \
+    --timeout 120 \
+    wsgi:application
+
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=always
+RestartSec=5
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

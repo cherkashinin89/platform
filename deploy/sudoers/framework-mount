@@ -1,0 +1,4 @@
+__SERVICE_USER__ ALL=(root) NOPASSWD: /usr/bin/mount /mnt/backup
+__SERVICE_USER__ ALL=(root) NOPASSWD: /usr/bin/umount /mnt/backup
+__SERVICE_USER__ ALL=(root) NOPASSWD: /usr/bin/sync
+__SERVICE_USER__ ALL=(root) NOPASSWD: /usr/bin/mountpoint -q /mnt/backup

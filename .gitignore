@@ -77,5 +77,3 @@ framework/migrations/versions_old/
 **/*.bak
 **/*.bak_*
 **/*.html.html
-framework/deploy/
-cloud/deploy/
