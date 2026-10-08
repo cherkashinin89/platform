@@ -1,6 +1,3 @@
-cd /home/deploy/apps/platform/core
-
-cat > models.py << 'MODELS_EOF'
 # core/models.py - Модели базы данных (общие для всей экосистемы)
 #
 # Единый источник правды: User, Article, Page, MenuItem, UploadedFile,
@@ -503,4 +500,3 @@ class AuditLog(db.Model):
 
     def __repr__(self):
         return f'<AuditLog {self.action} by user={self.user_id} at {self.created_at}>'
-MODELS_EOF
