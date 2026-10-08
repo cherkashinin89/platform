@@ -1,0 +1,72 @@
+# ============================================================
+# Монорепо platform — глобальный .gitignore
+# ============================================================
+
+# --- Секреты (никогда не коммитим) ---
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# --- Виртуальные окружения ---
+venv/
+.venv/
+env/
+ENV/
+**/venv/
+**/.venv/
+
+# --- IDE / редакторы ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# --- ОС ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Логи ---
+*.log
+logs/
+
+# --- Базы данных (SQLite как резерв, больше не используется) ---
+*.db
+*.sqlite
+*.sqlite3
+
+# --- Пользовательские файлы (не в git) ---
+framework/uploads/
+framework/archives/
+cloud/cloud_data/
+
+# --- Кеши и временное ---
+.cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# --- GitHub tokens (безопасность) ---
+ghp_*
+github_pat_*
+
+# --- Личные заметки ---
+notes/
+TODO.local
+*.local
