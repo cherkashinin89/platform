@@ -11,7 +11,7 @@ from wtforms.validators import (
 from flask_wtf.file import FileField, FileRequired, FileAllowed
 from datetime import date
 
-from models import User   # ← нужен для User.ROLE_CHOICES
+from core.models import User   # ← нужен для User.ROLE_CHOICES
 
 
 # === АУТЕНТИФИКАЦИЯ ===

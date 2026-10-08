@@ -5,7 +5,7 @@ from jinja2 import Environment, FileSystemLoader, TemplateSyntaxError
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), 'templates')
 env = Environment(loader=FileSystemLoader(TEMPLATE_DIR))
 # Регистрируем фильтр, чтобы не ругался на files.html
-from file_utils import human_size
+from core.file_utils import human_size
 env.filters['human_size_bytes'] = human_size
 
 # Заглушки для Flask-специфичных функций

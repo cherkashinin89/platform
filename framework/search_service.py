@@ -13,7 +13,8 @@
 import re
 from html import unescape
 from markupsafe import Markup, escape
-from models import Article, Page, UploadedFile, Photo, Album
+from core.extensions import db
+from core.models import Article, Page, UploadedFile, Photo, Album
 
 
 # =============================================================
