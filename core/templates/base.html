@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>{% block title %}{{ site_settings.site_title if site_settings else 'Платформа' }}{% endblock %}</title>
+
+    {% block head_meta %}
+    {% if site_settings and site_settings.site_description %}
+    <meta name="description" content="{{ site_settings.site_description }}">
+    {% endif %}
+    {% if site_settings and site_settings.site_keywords %}
+    <meta name="keywords" content="{{ site_settings.site_keywords }}">
+    {% endif %}
+    {% endblock %}
+
+    {% block head_favicon %}
+    {% if site_settings and site_settings.favicon_file %}
+    <link rel="icon" type="image/x-icon"
+        href="{{ url_for('uploaded_file', filename=site_settings.favicon_file.stored_name) }}">
+    {% endif %}
+    {% endblock %}
+
+    {# === ОБЩИЕ CSS из core/static (через Nginx-алиас /static/shared/) === #}
+    {% block head_css %}
+    <link href="/static/shared/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/shared/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
+    {% if site_settings and site_settings.active_theme %}
+    <link rel="stylesheet" href="/static/shared/themes/{{ site_settings.active_theme }}/style.css">
+    {% endif %}
+    <link rel="stylesheet" href="/static/shared/css/style.css">
+    {% endblock %}
+
+    {# === Дополнительные CSS проекта === #}
+    {% block head_extra %}{% endblock %}
+</head>
+
+<body class="d-flex flex-column min-vh-100">
+    <div class="d-flex flex-column flex-grow-1">
+
+        {# === ПАРАМЕТРЫ ШАПКИ (проект может переопределить) === #}
+        {% block header_vars %}
+        {% set header_current = 'site' %}
+        {% set header_site_url = site_settings.site_base_url if site_settings else '' %}
+        {% set header_cloud_url = site_settings.cloud_base_url if site_settings else '' %}
+        {% set header_mail_url = site_settings.mail_base_url if site_settings else '' %}
+        {% set header_login_url = url_for('login') %}
+        {% set header_logout_url = url_for('logout') %}
+        {% set header_admin_url = '' %}
+        {% set header_admin_editor_url = '' %}
+        {% endblock %}
+
+        {# === ОБЩАЯ ШАПКА === #}
+        {% include 'partials/header.html' %}
+
+        {# === FLASH-СООБЩЕНИЯ === #}
+        {% block flash %}
+        <div class="container mt-3">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endfor %}
+            {% endif %}
+            {% endwith %}
+        </div>
+        {% endblock %}
+
+        {# === ОСНОВНОЙ КОНТЕНТ (layout проекта) === #}
+        {% block body_layout %}
+        <div class="container my-4 flex-grow-1">
+            {% block content %}{% endblock %}
+        </div>
+        {% endblock %}
+
+    </div>
+
+    {# === ОБЩИЙ ПОДВАЛ === #}
+    {% block footer %}
+    {% if not site_settings or site_settings.show_footer %}
+    <footer class="site-footer">
+        <div class="container">
+            <div class="row gy-4">
+
+                {# Колонка 1: о сайте #}
+                <div class="col-md-5">
+                    <h5 class="footer-title">
+                        {{ site_settings.site_title if site_settings else 'Платформа' }}
+                    </h5>
+                    {% if site_settings and site_settings.site_subtitle %}
+                    <p class="footer-text">{{ site_settings.site_subtitle }}</p>
+                    {% else %}
+                    <p class="footer-text">
+                        Современная платформа: сайт, облако и почта.
+                    </p>
+                    {% endif %}
+                </div>
+
+                {# Колонка 2: разделы #}
+                <div class="col-md-3">
+                    <h5 class="footer-title">Разделы</h5>
+                    <ul class="footer-list">
+                        {% block footer_links %}
+                        <li><a href="{{ site_settings.site_base_url if site_settings else '/' }}">Сайт</a></li>
+                        <li><a href="{{ site_settings.cloud_base_url if site_settings else '#' }}">Облако</a></li>
+                        <li><a href="{{ site_settings.mail_base_url if site_settings else '#' }}">Почта</a></li>
+                        {% endblock %}
+                    </ul>
+                </div>
+
+                {# Колонка 3: контакты #}
+                <div class="col-md-4">
+                    <h5 class="footer-title">Контакты</h5>
+                    <ul class="footer-list">
+                        <li>
+                            <i class="bi bi-envelope"></i>
+                            <a href="mailto:info@example.com">info@example.com</a>
+                        </li>
+                        <li>
+                            <i class="bi bi-telephone"></i>
+                            <span>+7 (900) 000-00-00</span>
+                        </li>
+                        <li>
+                            <i class="bi bi-geo-alt"></i>
+                            <span>Москва, Россия</span>
+                        </li>
+                    </ul>
+
+                    <div class="footer-social">
+                        <a href="#" title="Telegram"><i class="bi bi-telegram"></i></a>
+                        <a href="#" title="VK"><i class="bi bi-chat-dots-fill"></i></a>
+                        <a href="#" title="YouTube"><i class="bi bi-youtube"></i></a>
+                        <a href="#" title="Email"><i class="bi bi-envelope-fill"></i></a>
+                    </div>
+                </div>
+
+            </div>
+
+            {# Нижняя полоса #}
+            <div class="footer-bottom">
+                <span>
+                    &copy; {{ site_settings.site_title if site_settings else 'Платформа' }}
+                    {{ now().year if now is defined else '2026' }}.
+                </span>
+                <span class="footer-links-bottom">
+                    <a href="#">Политика конфиденциальности</a>
+                    <a href="#">Обратная связь</a>
+                </span>
+            </div>
+        </div>
+    </footer>
+    {% endif %}
+    {% endblock %}
+
+    {# === BOOTSTRAP JS (bundle — с Popper) === #}
+    <script src="/static/shared/vendor/bootstrap/bootstrap.bundle.min.js"></script>
+
+    {# === LIGHTBOX (общий — работает на всех сервисах) === #}
+    {% block lightbox %}
+    <div class="lightbox" id="lightbox" aria-hidden="true">
+        <button class="lightbox-close" id="lightboxClose" aria-label="Закрыть">
+            <i class="bi bi-x-lg"></i>
+        </button>
+        <button class="lightbox-nav lightbox-prev" id="lightboxPrev" aria-label="Предыдущее">
+            <i class="bi bi-chevron-left"></i>
+        </button>
+        <button class="lightbox-nav lightbox-next" id="lightboxNext" aria-label="Следующее">
+            <i class="bi bi-chevron-right"></i>
+        </button>
+        <div class="lightbox-content" id="lightboxContent">
+            <img id="lightboxImage" src="" alt="">
+        </div>
+        <div class="lightbox-counter" id="lightboxCounter"></div>
+    </div>
+
+    <script>
+        (function () {
+            const lightbox = document.getElementById('lightbox');
+            const lightboxImage = document.getElementById('lightboxImage');
+            const lightboxCounter = document.getElementById('lightboxCounter');
+            const btnClose = document.getElementById('lightboxClose');
+            const btnPrev = document.getElementById('lightboxPrev');
+            const btnNext = document.getElementById('lightboxNext');
+            const content = document.getElementById('lightboxContent');
+
+            if (!lightbox) return;
+
+            let images = [];
+            let currentIndex = 0;
+
+            function collectImages() {
+                let explicit = Array.from(document.querySelectorAll('img[data-lightbox]'));
+                let inContent = Array.from(document.querySelectorAll(
+                    '.article-content img, .page-content img'
+                )).filter(img => !img.hasAttribute('data-lightbox'));
+                inContent.forEach(img => img.setAttribute('data-lightbox', 'auto'));
+                images = [...explicit, ...inContent];
+            }
+
+            function openLightbox(index) {
+                if (!images.length) return;
+                currentIndex = index;
+                updateImage();
+                lightbox.classList.add('is-open');
+                lightbox.setAttribute('aria-hidden', 'false');
+                document.body.style.overflow = 'hidden';
+            }
+
+            function closeLightbox() {
+                lightbox.classList.remove('is-open');
+                lightbox.setAttribute('aria-hidden', 'true');
+                document.body.style.overflow = '';
+                setTimeout(() => {
+                    if (!lightbox.classList.contains('is-open')) {
+                        lightboxImage.src = '';
+                    }
+                }, 320);
+            }
+
+            function updateImage() {
+                const img = images[currentIndex];
+                if (!img) return;
+                const fullSrc = img.dataset.full || img.src;
+                lightboxImage.src = fullSrc;
+                lightboxImage.alt = img.alt || '';
+                if (images.length > 1) {
+                    lightbox.classList.remove('single-image');
+                    lightboxCounter.textContent = `${currentIndex + 1} / ${images.length}`;
+                } else {
+                    lightbox.classList.add('single-image');
+                }
+            }
+
+            function showPrev() {
+                if (!images.length) return;
+                currentIndex = (currentIndex - 1 + images.length) % images.length;
+                updateImage();
+            }
+
+            function showNext() {
+                if (!images.length) return;
+                currentIndex = (currentIndex + 1) % images.length;
+                updateImage();
+            }
+
+            function initLightboxHandlers() {
+                collectImages();
+                images.forEach((img, idx) => {
+                    img.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        openLightbox(idx);
+                    });
+                });
+            }
+
+            btnClose.addEventListener('click', closeLightbox);
+            btnPrev.addEventListener('click', showPrev);
+            btnNext.addEventListener('click', showNext);
+
+            lightbox.addEventListener('click', function (e) {
+                if (e.target === lightbox) closeLightbox();
+            });
+
+            document.addEventListener('keydown', function (e) {
+                if (!lightbox.classList.contains('is-open')) return;
+                if (e.key === 'Escape') closeLightbox();
+                if (e.key === 'ArrowLeft') showPrev();
+                if (e.key === 'ArrowRight') showNext();
+            });
+
+            let touchStartX = 0;
+            content.addEventListener('touchstart', (e) => {
+                touchStartX = e.touches[0].clientX;
+            }, { passive: true });
+            content.addEventListener('touchend', (e) => {
+                const dx = e.changedTouches[0].clientX - touchStartX;
+                if (Math.abs(dx) > 50) {
+                    dx > 0 ? showPrev() : showNext();
+                }
+            });
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initLightboxHandlers);
+            } else {
+                initLightboxHandlers();
+            }
+        })();
+    </script>
+    {% endblock %}
+
+    {# === LOGIN-TOGGLE в шапке (раскрывающаяся форма) === #}
+    {% block login_toggle %}
+    <script>
+        (function () {
+            const toggleBtn = document.getElementById('loginToggle');
+            const form = document.getElementById('loginForm');
+            const eyeBtn = document.getElementById('togglePassword');
+            const passwordInput = document.getElementById('loginPassword');
+            const usernameInput = document.getElementById('loginUsername');
+
+            if (!toggleBtn || !form) return;
+
+            toggleBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                form.classList.toggle('is-open');
+                if (form.classList.contains('is-open')) {
+                    setTimeout(() => usernameInput?.focus(), 50);
+                }
+            });
+
+            if (eyeBtn && passwordInput) {
+                eyeBtn.addEventListener('click', function () {
+                    const isPassword = passwordInput.type === 'password';
+                    passwordInput.type = isPassword ? 'text' : 'password';
+                    const icon = eyeBtn.querySelector('i');
+                    if (icon) {
+                        icon.className = isPassword ? 'bi bi-eye-slash' : 'bi bi-eye';
+                    }
+                });
+            }
+
+            usernameInput?.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    passwordInput?.focus();
+                }
+            });
+
+            document.addEventListener('click', function (e) {
+                if (!form.classList.contains('is-open')) return;
+                if (form.contains(e.target) || toggleBtn.contains(e.target)) return;
+                form.classList.remove('is-open');
+            });
+
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape' && form.classList.contains('is-open')) {
+                    form.classList.remove('is-open');
+                    toggleBtn.focus();
+                }
+            });
+        })();
+    </script>
+    {% endblock %}
+
+    {# === Дополнительные скрипты проекта === #}
+    {% block scripts %}{% endblock %}
+
+</body>
+</html>
