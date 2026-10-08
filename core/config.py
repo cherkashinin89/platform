@@ -3,10 +3,13 @@
 # Общие настройки для всех сервисов (framework, cloud, mail).
 # Каждый проект наследует CoreConfig и переопределяет специфичное.
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
-# Загружаем .env из корня платформы
-load_dotenv()
+# Загружаем .env из корня platform/ (на 2 уровня вверх от core/)
+# core/config.py → core/ → platform/
+_platform_root = Path(__file__).resolve().parent.parent
+load_dotenv(_platform_root / '.env')
 
 
 class CoreConfig:
