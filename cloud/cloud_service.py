@@ -14,8 +14,8 @@ from flask import current_app
 from datetime import datetime
 from sqlalchemy import func
 
-from extensions import db
-from models import CloudFile, CloudShare, User
+from core.extensions import db
+from core.models import CloudFile, CloudShare, User
 
 
 

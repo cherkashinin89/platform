@@ -1,13 +1,12 @@
 # app.py - Облачное хранилище MyCloud
 import os
 from flask import Flask, render_template, redirect, url_for, flash, request, jsonify, send_file
+from jinja2 import ChoiceLoader, FileSystemLoader
 from flask_login import (
     login_required, current_user
 )
 
 from config import Config
-from extensions import db, login_manager, csrf, migrate
-from models import User, CloudFile, CloudShare, SiteSettings
 from cloud_service import (
     list_folder, get_folder, get_item, get_file,
     build_breadcrumbs, get_quota_info, get_trashed_bytes,
@@ -20,6 +19,8 @@ from cloud_service import (
     increment_share_download, get_all_folders, icon_for_file,
     icon_for_folder, move_item
 )
+from core.extensions import db, login_manager, csrf, migrate
+from core.models import User, CloudFile, CloudShare, SiteSettings
 
 # === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ШАРИНГА ===
 
@@ -76,6 +77,16 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
     app.config['TEMPLATES_AUTO_RELOAD'] = True
+
+    # === Подключаем шаблоны core (общие) + локальные ===
+    # Приоритет: cloud/templates/ → core/templates/
+    core_templates = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), '..', 'core', 'templates'
+    )
+    app.jinja_loader = ChoiceLoader([
+        app.jinja_loader,
+        FileSystemLoader(core_templates),
+    ])
 
     # === Jinja-фильтры ===
     # format_bytes доступен во всех шаблонах как | format_bytes
