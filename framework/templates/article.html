@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ article.title }} — {{ site_settings.site_title if site_settings else 'Мой Сайт' }}{% endblock %}
+
+{% block content %}
+
+<article class="article-detail">
+
+    {# === Хлебные крошки === #}
+    <nav aria-label="breadcrumb" class="article-breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item">
+            <a href="{{ url_for('articles_list') }}">
+                <i class="bi bi-file-text"></i> Статьи
+            </a>
+        </li>
+        <li class="breadcrumb-item active">{{ article.title }}</li>
+    </ol>
+</nav>
+
+    {# === Заголовок === #}
+    <h1 class="article-title">{{ article.title }}</h1>
+
+    {# === Метаданные === #}
+    <div class="article-meta">
+        <span class="article-meta-item">
+            <i class="bi bi-calendar3"></i>
+            {{ article.created_at.strftime('%d.%m.%Y %H:%M') }}
+        </span>
+
+        {% if article.updated_at and article.updated_at != article.created_at %}
+        <span class="article-meta-item">
+            <i class="bi bi-arrow-clockwise"></i>
+            Обновлено: {{ article.updated_at.strftime('%d.%m.%Y %H:%M') }}
+        </span>
+        {% endif %}
+
+        {% if article.authors %}
+        <span class="article-meta-item">
+            <i class="bi bi-person"></i>
+            {% for author in article.authors %}
+            {{ author.full_name or author.username }}{% if not loop.last %}, {% endif %}
+            {% endfor %}
+        </span>
+        {% endif %}
+    </div>
+
+    {# === Краткое описание === #}
+    {% if article.summary %}
+    <div class="article-summary">
+        <i class="bi bi-quote"></i>
+        {{ article.summary }}
+    </div>
+    {% endif %}
+
+    {# === Содержимое === #}
+    <div class="article-content">
+        {{ article.content|safe }}
+    </div>
+
+</article>
+
+{# === Прикреплённые альбомы === #}
+{% set article_albums = article.albums %}
+{% if article_albums %}
+<hr class="article-divider">
+<h3 class="article-albums-title">
+    <i class="bi bi-images"></i> Фотогалереи
+</h3>
+
+{% for album in article_albums %}
+<div class="article-album">
+    <h5 class="article-album-title">
+        <a href="{{ url_for('gallery_album', slug=album.slug) }}">
+            {{ album.title }}
+            <i class="bi bi-arrow-right small"></i>
+        </a>
+    </h5>
+
+    {% if album.description %}
+    <p class="article-album-description">{{ album.description }}</p>
+    {% endif %}
+
+    {% if album.photos %}
+    <div class="row g-2">
+        {% for p in album.photos %}
+        <div class="col-4 col-md-3 col-lg-2">
+            {# W3: файлы — облачные, /media/<file_id> #}
+            <a href="{{ url_for('gallery_album', slug=album.slug) }}" class="article-album-thumb">
+                <img src="{{ url_for('serve_media', file_id=p.file_id) }}"
+                    data-full="{{ url_for('serve_media', file_id=p.file_id) }}" data-lightbox
+                    alt="{{ p.caption or album.title }}" loading="lazy" decoding="async">
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted">В альбоме нет фотографий.</p>
+    {% endif %}
+</div>
+{% endfor %}
+{% endif %}
+
+{# === Навигация назад === #}
+<div class="article-footer">
+    <a href="{{ url_for('articles_list') }}" class="btn btn-back">
+        <i class="bi bi-arrow-left"></i> К списку статей
+    </a>
+</div>
+
+<style>
+    .article-content img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 6px;
+        margin: 1rem 0;
+        cursor: zoom-in;
+    }
+
+    .article-content table {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 1rem 0;
+    }
+
+    .article-content table td,
+    .article-content table th {
+        border: 1px solid #dee2e6;
+        padding: 8px 12px;
+    }
+
+    .article-content table th {
+        background: #f8f9fa;
+        font-weight: 600;
+    }
+
+    .article-content h2,
+    .article-content h3,
+    .article-content h4 {
+        margin-top: 1.5rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .article-content blockquote {
+        border-left: 4px solid #0d6efd;
+        padding-left: 1rem;
+        color: #6c757d;
+        margin: 1rem 0;
+    }
+</style>
+{% endblock %}

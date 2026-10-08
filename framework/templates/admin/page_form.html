@@ -1,0 +1,166 @@
+{% extends 'admin/base_admin.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">{{ title }}</h2>
+    <a href="{{ url_for('admin_pages') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Назад к списку
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="POST" novalidate>
+            {{ form.hidden_tag() }}
+
+            <!-- Название -->
+            <div class="mb-3">
+                {{ form.title.label(class="form-label") }}
+                {{ form.title(class="form-control" + (" is-invalid" if form.title.errors else "")) }}
+                {% for error in form.title.errors %}
+                <div class="invalid-feedback">{{ error }}</div>
+                {% endfor %}
+            </div>
+
+            <!-- Slug -->
+            <div class="mb-3">
+                {{ form.slug.label(class="form-label") }}
+                {{ form.slug(class="form-control" + (" is-invalid" if form.slug.errors else "")) }}
+                <small class="form-text text-muted">
+                    Оставьте пустым — сгенерируется автоматически. Можно на кириллице.
+                </small>
+                {% for error in form.slug.errors %}
+                <div class="invalid-feedback">{{ error }}</div>
+                {% endfor %}
+            </div>
+
+            <!-- Содержимое: визуальный редактор -->
+            <div class="mb-3">
+                {{ form.content.label(class="form-label") }}
+                {{ form.content(class="form-control rich-editor" + (" is-invalid" if form.content.errors else ""),
+                rows="20") }}
+                <small class="form-text text-muted">
+                    Можно вставлять изображения, видео и файлы из менеджера.
+                </small>
+                {% for error in form.content.errors %}
+                <div class="invalid-feedback">{{ error }}</div>
+                {% endfor %}
+            </div>
+
+            <!-- === Показать в меню === -->
+            <div class="card mt-4 mb-4">
+                <div class="card-header">
+                    <strong>📌 Показать в меню</strong>
+                </div>
+                <div class="card-body">
+
+                    <div class="form-check mb-3">
+                        {{ form.menu_show(class="form-check-input", id="menu_show") }}
+                        {{ form.menu_show.label(class="form-check-label", for="menu_show") }}
+                        <small class="text-muted d-block">
+                            Добавить эту страницу в меню сайта
+                        </small>
+                    </div>
+
+                    <div id="menu_options" style="display: none;">
+
+                        <div class="mb-3">
+                            {{ form.menu_title.label(class="form-label") }}
+                            {{ form.menu_title(class="form-control") }}
+                            <small class="text-muted">{{ form.menu_title.description }}</small>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.menu_position.label(class="form-label") }}
+                                    {{ form.menu_position(class="form-select") }}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.menu_order.label(class="form-label") }}
+                                    {{ form.menu_order(class="form-control") }}
+                                    <small class="text-muted">Меньше = выше</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            {{ form.menu_parent_id.label(class="form-label") }}
+                            <select name="menu_parent_id" id="menu_parent_id" class="form-select">
+                                {% for value, label, position in menu_parent_choices_rich %}
+                                <option value="{{ value }}" data-position="{{ position }}" {% if
+                                    form.menu_parent_id.data==value %}selected{% endif %}>
+                                    {{ label }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">Оставьте пустым для корневого пункта</small>
+                        </div>
+
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-lg"></i> Сохранить
+                </button>
+                <a href="{{ url_for('admin_pages') }}" class="btn btn-outline-secondary">Отмена</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    (function () {
+        const showCheckbox = document.getElementById('menu_show');
+        const optionsBlock = document.getElementById('menu_options');
+        const positionSelect = document.getElementById('menu_position');
+        const parentSelect = document.getElementById('menu_parent_id');
+
+        function toggleOptions() {
+            optionsBlock.style.display = showCheckbox.checked ? 'block' : 'none';
+        }
+
+        // Фильтр: показываем только пункты выбранной позиции
+        function filterParents() {
+            if (!positionSelect || !parentSelect) return;
+
+            const currentPosition = positionSelect.value;
+
+            Array.from(parentSelect.options).forEach(opt => {
+                if (opt.value === '0') {
+                    opt.hidden = false;
+                    opt.style.display = '';
+                    return;
+                }
+                const pos = opt.dataset.position;
+                if (pos && pos !== currentPosition) {
+                    opt.hidden = true;
+                    opt.style.display = 'none';
+                } else {
+                    opt.hidden = false;
+                    opt.style.display = '';
+                }
+            });
+
+            // Если выбранный родитель скрыт — сбрасываем на 0
+            const selected = parentSelect.options[parentSelect.selectedIndex];
+            if (selected && (selected.hidden || selected.style.display === 'none')) {
+                parentSelect.value = '0';
+            }
+        }
+
+        showCheckbox.addEventListener('change', toggleOptions);
+        positionSelect.addEventListener('change', filterParents);
+
+        toggleOptions();
+        filterParents();
+    })();
+</script>
+{% endblock %}

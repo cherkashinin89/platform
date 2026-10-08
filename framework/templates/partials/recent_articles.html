@@ -1,0 +1,46 @@
+{# ================================================================
+   Блок «Последние статьи» в сайдбаре.
+   Оформление — как карточки статей, но уменьшенные (article-card-sm).
+   Показывает до 5 статей вертикально.
+
+   Контекст (из context_processor):
+   - recent_articles: список Article (до 5)
+   ================================================================ #}
+
+{% if recent_articles %}
+<div class="sidebar-card mt-3">
+    <div class="sidebar-header">
+        <i class="bi bi-file-text"></i>
+        <span>Последние статьи</span>
+    </div>
+
+    <div class="recent-articles-list">
+        {% for article in recent_articles %}
+        <a href="{{ url_for('show_article', id=article.id) }}" class="recent-article-card">
+
+            {# === Обложка (уменьшенная). W3: файлы — облачные, /media/<file_id> === #}
+            {% set first_album = article.albums.first() if article.albums else None %}
+            {% if first_album %}
+                {% set cover_photo = first_album.cover_photo or (first_album.photos[0] if first_album.photos else None) %}
+                {% if cover_photo %}
+                <div class="recent-article-cover">
+                    <img src="{{ url_for('serve_media', file_id=cover_photo.file_id) }}"
+                         alt="{{ article.title }}"
+                         loading="lazy"
+                         decoding="async">
+                </div>
+                {% endif %}
+            {% endif %}
+
+            <div class="recent-article-body">
+                <div class="recent-article-title">{{ article.title }}</div>
+                <div class="recent-article-date">
+                    <i class="bi bi-calendar3"></i>
+                    {{ article.created_at.strftime('%d.%m.%Y') if article.created_at else '' }}
+                </div>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}

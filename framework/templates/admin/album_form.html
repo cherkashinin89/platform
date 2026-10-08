@@ -1,0 +1,172 @@
+{% extends 'admin/base_admin.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">{{ title }}</h2>
+    <a href="{{ url_for('admin_albums') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> К списку
+    </a>
+</div>
+
+<div class="row g-4">
+    <!-- === Левая колонка: свойства альбома === -->
+    <div class="col-md-5">
+        <div class="card">
+            <div class="card-header"><strong>Свойства альбома</strong></div>
+            <div class="card-body">
+                <form method="POST" novalidate>
+                    {{ form.hidden_tag() }}
+
+                    <div class="mb-3">
+                        {{ form.title.label(class="form-label") }}
+                        {{ form.title(class="form-control") }}
+                        {% for e in form.title.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.slug.label(class="form-label") }}
+                        {{ form.slug(class="form-control") }}
+                        <small class="text-muted">Используется в URL: /gallery/&lt;slug&gt;</small>
+                        {% for e in form.slug.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.description.label(class="form-label") }}
+                        {{ form.description(class="form-control", rows="4") }}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.order.label(class="form-label") }}
+                        {{ form.order(class="form-control") }}
+                    </div>
+
+                    <div class="form-check mb-3">
+                        {{ form.is_published(class="form-check-input") }}
+                        {{ form.is_published.label(class="form-check-label") }}
+                    </div>
+
+                    <button type="submit" name="save_album" value="1" class="btn btn-primary">
+                        <i class="bi bi-check-lg"></i> Сохранить
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- === Правая колонка: фотографии альбома === -->
+    <div class="col-md-7">
+        {% if album %}
+        <div class="card mb-4">
+            <div class="card-header"><strong>Фотографии в альбоме ({{ album.photos|length }})</strong></div>
+            <div class="card-body">
+                {% if album.photos %}
+                <div class="row g-2" id="albumPhotosSortable">
+                    {% for p in album.photos %}
+                    <div class="col-6 col-md-4" data-photo-id="{{ p.id }}">
+                        <div class="position-relative border rounded overflow-hidden">
+                            {# W3: файл — облачный (CloudFile), отдаём через /media/<id> #}
+                            <img src="{{ url_for('serve_media', file_id=p.file_id) }}" class="w-100"
+                                style="aspect-ratio: 1/1; object-fit: cover; cursor: grab;" alt="">
+
+                            {# Плашка «обложка» #}
+                            {% if album.cover_photo_id == p.id %}
+                            <span class="badge bg-success position-absolute top-0 start-0 m-1">
+                                <i class="bi bi-star-fill"></i> Обложка
+                            </span>
+                            {% endif %}
+
+                            <div class="p-1 d-flex gap-1 justify-content-between bg-light">
+                                <form method="POST"
+                                    action="{{ url_for('admin_album_set_cover', album_id=album.id, photo_id=p.id) }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    {% if p.is_featured %}
+                                    <button class="btn btn-sm btn-success"
+                                            title="Убрать из слайдера (обложка → первое фото)">
+                                        <i class="bi bi-star-fill"></i>
+                                    </button>
+                                    {% else %}
+                                    <button class="btn btn-sm btn-outline-success"
+                                            title="Сделать обложкой и добавить в слайдер">
+                                        <i class="bi bi-star"></i>
+                                    </button>
+                                    {% endif %}
+                                </form>
+                                <form method="POST"
+                                    action="{{ url_for('admin_album_photo_delete', album_id=album.id, photo_id=p.id) }}"
+                                    onsubmit="return confirm('Удалить фото из альбома?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button class="btn btn-sm btn-outline-danger" title="Удалить из альбома">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <small class="text-muted d-block mt-2">
+                    <i class="bi bi-info-circle"></i> Перетаскивайте фото мышкой, чтобы изменить порядок.
+                </small>
+                {% else %}
+                <p class="text-muted mb-0">В альбоме пока нет фотографий.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <strong>Добавить фото из {% if current_user.is_admin %}облака{% else %}моего облака{% endif %}</strong>
+            </div>
+            <div class="card-body">
+                <form method="POST" novalidate>
+                    {{ photos_form.hidden_tag() }}
+
+                    {% if image_files %}
+                    <div
+                        style="max-height: 320px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 4px; padding: .5rem;">
+                        {% for f in image_files %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="file_ids" value="{{ f.id }}"
+                                id="f{{ f.id }}">
+                            <label class="form-check-label d-flex align-items-center gap-2" for="f{{ f.id }}">
+                                <img src="{{ url_for('serve_media', file_id=f.id) }}"
+                                    style="width: 40px; height: 40px; object-fit: cover; border-radius: 3px;">
+                                <span>
+                                    {{ f.name }}
+                                    {% if current_user.is_admin and f.owner_id != current_user.id %}
+                                    <small class="text-muted d-block">
+                                        владелец: {{ f.owner.username if f.owner else '—' }}
+                                    </small>
+                                    {% endif %}
+                                </span>
+                            </label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <button type="submit" name="add_photos" value="1" class="btn btn-success mt-3">
+                        <i class="bi bi-plus-lg"></i> Добавить выбранные
+                    </button>
+                    {% else %}
+                    <p class="text-muted mb-0">
+                        В облаке нет изображений.
+                        {% if current_user.is_admin %}
+                            <a href="{{ url_for('admin_cloud_users') }}">Перейти в облако</a>.
+                        {% else %}
+                            Загрузите файлы через
+                            <a href="http://{{ request.host.split(':')[0] }}:5001/" target="_blank">облако</a>.
+                        {% endif %}
+                    </p>
+                    {% endif %}
+                </form>
+            </div>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            Добавить фотографии можно после сохранения альбома — он будет создан автоматически.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

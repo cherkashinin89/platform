@@ -1,0 +1,305 @@
+{% extends 'admin/base_admin.html' %}
+{% from '_pagination.html' import render_pagination with context %}
+
+{% block title %}Файловый менеджер{% endblock %}
+
+{% block content %}
+
+<!-- Заголовок и кнопки -->
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h2 class="mb-0">
+        <i class="bi bi-folder2-open"></i> Файловый менеджер
+    </h2>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('admin_files_archive') }}" class="btn btn-outline-warning">
+            <i class="bi bi-archive"></i> Архивация по периоду
+        </a>
+        <button class="btn btn-primary" data-bs-toggle="collapse" data-bs-target="#uploadPanel">
+            <i class="bi bi-upload"></i> Загрузить файл
+        </button>
+    </div>
+</div>
+
+<!-- Форма поиска -->
+<form method="get" class="admin-search-form mb-3">
+    <i class="bi bi-search"></i>
+    <input type="text" name="q" value="{{ q or '' }}"
+           placeholder="Поиск по имени файла…" autocomplete="off">
+
+    {# Сохраняем текущие фильтры при отправке #}
+    <input type="hidden" name="type" value="{{ type_filter }}">
+    <input type="hidden" name="sort" value="{{ sort_by }}">
+    <input type="hidden" name="dir" value="{{ direction }}">
+
+    {% if q %}
+    <a href="{{ url_for('admin_files', type=type_filter, sort=sort_by, dir=direction) }}"
+       class="admin-search-clear" title="Сбросить поиск">
+        <i class="bi bi-x-lg"></i>
+    </a>
+    {% endif %}
+</form>
+
+<!-- Панель массовой загрузки (сворачиваемая) -->
+<div class="collapse mb-3" id="uploadPanel">
+    <div class="card">
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('admin_file_upload') }}" enctype="multipart/form-data">
+
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <!-- Зона drag & drop -->
+                <div id="dropZone" class="border border-2 border-dashed rounded p-4 text-center mb-3"
+                    style="cursor: pointer; transition: background .15s;">
+                    <i class="bi bi-cloud-arrow-up fs-1 text-muted"></i>
+                    <p class="mb-1 mt-2"><strong>Перетащите файлы сюда</strong></p>
+                    <p class="text-muted small mb-2">
+                        или нажмите, чтобы выбрать несколько файлов
+                    </p>
+                    <input type="file" name="files" id="fileInput" multiple class="d-none">
+                    <button type="button" class="btn btn-sm btn-outline-primary"
+                        onclick="document.getElementById('fileInput').click()">
+                        <i class="bi bi-folder2-open"></i> Выбрать файлы
+                    </button>
+                </div>
+
+                <!-- Список выбранных файлов -->
+                <div id="fileList" class="mb-3"></div>
+
+                <!-- Кнопки -->
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-success" id="uploadBtn" disabled>
+                        <i class="bi bi-cloud-upload"></i> Загрузить
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" onclick="clearSelection()">
+                        Очистить
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const uploadBtn = document.getElementById('uploadBtn');
+
+        function formatSize(bytes) {
+            const units = ['B', 'KB', 'MB', 'GB'];
+            let i = 0;
+            while (bytes >= 1024 && i < units.length - 1) {
+                bytes /= 1024;
+                i++;
+            }
+            return `${bytes.toFixed(1)} ${units[i]}`;
+        }
+
+        function renderFileList(files) {
+            if (!files.length) {
+                fileList.innerHTML = '';
+                uploadBtn.disabled = true;
+                return;
+            }
+            uploadBtn.disabled = false;
+
+            let html = '<ul class="list-group">';
+            let total = 0;
+            for (const f of files) {
+                total += f.size;
+                html += `
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-file-earmark"></i> ${f.name}</span>
+                    <span class="badge bg-secondary">${formatSize(f.size)}</span>
+                </li>`;
+            }
+            html += '</ul>';
+            html += `<div class="text-muted small mt-2">
+            Всего файлов: <strong>${files.length}</strong>,
+            объём: <strong>${formatSize(total)}</strong>
+        </div>`;
+            fileList.innerHTML = html;
+        }
+
+        // Клик по зоне — открыть диалог выбора файлов
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        // Обработка выбора файлов через диалог
+        fileInput.addEventListener('change', () => {
+            renderFileList(fileInput.files);
+        });
+
+        // Подсветка при перетаскивании
+        ['dragenter', 'dragover'].forEach(evt => {
+            dropZone.addEventListener(evt, (e) => {
+                e.preventDefault();
+                dropZone.style.background = '#e9f2ff';
+                dropZone.style.borderColor = '#0d6efd';
+            });
+        });
+        ['dragleave', 'drop'].forEach(evt => {
+            dropZone.addEventListener(evt, (e) => {
+                e.preventDefault();
+                dropZone.style.background = '';
+                dropZone.style.borderColor = '';
+            });
+        });
+
+        // Обработка drop
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const dt = new DataTransfer();
+            for (const f of e.dataTransfer.files) {
+                dt.items.add(f);
+            }
+            fileInput.files = dt.files;
+            renderFileList(fileInput.files);
+        });
+
+        // Очистить выбор
+        window.clearSelection = function () {
+            fileInput.value = '';
+            renderFileList([]);
+        };
+    })();
+</script>
+
+<!-- Фильтры по типу + статистика -->
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div class="btn-group flex-wrap" role="group">
+        {% set filters = [('all', 'Все', 'secondary'),
+        ('image', 'Изображения', 'info'),
+        ('video', 'Видео', 'warning'),
+        ('audio', 'Аудио', 'primary'),
+        ('document', 'Документы', 'success'),
+        ('archive', 'Архивы', 'dark'),
+        ('other', 'Прочее', 'secondary')] %}
+        {% for key, label, color in filters %}
+        <a href="{{ url_for('admin_files', type=key, sort=sort_by, dir=direction, q=q) }}"
+            class="btn btn-sm {% if type_filter == key %}btn-{{ color }}{% else %}btn-outline-{{ color }}{% endif %}">
+            {{ label }} <span class="badge bg-light text-dark">{{ type_counts[key] }}</span>
+        </a>
+        {% endfor %}
+    </div>
+
+    <div class="text-muted small">
+        {% if q %}
+            По запросу «<strong>{{ q }}</strong>»: <strong>{{ pagination.total }}</strong> файлов,
+            объём: <strong>{{ total_size | human_size_bytes }}</strong>
+        {% else %}
+            Всего: <strong>{{ pagination.total }}</strong> файлов,
+            объём: <strong>{{ total_size | human_size_bytes }}</strong>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Таблица файлов -->
+{% if files %}
+<div class="table-responsive">
+    <table class="table table-striped table-hover align-middle">
+        <thead class="table-dark">
+            <tr>
+                {% set cols = [
+                ('original_name', 'Имя'),
+                ('file_type', 'Тип'),
+                ('size', 'Размер'),
+                ('uploaded_at', 'Дата загрузки')
+                ] %}
+                {% for key, label in cols %}
+                {% set new_dir = 'asc' if (sort_by == key and direction == 'desc') else 'desc' %}
+                {% set arrow = '' %}
+                {% if sort_by == key %}
+                {% set arrow = '↑' if direction == 'asc' else '↓' %}
+                {% endif %}
+                <th>
+                    <a href="{{ url_for('admin_files', sort=key, dir=new_dir, type=type_filter, q=q) }}"
+                        class="text-white text-decoration-none">
+                        {{ label }} <small>{{ arrow }}</small>
+                    </a>
+                </th>
+                {% endfor %}
+                <th style="width: 180px;">Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for f in files %}
+            <tr>
+                {# 1. Имя + превью #}
+                <td>
+                    {% if f.file_type == 'image' %}
+                    {% set thumb = f.thumbnail_name or f.stored_name %}
+                    <img src="{{ url_for('uploaded_file', filename=thumb) }}" alt="" loading="lazy" decoding="async"
+                        style="width: 48px; height: 48px; object-fit: cover; border-radius: 4px; margin-right: 8px; vertical-align: middle;">
+                    {% else %}
+                    <i class="bi {{ f.icon() }} fs-5 me-2 text-secondary"></i>
+                    {% endif %}
+                    <a href="{{ url_for('admin_file_download', id=f.id) }}" class="text-decoration-none">
+                        {{ f.original_name }}
+                    </a>
+                    {% if f.description %}
+                    <br><small class="text-muted">{{ f.description }}</small>
+                    {% endif %}
+                </td>
+
+                {# 2. Тип #}
+                <td>
+                    <span class="badge bg-secondary">{{ f.file_type }}</span>
+                </td>
+
+                {# 3. Размер #}
+                <td>
+                    {{ f.size_human() }}
+                </td>
+
+                {# 4. Дата загрузки #}
+                <td>
+                    <small>{{ f.uploaded_at.strftime('%d.%m.%Y %H:%M') }}</small>
+                    {% if f.uploaded_by %}
+                    <br><small class="text-muted">от {{ f.uploaded_by.username }}</small>
+                    {% endif %}
+                </td>
+
+                {# 5. Действия #}
+                <td>
+                    <a href="{{ url_for('admin_file_download', id=f.id) }}" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-download"></i>
+                    </a>
+                    <form method="POST" action="{{ url_for('admin_file_delete', id=f.id) }}" class="d-inline"
+                        onsubmit="return confirm('Удалить файл «{{ f.original_name }}»?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{# Пагинация с сохранением сортировки, фильтра и поиска #}
+{{ render_pagination(pagination, 'admin_files',
+    sort=sort_by, dir=direction, type=type_filter, q=q) }}
+
+{% else %}
+<div class="alert alert-info text-center py-5">
+    <i class="bi bi-folder-x fs-1 d-block mb-3"></i>
+    {% if q %}
+        <h5 class="mb-2">Ничего не найдено</h5>
+        <p class="mb-3">По запросу «<strong>{{ q }}</strong>» файлов нет.</p>
+        <a href="{{ url_for('admin_files', type=type_filter, sort=sort_by, dir=direction) }}"
+           class="btn btn-outline-secondary">
+            <i class="bi bi-x-lg"></i> Сбросить поиск
+        </a>
+    {% else %}
+        <h5 class="mb-2">Файлов пока нет</h5>
+        <p class="mb-3">Загрузите первый файл — он появится здесь.</p>
+        <button class="btn btn-primary" data-bs-toggle="collapse" data-bs-target="#uploadPanel">
+            <i class="bi bi-upload"></i> Загрузить первый файл
+        </button>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

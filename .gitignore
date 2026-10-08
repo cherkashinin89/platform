@@ -70,3 +70,12 @@ github_pat_*
 notes/
 TODO.local
 *.local
+
+# --- Монорепо: специфичное ---
+framework/site.db*
+framework/migrations/versions_old/
+**/*.bak
+**/*.bak_*
+**/*.html.html
+framework/deploy/
+cloud/deploy/

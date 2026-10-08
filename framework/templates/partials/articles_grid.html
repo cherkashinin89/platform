@@ -1,0 +1,72 @@
+{# ================================================================
+   Сетка карточек статей.
+   Используется в: articles_list.html (и, возможно, в дашборде позже).
+   
+   Контекст:
+   - articles: список Article
+   ================================================================ #}
+
+{% if articles %}
+<div class="row g-4">
+    {% for article in articles %}
+    <div class="col-md-6">
+        <article class="article-card">
+            <a href="{{ url_for('show_article', id=article.id) }}" class="article-card-link">
+
+                {# === Обложка. W3: файлы — облачные, /media/<file_id> === #}
+                {% set first_album = article.albums.first() if article.albums else None %}
+                {% if first_album and first_album.photos %}
+                    {% set cover = first_album.cover_photo or first_album.photos[0] %}
+                    <div class="article-card-cover">
+                        <img src="{{ url_for('serve_media', file_id=cover.file_id) }}"
+                             alt="{{ article.title }}"
+                             loading="lazy"
+                             decoding="async">
+                    </div>
+                {% else %}
+                    <div class="article-card-cover article-card-cover-empty">
+                        <i class="bi bi-file-text"></i>
+                    </div>
+                {% endif %}
+
+                {# === Тело карточки === #}
+                <div class="article-card-body">
+                    <h3 class="article-card-title">{{ article.title }}</h3>
+
+                    {% if article.summary %}
+                    <p class="article-card-summary">{{ article.summary }}</p>
+                    {% endif %}
+
+                    <div class="article-card-meta">
+                        <span class="article-card-date">
+                            <i class="bi bi-calendar"></i>
+                            {{ article.created_at.strftime('%d.%m.%Y') if article.created_at else '' }}
+                        </span>
+
+                        {% if article.authors %}
+                        <span class="article-card-author">
+                            <i class="bi bi-person"></i>
+                            {{ article.authors[0].full_name or article.authors[0].username }}
+                        </span>
+                        {% endif %}
+                    </div>
+
+                    <span class="article-card-readmore">
+                        Читать далее <i class="bi bi-arrow-right"></i>
+                    </span>
+                </div>
+
+            </a>
+        </article>
+    </div>
+    {% endfor %}
+</div>
+
+{% else %}
+<div class="text-center py-5">
+    <i class="bi bi-file-text"
+       style="font-size: 4rem; color: var(--color-text-light); opacity: 0.5;"></i>
+    <h3 class="mt-3">Статей пока нет</h3>
+    <p class="text-muted">Скоро здесь появятся публикации.</p>
+</div>
+{% endif %}

@@ -1,0 +1,254 @@
+/* ================================================================
+   Тема: Тёмная
+   ================================================================
+   ЧАСТЬ 1. CSS-переменные (для тех мест, где уже используются var()).
+   ЧАСТЬ 2. Переопределение конкретных селекторов — пока в style.css
+            не все цвета переведены на переменные.
+   ================================================================ */
+
+/* === 1. Переменные === */
+:root {
+    --color-primary: #fd7e14;
+    --color-primary-hover: #ff9a3c;
+    --color-primary-light: #ffb066;
+    --color-primary-dark: #e8590c;
+    --color-primary-soft: #2a1f12;
+
+    --color-bg: #1a1a1a;
+    --color-bg-alt: #232323;
+    --color-bg-dark: #0f0f0f;
+    --color-text: #e9ecef;
+    --color-text-muted: #adb5bd;
+    --color-text-light: #6c757d;
+    --color-border: #343a40;
+    --color-card-bg: #232323;
+
+    --color-success: #20c997;
+    --color-danger: #ff6b6b;
+    --color-warning: #ffc107;
+    --color-info: #4dd0e1;
+
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
+    --shadow-primary: 0 6px 20px rgba(253, 126, 20, 0.35);
+}
+
+/* === 2. Переопределения конкретных селекторов === */
+
+/* Фон страницы */
+html, body {
+    background-color: #1a1a1a !important;
+    color: #e9ecef !important;
+}
+
+/* Заголовки */
+h1, h2, h3, h4, h5, h6 {
+    color: #e9ecef;
+}
+
+/* Ссылки */
+a {
+    color: #ffa94d;
+}
+a:hover {
+    color: #ffc78a;
+}
+
+/* Параграфы и обычный текст */
+p, span, div, td, th, li, label {
+    color: inherit;
+}
+
+/* === Верхнее меню === */
+.site-nav {
+    background: #232323 !important;
+    border-bottom-color: #343a40 !important;
+}
+.site-nav-link {
+    color: #e9ecef !important;
+}
+.site-nav-link:hover {
+    background: #2a1f12 !important;
+    color: #ffa94d !important;
+}
+.site-nav-link.is-active {
+    color: #ffa94d !important;
+}
+
+/* === Боковое меню (sidebar) === */
+.sidebar-card {
+    background: #232323 !important;
+    border-color: #343a40 !important;
+}
+.sidebar-link {
+    color: #e9ecef !important;
+}
+.sidebar-link:hover {
+    background: #2a1f12 !important;
+    color: #ffa94d !important;
+}
+.sidebar-link.is-active {
+    background: #2a1f12 !important;
+    color: #ffa94d !important;
+}
+
+/* === Карточки статей === */
+.article-card {
+    background: #232323 !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+}
+.article-card-body {
+    background: #232323;
+}
+.article-card-title {
+    color: #e9ecef !important;
+}
+.article-card-summary {
+    color: #adb5bd !important;
+}
+.article-card-meta {
+    color: #adb5bd !important;
+    border-top-color: #343a40 !important;
+}
+.article-card-cover-empty {
+    background: linear-gradient(135deg, #232323 0%, #1a1a1a 100%) !important;
+    color: #6c757d !important;
+}
+
+/* === Статья === */
+.article-title {
+    color: #e9ecef !important;
+}
+.article-content {
+    color: #e9ecef !important;
+}
+.article-content a {
+    color: #ffa94d !important;
+}
+.article-summary {
+    background: #2a1f12 !important;
+    color: #e9ecef !important;
+    border-left-color: #fd7e14 !important;
+}
+.article-content blockquote {
+    background: #232323 !important;
+    color: #adb5bd !important;
+    border-left-color: #fd7e14 !important;
+}
+.article-content code {
+    background: #2a2a2a !important;
+    color: #ffa94d !important;
+}
+.article-content pre {
+    background: #0f0f0f !important;
+}
+.article-content table th {
+    background: #232323 !important;
+    color: #e9ecef !important;
+}
+.article-content table th,
+.article-content table td {
+    border-color: #343a40 !important;
+}
+.article-content table tr:nth-child(even) td {
+    background: #1f1f1f !important;
+}
+
+/* === Подвал === */
+.site-footer {
+    background: linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%) !important;
+    color: rgba(255, 255, 255, 0.75) !important;
+}
+.footer-title {
+    color: #e9ecef !important;
+}
+
+/* === Хлебные крошки === */
+.breadcrumb-item.active {
+    color: #adb5bd !important;
+}
+.breadcrumb-item a {
+    color: #adb5bd !important;
+}
+.breadcrumb-item a:hover {
+    color: #ffa94d !important;
+}
+
+/* === Алерты === */
+.alert-info {
+    background: #2a1f12 !important;
+    color: #ffa94d !important;
+    border-color: #fd7e14 !important;
+}
+.alert-success {
+    background: #0f2a1f !important;
+    color: #20c997 !important;
+    border-color: #20c997 !important;
+}
+.alert-danger {
+    background: #2a0f0f !important;
+    color: #ff6b6b !important;
+    border-color: #ff6b6b !important;
+}
+.alert-warning {
+    background: #2a2410 !important;
+    color: #ffc107 !important;
+    border-color: #ffc107 !important;
+}
+
+/* === Формы === */
+.form-control, .form-select {
+    background: #232323 !important;
+    border-color: #343a40 !important;
+    color: #e9ecef !important;
+}
+.form-control:focus, .form-select:focus {
+    background: #232323 !important;
+    color: #e9ecef !important;
+}
+.form-control::placeholder {
+    color: #6c757d !important;
+}
+.form-label {
+    color: #e9ecef !important;
+}
+.form-text {
+    color: #6c757d !important;
+}
+
+/* === Кнопки-контуры === */
+.btn-outline-secondary {
+    color: #adb5bd !important;
+    border-color: #343a40 !important;
+}
+.btn-outline-secondary:hover {
+    background: #343a40 !important;
+    color: #e9ecef !important;
+}
+
+/* === Пагинация === */
+.page-item .page-link {
+    background: #232323 !important;
+    border-color: #343a40 !important;
+    color: #e9ecef !important;
+}
+.page-item.active .page-link {
+    background: #fd7e14 !important;
+    border-color: #fd7e14 !important;
+    color: #fff !important;
+}
+.page-item .page-link:hover {
+    background: #2a1f12 !important;
+    color: #ffa94d !important;
+}
+
+/* === Search input === */
+.site-search-form input {
+    background: #232323 !important;
+    border-color: #343a40 !important;
+    color: #e9ecef !important;
+}
+.site-search-form input::placeholder {
+    color: #6c757d !important;
+}

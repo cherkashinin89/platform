@@ -1,0 +1,47 @@
+{# templates/_pagination.html - макрос для отображения пагинации #}
+{% macro render_pagination(pagination, endpoint) %}
+    {# kwargs — встроенная переменная Jinja, содержит все лишние именованные аргументы #}
+    {% set extra = kwargs %}
+    {% if pagination.pages > 1 %}
+        <nav aria-label="Навигация по страницам">
+            <ul class="pagination justify-content-center mt-3 mb-0">
+
+                {# Кнопка «Предыдущая» #}
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link"
+                       href="{{ url_for(endpoint, page=pagination.prev_num, **extra) if pagination.has_prev else '#' }}">
+                        &laquo;
+                    </a>
+                </li>
+
+                {# Номера страниц с ellipsis (…), чтобы не выводить сотни ссылок #}
+                {% for page_num in pagination.iter_pages(left_edge=1, left_current=2,
+                                                         right_current=2, right_edge=1) %}
+                    {% if page_num %}
+                        <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                            <a class="page-link"
+                               href="{{ url_for(endpoint, page=page_num, **extra) }}">
+                                {{ page_num }}
+                            </a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">…</span></li>
+                    {% endif %}
+                {% endfor %}
+
+                {# Кнопка «Следующая» #}
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link"
+                       href="{{ url_for(endpoint, page=pagination.next_num, **extra) if pagination.has_next else '#' }}">
+                        &raquo;
+                    </a>
+                </li>
+            </ul>
+
+            <p class="text-center text-muted small mt-2 mb-0">
+                Страница {{ pagination.page }} из {{ pagination.pages }}
+                (всего записей: {{ pagination.total }})
+            </p>
+        </nav>
+    {% endif %}
+{% endmacro %}

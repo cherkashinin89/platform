@@ -1,0 +1,217 @@
+{# ================================================================
+   Общая шапка сайта (для всех сервисов: сайт, облако, почта)
+   
+   Параметры (задаются через {% set %} перед {% include %}):
+   - header_current          : 'site' | 'cloud' | 'mail'
+   - header_site_url         : URL сайта (абсолютный)
+   - header_cloud_url        : URL облака
+   - header_mail_url         : URL почты
+   - header_logo_url         : URL логотипа сайта (только для 'site')
+   - header_login_url        : URL для входа
+   - header_logout_url       : URL для выхода
+   - header_is_cloud         : (устар.) — можно не задавать
+   - header_is_mail          : (устар.) — можно не задавать
+   ================================================================ #}
+
+{% if not site_settings or site_settings.show_header %}
+<header class="site-header">
+    <div class="container">
+        <div class="row align-items-center gy-3">
+
+            {# === ЛЕВАЯ ЧАСТЬ === #}
+            <div class="col-auto">
+                <div class="site-brand">
+
+                    {% if header_current == 'cloud' %}
+                        {# --- ОБЛАКО --- #}
+                        <a href="{{ header_cloud_url }}"
+                           class="site-brand-link"
+                           title="Облако">
+                            <div class="site-division-icon">
+                                <i class="bi bi-cloud-arrow-up-fill"></i>
+                            </div>
+                            <div class="site-brand-text">
+                                <span class="site-title">
+                                    {{ site_settings.site_title if site_settings else 'Мой Сайт' }}: Облако
+                                </span>
+                            </div>
+                        </a>
+
+                    {% elif header_current == 'mail' %}
+                        {# --- ПОЧТА --- #}
+                        <a href="{{ header_mail_url }}"
+                           class="site-brand-link"
+                           title="Почта">
+                            <div class="site-division-icon">
+                                <i class="bi bi-envelope-fill"></i>
+                            </div>
+                            <div class="site-brand-text">
+                                <span class="site-title">
+                                    {{ site_settings.site_title if site_settings else 'Мой Сайт' }}: Почта
+                                </span>
+                            </div>
+                        </a>
+
+                    {% else %}
+                        {# --- САЙТ (как было) --- #}
+                        {% if site_settings and site_settings.logo_file %}
+                        <a href="{{ header_site_url }}" class="site-brand-link">
+                            <img src="{{ url_for('uploaded_file', filename=site_settings.logo_file.stored_name) }}"
+                                 alt="{{ site_settings.site_title }}"
+                                 class="site-logo">
+                            <div class="site-brand-text">
+                                <span class="site-title">
+                                    {{ site_settings.site_title or 'Мой Сайт' }}
+                                </span>
+                                {% if site_settings.site_subtitle %}
+                                <span class="site-subtitle">{{ site_settings.site_subtitle }}</span>
+                                {% endif %}
+                            </div>
+                        </a>
+                        {% else %}
+                        <a href="{{ header_site_url }}" class="site-brand-link">
+                            <div class="site-brand-text">
+                                <span class="site-title">
+                                    {{ site_settings.site_title if site_settings else 'Мой Сайт' }}
+                                </span>
+                                {% if site_settings and site_settings.site_subtitle %}
+                                <span class="site-subtitle">{{ site_settings.site_subtitle }}</span>
+                                {% endif %}
+                            </div>
+                        </a>
+                        {% endif %}
+                    {% endif %}
+
+                </div>
+            </div>
+
+            {# === ПРАВАЯ ЧАСТЬ === #}
+            <div class="col text-md-end">
+                <div class="site-actions">
+
+                    {% if current_user.is_authenticated %}
+                    {# --- Авторизован --- #}
+                    <span class="site-user">
+                        <i class="bi bi-person-circle"></i>
+                        {{ current_user.full_name or current_user.username }}
+                    </span>
+
+                    {# --- Ссылки на другие сервисы --- #}
+
+                    {# Облако: показываем на сайте и почте, для user/editor/admin #}
+                    {% if header_current != 'cloud'
+                          and header_cloud_url
+                          and current_user.is_user %}
+                    <a href="{{ header_cloud_url }}"
+                       class="btn btn-site-outline btn-sm"
+                       title="Облако">
+                        <i class="bi bi-cloud-fill"></i> Облако
+                    </a>
+                    {% endif %}
+
+                    {# Почта: показываем на сайте и в облаке #}
+                    {% if header_current != 'mail' and header_mail_url %}
+                    <a href="{{ header_mail_url }}"
+                       class="btn btn-site-outline btn-sm"
+                       title="Почта">
+                        <i class="bi bi-envelope-fill"></i> Почта
+                    </a>
+                    {% endif %}
+
+                    {# Сайт: показываем только в облаке и почте #}
+                    {% if header_current in ('cloud', 'mail') %}
+                    <a href="{{ header_site_url }}"
+                       class="btn btn-site-outline btn-sm"
+                       title="На сайт">
+                        <i class="bi bi-house-fill"></i> Сайт
+                    </a>
+                    {% endif %}
+
+                     {# --- Админка / Редактор: на всех сервисах --- #}
+                    {% if header_current == 'site' %}
+                        {# На сайте — относительные URL #}
+                        {% if current_user.is_admin %}
+                        <a href="{{ url_for('admin_dashboard') }}"
+                           class="btn btn-site-primary btn-sm"
+                           title="Панель администратора">
+                            <i class="bi bi-speedometer2"></i> Админка
+                        </a>
+                        {% elif current_user.is_editor %}
+                        <a href="{{ url_for('admin_articles') }}"
+                           class="btn btn-site-primary btn-sm"
+                           title="Панель редактора">
+                            <i class="bi bi-pencil-square"></i> Редактор
+                        </a>
+                        {% endif %}
+                    {% else %}
+                        {# В облаке/почте — абсолютные URL на админку сайта #}
+                        {% if header_admin_url %}
+                            {% if current_user.is_admin %}
+                            <a href="{{ header_admin_url }}"
+                               class="btn btn-site-primary btn-sm"
+                               title="Панель администратора">
+                                <i class="bi bi-speedometer2"></i> Админка
+                            </a>
+                            {% elif current_user.is_editor %}
+                            <a href="{{ header_admin_editor_url }}"
+                               class="btn btn-site-primary btn-sm"
+                               title="Панель редактора">
+                                <i class="bi bi-pencil-square"></i> Редактор
+                            </a>
+                            {% endif %}
+                        {% endif %}
+                    {% endif %}
+
+                    {# --- Выход --- #}
+                    <a href="{{ header_logout_url }}"
+                       class="btn btn-site-outline btn-sm">
+                        <i class="bi bi-box-arrow-right"></i> Выйти
+                    </a>
+
+                    {% else %}
+                    {# --- Гость --- #}
+                    <button type="button"
+                            class="btn btn-site-primary btn-sm"
+                            id="loginToggle">
+                        <i class="bi bi-box-arrow-in-right"></i> Войти
+                    </button>
+
+                    <form method="POST"
+                          action="{{ header_login_url }}"
+                          class="site-login-form"
+                          id="loginForm"
+                          autocomplete="off">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="next" value="{{ request.url }}">
+
+                        <div class="site-login-field">
+                            <i class="bi bi-person"></i>
+                            <input type="text" name="username" id="loginUsername"
+                                   placeholder="Логин"
+                                   autocomplete="username" required>
+                        </div>
+
+                        <div class="site-login-field">
+                            <i class="bi bi-lock"></i>
+                            <input type="password" name="password" id="loginPassword"
+                                   placeholder="Пароль"
+                                   autocomplete="current-password" required>
+                            <button type="button" class="site-login-eye" id="togglePassword"
+                                    title="Показать пароль">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
+
+                        <button type="submit" class="btn btn-site-primary btn-sm">
+                            <i class="bi bi-check-lg"></i> ОК
+                        </button>
+                    </form>
+                    {% endif %}
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+</header>
+{% endif %}

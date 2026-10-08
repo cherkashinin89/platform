@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+
+{% block title %}Поиск: {{ q }} — {{ site_settings.site_title if site_settings else 'Мой Сайт' }}{% endblock %}
+
+{% block content %}
+<div class="search-page">
+
+    <h1 class="search-title">
+        <i class="bi bi-search"></i> Поиск
+    </h1>
+
+    <!-- Форма поиска на странице -->
+    <form action="{{ url_for('search') }}" method="get" class="search-form-page">
+        <div class="search-input-group">
+            <i class="bi bi-search search-input-icon"></i>
+            <input type="text" name="q" value="{{ q }}" placeholder="Что искать?" autofocus>
+            <button type="submit" class="btn-search-page">Найти</button>
+        </div>
+    </form>
+
+    {% if too_short %}
+        <div class="search-empty">
+            <i class="bi bi-info-circle"></i>
+            <p>Введите минимум <strong>2 символа</strong> для поиска.</p>
+        </div>
+    {% elif not has_any %}
+        <div class="search-empty">
+            <i class="bi bi-emoji-frown"></i>
+            <p>По запросу «<strong>{{ q }}</strong>» ничего не найдено.</p>
+            <p class="search-empty-hint">Попробуйте другие слова или проверьте раскладку.</p>
+        </div>
+    {% else %}
+
+        {% if results.articles %}
+        <section class="search-section">
+            <h2 class="search-section-title">
+                <i class="bi bi-file-text"></i> Статьи
+                <span class="search-count">{{ results.articles|length }}</span>
+            </h2>
+            <div class="search-list">
+                {% for r in results.articles %}
+                <a href="{{ r.url }}" class="search-item">
+                    <div class="search-item-title">{{ highlight(r.title, q) }}</div>
+                    <div class="search-item-snippet">{{ highlight(r.snippet, q) }}</div>
+                    <div class="search-item-meta">
+                        {% if r.meta.date %}<span><i class="bi bi-calendar"></i> {{ r.meta.date }}</span>{% endif %}
+                        {% if r.meta.author %}<span><i class="bi bi-person"></i> {{ r.meta.author }}</span>{% endif %}
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
+        {% if results.pages %}
+        <section class="search-section">
+            <h2 class="search-section-title">
+                <i class="bi bi-file-earmark"></i> Страницы
+                <span class="search-count">{{ results.pages|length }}</span>
+            </h2>
+            <div class="search-list">
+                {% for r in results.pages %}
+                <a href="{{ r.url }}" class="search-item">
+                    <div class="search-item-title">{{ highlight(r.title, q) }}</div>
+                    <div class="search-item-snippet">{{ highlight(r.snippet, q) }}</div>
+                </a>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
+        {% if results.files %}
+        <section class="search-section">
+            <h2 class="search-section-title">
+                <i class="bi bi-folder2-open"></i> Файлы
+                <span class="search-count">{{ results.files|length }}</span>
+            </h2>
+            <div class="search-list">
+                {% for r in results.files %}
+                <a href="{{ r.url }}" class="search-item search-item-file" target="_blank" rel="noopener">
+                    <div class="search-item-title">
+                        <i class="bi bi-paperclip"></i> {{ highlight(r.title, q) }}
+                    </div>
+                    <div class="search-item-snippet">{{ highlight(r.snippet, q) }}</div>
+                    {% if r.meta.size %}
+                    <div class="search-item-meta">
+                        <span><i class="bi bi-hdd"></i> {{ r.meta.size }}</span>
+                        {% if r.meta.date %}<span><i class="bi bi-calendar"></i> {{ r.meta.date }}</span>{% endif %}
+                    </div>
+                    {% endif %}
+                </a>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
+    {% endif %}
+</div>
+{% endblock %}

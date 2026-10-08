@@ -1,0 +1,94 @@
+{% extends 'admin/base_admin.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">{{ title }}</h2>
+    <a href="{{ url_for('admin_menu') }}" class="btn btn-outline-secondary">
+        ← Назад к списку
+    </a>
+</div>
+
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('admin_dashboard') }}">Админка</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('admin_menu') }}">Меню</a></li>
+        <li class="breadcrumb-item active">{{ title }}</li>
+    </ol>
+</nav>
+
+<div class="card">
+    <div class="card-body">
+        <form method="POST" novalidate>
+            {{ form.hidden_tag() }}
+
+            <!-- Название пункта -->
+            <div class="mb-3">
+                {{ form.title.label(class="form-label") }}
+                {{ form.title(class="form-control" + (" is-invalid" if form.title.errors else "")) }}
+                <small class="form-text text-muted">
+                    Текст, который будет отображаться в меню.
+                </small>
+                {% for error in form.title.errors %}
+                    <div class="invalid-feedback">{{ error }}</div>
+                {% endfor %}
+            </div>
+
+            <!-- URL -->
+            <div class="mb-3">
+                {{ form.url.label(class="form-label") }}
+                {{ form.url(class="form-control" + (" is-invalid" if form.url.errors else "")) }}
+                <small class="form-text text-muted">
+                    Может быть относительным (<code>/about</code>) или абсолютным (<code>https://example.com</code>).
+                </small>
+                {% for error in form.url.errors %}
+                    <div class="invalid-feedback">{{ error }}</div>
+                {% endfor %}
+            </div>
+
+            <!-- Позиция меню -->
+            <div class="mb-3">
+                {{ form.position.label(class="form-label") }}
+                {{ form.position(class="form-select" + (" is-invalid" if form.position.errors else "")) }}
+                <small class="form-text text-muted">
+                    Определяет, в каком контейнере сайта появится пункт.
+                </small>
+                {% for error in form.position.errors %}
+                    <div class="invalid-feedback">{{ error }}</div>
+                {% endfor %}
+            </div>
+
+            <!-- Порядок сортировки -->
+            <div class="mb-3">
+                {{ form.order.label(class="form-label") }}
+                {{ form.order(class="form-control" + (" is-invalid" if form.order.errors else "")) }}
+                <small class="form-text text-muted">
+                    Чем меньше число, тем выше пункт в меню.
+                </small>
+                {% for error in form.order.errors %}
+                    <div class="invalid-feedback">{{ error }}</div>
+                {% endfor %}
+            </div>
+
+            <!-- Родительский пункт (для вложенности) -->
+            <div class="mb-3">
+                {{ form.parent_id.label(class="form-label") }}
+                {{ form.parent_id(class="form-select" + (" is-invalid" if form.parent_id.errors else "")) }}
+                <small class="form-text text-muted">
+                    Оставьте «— без родителя —», чтобы пункт был верхнего уровня.
+                </small>
+                {% for error in form.parent_id.errors %}
+                    <div class="invalid-feedback">{{ error }}</div>
+                {% endfor %}
+            </div>
+
+            <!-- Кнопки -->
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+                <a href="{{ url_for('admin_menu') }}" class="btn btn-outline-secondary">Отмена</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

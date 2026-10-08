@@ -1,0 +1,461 @@
+{% extends 'admin/base_admin.html' %}
+
+{% block title %}Настройки сайта{% endblock %}
+
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-gear"></i> Настройки сайта</h2>
+
+<!-- ============================================================ -->
+<!-- СЕКЦИЯ 1: РЕЗЕРВНОЕ КОПИРОВАНИЕ                              -->
+<!-- ============================================================ -->
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+        <strong><i class="bi bi-hdd"></i> Резервное копирование</strong>
+    </div>
+    <div class="card-body">
+
+        <!-- Статус внешнего диска -->
+        <div class="alert {% if mounted %}alert-success{% else %}alert-warning{% endif %}" id="diskStatus">
+            {% if mounted %}
+            <i class="bi bi-check-circle-fill"></i>
+            <strong>Внешний диск смонтирован:</strong>
+            <code>{{ external_path }}</code>
+            {% else %}
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            <strong>Внешний диск не смонтирован:</strong>
+            <code>{{ external_path }}</code>
+            <br><small>Подключите и смонтируйте диск перед созданием бэкапа.</small>
+            {% endif %}
+        </div>
+
+        <!-- Информация о диске -->
+        {% if disk_info %}
+        <div class="row g-3 mb-3">
+            <div class="col-6 col-md-3">
+                <div class="text-muted small">Всего</div>
+                <strong>{{ disk_info.total_gb }} ГБ</strong>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="text-muted small">Использовано</div>
+                <strong>{{ disk_info.used_gb }} ГБ ({{ disk_info.percent }}%)</strong>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="text-muted small">Свободно</div>
+                <strong>{{ disk_info.free_gb }} ГБ</strong>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="text-muted small">Бэкапов</div>
+                <strong>{{ backups|length }}</strong>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Кнопки управления -->
+        <div class="d-flex flex-wrap gap-2 mb-3">
+
+            <form method="POST" action="{{ url_for('admin_settings_backup') }}" id="backupForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-success" id="backupBtn" {% if not mounted %}disabled{% endif %}>
+                    <i class="bi bi-download"></i> Создать полный бэкап
+                </button>
+            </form>
+
+            {% if not mounted %}
+            <form method="POST" action="{{ url_for('admin_settings_mount') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-plug"></i> Смонтировать диск
+                </button>
+            </form>
+            {% endif %}
+
+            {% if mounted %}
+            <form method="POST" action="{{ url_for('admin_settings_unmount') }}"
+                onsubmit="return confirm('Отмонтировать диск? Убедитесь, что не идёт бэкап.');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-warning">
+                    <i class="bi bi-eject"></i> Безопасно отмонтировать
+                </button>
+            </form>
+
+            <form method="POST" action="{{ url_for('admin_settings_sync') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-repeat"></i> Синхронизировать
+                </button>
+            </form>
+            {% endif %}
+        </div>
+
+        <!-- Подсказка о статусе -->
+        {% if mounted %}
+        <div class="alert alert-info small mb-0">
+            <i class="bi bi-info-circle"></i>
+            Перед извлечением флешки нажмите <strong>«Безопасно отмонтировать»</strong>.
+        </div>
+        {% else %}
+        <div class="alert alert-warning small mb-0">
+            <i class="bi bi-exclamation-triangle"></i>
+            Диск отмонтирован. Вставьте флешку и нажмите <strong>«Смонтировать диск»</strong>.
+        </div>
+        {% endif %}
+
+        <!-- Прогресс -->
+        <div class="progress mt-3 d-none" id="backupProgress" style="height: 22px;">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%;">
+                Создание бэкапа, это может занять несколько минут…
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- Список бэкапов -->
+{% if backups %}
+<div class="card mb-4">
+    <div class="card-header">
+        <strong><i class="bi bi-archive"></i> Бэкапы на внешнем диске ({{ backups|length }})</strong>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-striped mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Файл</th>
+                        <th style="width: 120px;">Размер</th>
+                        <th style="width: 180px;">Дата</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for b in backups %}
+                    <tr>
+                        <td><code>{{ b.name }}</code></td>
+                        <td>
+                            {% if b.size_mb > 0 %}
+                            {{ b.size_mb }} МБ
+                            {% else %}
+                            <span class="badge bg-danger">пустой</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ b.mtime.strftime('%d.%m.%Y %H:%M') }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- === ПЕРЕЗАПУСК СЕРВИСА === -->
+<div class="card mb-4">
+    <div class="card-header bg-warning text-dark">
+        <strong><i class="bi bi-arrow-clockwise"></i> Управление сервисом</strong>
+    </div>
+    <div class="card-body">
+        <p class="mb-3 text-muted">
+            Перезапуск нужен после правок шаблонов или Python-кода.
+            Сервис <code>myframework</code> будет остановлен и запущен заново —
+            сайт на 1–2 секунды станет недоступен.
+        </p>
+
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+            <button type="button" class="btn btn-warning" id="restartServiceBtn">
+                <i class="bi bi-arrow-clockwise"></i> Перезапустить сервис
+            </button>
+
+            <span class="text-muted small" id="restartStatus">
+                Статус: <span class="badge bg-success">проверка…</span>
+            </span>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- СЕКЦИЯ 2: ОБЩИЕ НАСТРОЙКИ                                    -->
+<!-- ============================================================ -->
+<div class="card mb-4">
+    <div class="card-header bg-secondary text-white">
+        <strong><i class="bi bi-sliders"></i> Общие настройки</strong>
+    </div>
+    <div class="card-body">
+
+        <form method="POST" novalidate>
+            {{ form.hidden_tag() }}
+
+            <div class="row g-4">
+
+                <!-- ЛЕВАЯ КОЛОНКА: идентификация + базовые URL -->
+                <div class="col-md-6">
+                    <h6 class="text-muted mb-3">Идентификация</h6>
+
+                    <div class="mb-3">
+                        {{ form.site_title.label(class="form-label") }}
+                        {{ form.site_title(class="form-control") }}
+                        {% for e in form.site_title.errors %}
+                        <div class="text-danger small">{{ e }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.site_subtitle.label(class="form-label") }}
+                        {{ form.site_subtitle(class="form-control") }}
+                        <small class="text-muted">Под названием в шапке сайта.</small>
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.site_description.label(class="form-label") }}
+                        {{ form.site_description(class="form-control") }}
+                        <small class="text-muted">Для &lt;meta name="description"&gt;.</small>
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.site_keywords.label(class="form-label") }}
+                        {{ form.site_keywords(class="form-control") }}
+                        <small class="text-muted">Через запятую.</small>
+                    </div>
+
+                    <!-- БАЗОВЫЕ URL СЕРВИСОВ (внутри левой колонки) -->
+                    <h6 class="text-muted mb-3 mt-4">Базовые URL сервисов</h6>
+                    <p class="text-muted small mb-3">
+                        Используются в шапке для переходов между сайтом, облаком и почтой.
+                        При смене доменов — обновите эти поля.
+                    </p>
+
+                    <div class="mb-3">
+                        {{ form.site_base_url.label(class="form-label") }}
+                        {{ form.site_base_url(class="form-control" + (" is-invalid" if form.site_base_url.errors else
+                        "")) }}
+                        {% for error in form.site_base_url.errors %}
+                        <div class="invalid-feedback">{{ error }}</div>
+                        {% endfor %}
+                        <small class="text-muted">{{ form.site_base_url.description }}</small>
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.cloud_base_url.label(class="form-label") }}
+                        {{ form.cloud_base_url(class="form-control" + (" is-invalid" if form.cloud_base_url.errors else
+                        "")) }}
+                        {% for error in form.cloud_base_url.errors %}
+                        <div class="invalid-feedback">{{ error }}</div>
+                        {% endfor %}
+                        <small class="text-muted">{{ form.cloud_base_url.description }}</small>
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.mail_base_url.label(class="form-label") }}
+                        {{ form.mail_base_url(class="form-control" + (" is-invalid" if form.mail_base_url.errors else
+                        "")) }}
+                        {% for error in form.mail_base_url.errors %}
+                        <div class="invalid-feedback">{{ error }}</div>
+                        {% endfor %}
+                        <small class="text-muted">{{ form.mail_base_url.description }}</small>
+                    </div>
+                </div>
+
+                <!-- ПРАВАЯ КОЛОНКА: интерфейс и оформление -->
+                <div class="col-md-6">
+                    <h6 class="text-muted mb-3">Элементы интерфейса</h6>
+
+                    <div class="form-check mb-2">
+                        {{ form.show_header(class="form-check-input") }}
+                        {{ form.show_header.label(class="form-check-label") }}
+                    </div>
+
+                    <div class="form-check mb-2">
+                        {{ form.show_header_menu(class="form-check-input") }}
+                        {{ form.show_header_menu.label(class="form-check-label") }}
+                        <small class="text-muted d-block">Верхнее горизонтальное меню.</small>
+                    </div>
+
+                    <div class="form-check mb-2">
+                        {{ form.show_sidebar(class="form-check-input") }}
+                        {{ form.show_sidebar.label(class="form-check-label") }}
+                    </div>
+
+                    <div class="form-check mb-4">
+                        {{ form.show_footer(class="form-check-input") }}
+                        {{ form.show_footer.label(class="form-check-label") }}
+                    </div>
+
+                    <h6 class="text-muted mb-3">Оформление</h6>
+
+                    <div class="mb-3">
+                        {{ form.active_theme.label(class="form-label") }}
+                        {{ form.active_theme(class="form-select") }}
+                        <small class="text-muted">
+                            Темы в <code>static/themes/&lt;имя&gt;/style.css</code>.
+                        </small>
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.logo_file_id.label(class="form-label") }}
+                        {{ form.logo_file_id(class="form-select") }}
+                        <small class="text-muted">Из файлового менеджера (тип «image»).</small>
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.favicon_file_id.label(class="form-label") }}
+                        {{ form.favicon_file_id(class="form-select") }}
+                        <small class="text-muted">Иконка вкладки браузера.</small>
+                    </div>
+
+                    <h6 class="text-muted mb-3 mt-4">Слайдер в шапке</h6>
+
+                    <div class="form-check mb-3">
+                        {{ form.show_slider(class="form-check-input") }}
+                        {{ form.show_slider.label(class="form-check-label") }}
+                        <small class="text-muted d-block">
+                            Показывать слайдер в шапке сайта. Фотографии берутся из
+                            <strong>избранных фото</strong> в альбомах (звёздочка).
+                        </small>
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.slider_delay_seconds.label(class="form-label") }}
+                        {{ form.slider_delay_seconds(class="form-control",
+                        type="number",
+                        min="1", max="60", step="1") }}
+                        <small class="text-muted">
+                            Сколько секунд показывается каждый слайд. По умолчанию — 5.
+                        </small>
+                        {% for e in form.slider_delay_seconds.errors %}
+                        <div class="text-danger small">{{ e }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="alert alert-info small mb-0">
+                        <i class="bi bi-info-circle"></i>
+                        Чтобы добавить фото в слайдер — откройте
+                        <a href="{{ url_for('admin_albums') }}">альбомы</a>
+                        и нажмите <i class="bi bi-star text-warning"></i> рядом с нужным фото.
+                    </div>
+
+                </div>
+
+            </div> <!-- закрытие row -->
+
+            <hr class="my-4">
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-lg"></i> Сохранить настройки
+                </button>
+                <a href="{{ url_for('index') }}" target="_blank" class="btn btn-outline-secondary">
+                    <i class="bi bi-eye"></i> Посмотреть сайт
+                </a>
+            </div>
+
+        </form>
+
+    </div>
+</div>
+
+<script>
+    (function () {
+        // Прогресс и блокировка кнопки при создании бэкапа
+        const form = document.getElementById('backupForm');
+        const btn = document.getElementById('backupBtn');
+        const progress = document.getElementById('backupProgress');
+
+        if (form && btn) {
+            form.addEventListener('submit', () => {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Создание бэкапа…';
+                if (progress) progress.classList.remove('d-none');
+            });
+        }
+
+        // Проверка статуса диска каждые 10 секунд
+        setInterval(async () => {
+            try {
+                const resp = await fetch('/admin/api/disk-status');
+                if (!resp.ok) return;
+                const data = await resp.json();
+
+                const statusEl = document.getElementById('diskStatus');
+                if (!statusEl) return;
+
+                if (data.mounted && statusEl.classList.contains('alert-warning')) {
+                    location.reload();
+                } else if (!data.mounted && statusEl.classList.contains('alert-success')) {
+                    statusEl.className = 'alert alert-warning';
+                    statusEl.innerHTML = `
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <strong>Внешний диск отключён:</strong>
+                    <code>${data.path}</code>
+                `;
+                    if (btn) btn.disabled = true;
+                }
+            } catch (e) { }
+        }, 10000);
+    })();
+</script>
+
+<script>
+    (function () {
+        const btn = document.getElementById('restartServiceBtn');
+        const statusEl = document.getElementById('restartStatus');
+
+        if (!btn) return;
+
+        // === Проверка статуса сервиса ===
+        function checkStatus() {
+            fetch('/admin/api/service-status')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.active) {
+                        statusEl.innerHTML = 'Статус: <span class="badge bg-success">работает</span>';
+                    } else {
+                        statusEl.innerHTML = 'Статус: <span class="badge bg-danger">остановлен</span>';
+                    }
+                })
+                .catch(() => {
+                    statusEl.innerHTML = 'Статус: <span class="badge bg-secondary">недоступно</span>';
+                });
+        }
+
+        // Первая проверка при загрузке
+        checkStatus();
+
+        // === Перезапуск ===
+        btn.addEventListener('click', async function () {
+            if (!confirm('Перезапустить сервис? Сайт будет недоступен 1–2 секунды.')) {
+                return;
+            }
+
+            // Блокируем кнопку
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Перезапуск…';
+            statusEl.innerHTML = 'Статус: <span class="badge bg-warning text-dark">перезапускается…</span>';
+
+            try {
+                const resp = await fetch('/admin/settings/restart', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token() }}'
+                    }
+                });
+                const data = await resp.json();
+
+                if (!data.ok) {
+                    throw new Error(data.error || 'Ошибка');
+                }
+
+                // Сервис перезапускается — подождём 4 секунды и перезагрузим страницу
+                setTimeout(() => {
+                    window.location.reload();
+                }, 4000);
+            } catch (err) {
+                console.error('[restart]', err);
+                alert('Не удалось перезапустить: ' + err.message);
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Перезапустить сервис';
+                checkStatus();
+            }
+        });
+    })();
+</script>
+
+{% endblock %}

@@ -1,0 +1,92 @@
+{% extends 'admin/base_admin.html' %}
+
+{% block title %}Облако — Админка{% endblock %}
+
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-cloud"></i> Облачное хранилище</h2>
+
+<div class="alert alert-info mb-4">
+    <i class="bi bi-info-circle"></i>
+    Управление квотами пользователей. Занятое место включает корзину.
+</div>
+
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead class="table-dark">
+            <tr>
+                <th>Пользователь</th>
+                <th style="width: 100px;">Роль</th>
+                <th style="width: 120px;">Квота</th>
+                <th style="width: 120px;">Занято</th>
+                <th style="width: 120px;">Корзина</th>
+                <th style="width: 120px;">Свободно</th>
+                <th style="width: 200px;">Использование</th>
+                <th style="width: 100px;">Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in users_data %}
+            <tr>
+                <td>
+                    <div>
+                        <strong>{{ row.user.username }}</strong>
+                        {% if row.user.id == current_user.id %}
+                        <span class="badge bg-primary">вы</span>
+                        {% endif %}
+                    </div>
+                    <small class="text-muted">{{ row.user.email }}</small>
+                </td>
+                <td>
+                    {% if row.user.role == 'admin' %}
+                        <span class="badge bg-danger">Админ</span>
+                    {% elif row.user.role == 'editor' %}
+                        <span class="badge bg-warning text-dark">Редактор</span>
+                    {% elif row.user.role == 'user' %}
+                        <span class="badge bg-primary">Пользователь</span>
+                    {% else %}
+                        <span class="badge bg-secondary">Наблюдатель</span>
+                    {% endif %}
+                </td>
+                <td>{{ row.quota | human_size_bytes }}</td>
+                <td>
+                    <strong>{{ row.used | human_size_bytes }}</strong>
+                    {% if row.used_active > 0 %}
+                    <br><small class="text-muted">активных: {{ row.used_active | human_size_bytes }}</small>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if row.trashed > 0 %}
+                    <span class="text-warning">{{ row.trashed | human_size_bytes }}</span>
+                    {% else %}
+                    <span class="text-muted">—</span>
+                    {% endif %}
+                </td>
+                <td>{{ row.free | human_size_bytes }}</td>
+                <td>
+                    <div class="progress" style="height: 20px;">
+                        <div class="progress-bar
+                                    {% if row.percent > 90 %}bg-danger
+                                    {% elif row.percent > 70 %}bg-warning
+                                    {% else %}bg-success{% endif %}"
+                             role="progressbar"
+                             style="width: {{ row.percent }}%;"
+                             aria-valuenow="{{ row.percent }}"
+                             aria-valuemin="0"
+                             aria-valuemax="100">
+                            {{ row.percent }}%
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <a href="{{ url_for('admin_cloud_user_detail', user_id=row.user.id) }}"
+                       class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-folder2-open"></i> Файлы
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

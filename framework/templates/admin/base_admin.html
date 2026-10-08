@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Админ-панель{% endblock %}</title>
+    <!-- Bootstrap для стилизации -->
+    <link href="{{ url_for('static', filename='vendor/bootstrap/bootstrap.min.css') }}" rel="stylesheet">
+    <!-- Bootstrap Icons для иконок в кнопках -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body class="bg-light">
+
+    <!-- ШАПКА АДМИНКИ: только кнопки разделов и возврат на сайт -->
+    <header class="admin-header bg-dark text-white py-2 shadow-sm">
+        <div class="container-fluid">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+
+                                <!-- Левая часть: логотип + кнопки разделов админки -->
+                <div class="d-flex align-items-center gap-3">
+                    <!-- Название админки -->
+                    {% if current_user.is_admin %}
+                    <a href="{{ url_for('admin_dashboard') }}" class="text-white text-decoration-none fw-bold fs-5">
+                        <i class="bi bi-speedometer2"></i> Админка
+                    </a>
+                    {% else %}
+                    <a href="{{ url_for('admin_articles') }}" class="text-white text-decoration-none fw-bold fs-5">
+                        <i class="bi bi-pencil-square"></i> Редактор
+                    </a>
+                    {% endif %}
+
+                    <!-- Навигация по разделам админки -->
+                    <nav class="d-flex gap-2">
+                        {# === Только admin === #}
+                        {% if current_user.is_admin %}
+                        <a href="{{ url_for('admin_dashboard') }}"
+                            class="btn btn-sm {% if request.endpoint == 'admin_dashboard' %}btn-primary{% else %}btn-outline-light{% endif %}">
+                            <i class="bi bi-speedometer2"></i> Дашборд
+                        </a>
+                        <a href="{{ url_for('admin_users') }}"
+                            class="btn btn-sm {% if request.endpoint and request.endpoint.startswith('admin_user') %}btn-primary{% else %}btn-outline-light{% endif %}">
+                            <i class="bi bi-people"></i> Пользователи
+                        </a>
+                        {% endif %}
+
+                        {# === Admin + Editor === #}
+                        <a href="{{ url_for('admin_articles') }}"
+                            class="btn btn-sm {% if request.endpoint and request.endpoint.startswith('admin_article') %}btn-primary{% else %}btn-outline-light{% endif %}">
+                            <i class="bi bi-file-text"></i> Статьи
+                        </a>
+                        <a href="{{ url_for('admin_pages') }}"
+                            class="btn btn-sm {% if request.endpoint and request.endpoint.startswith('admin_page') %}btn-primary{% else %}btn-outline-light{% endif %}">
+                            <i class="bi bi-file-earmark"></i> Страницы
+                        </a>
+                        <a href="{{ url_for('admin_files') }}"
+                            class="btn btn-sm {% if request.endpoint and request.endpoint.startswith('admin_file') %}btn-primary{% else %}btn-outline-light{% endif %}">
+                            <i class="bi bi-folder2-open"></i> Файлы
+                        </a>
+                        <a href="{{ url_for('admin_albums') }}"
+                            class="btn btn-sm {% if request.endpoint and request.endpoint.startswith('admin_album') %}btn-primary{% else %}btn-outline-light{% endif %}">
+                            <i class="bi bi-images"></i> Альбомы
+                        </a>
+
+                        {# === Только admin === #}
+                        {% if current_user.is_admin %}
+                        <a href="{{ url_for('admin_menu') }}"
+                            class="btn btn-sm {% if request.endpoint and request.endpoint.startswith('admin_menu') %}btn-primary{% else %}btn-outline-light{% endif %}">
+                            <i class="bi bi-list"></i> Меню
+                        </a>
+                        <a href="{{ url_for('admin_cloud_users') }}"
+                            class="btn btn-sm {% if request.endpoint and request.endpoint.startswith('admin_cloud') %}btn-primary{% else %}btn-outline-light{% endif %}">
+                            <i class="bi bi-cloud"></i> Облако
+                        </a>
+                        <a href="{{ url_for('admin_settings') }}"
+                            class="btn btn-sm {% if request.endpoint and request.endpoint.startswith('admin_settings') %}btn-primary{% else %}btn-outline-light{% endif %}">
+                            <i class="bi bi-gear"></i> Настройки
+                        </a>
+                        {% endif %}
+                    </nav>
+                </div>
+
+                <!-- Правая часть: пользователь, выход на сайт, выход из аккаунта -->
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-white-50 small d-none d-md-inline">
+                        {{ current_user.username }}
+                    </span>
+                    <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-info" title="Вернуться на сайт">
+                        <i class="bi bi-box-arrow-up-right"></i> На сайт
+                    </a>
+                    <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-light" title="Выйти из аккаунта">
+                        <i class="bi bi-box-arrow-right"></i> Выйти
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ТЕЛО АДМИНКИ: только контент раздела -->
+    <main class="container-fluid py-4">
+        <!-- Flash-сообщения -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <!-- Блок для контента дочерних шаблонов -->
+        {% block content %}{% endblock %}
+    </main>
+
+    <script src="{{ url_for('static', filename='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
+    <!-- TinyMCE (локальная копия в static/tinymce) -->
+    <script src="{{ url_for('static', filename='tinymce/tinymce.min.js') }}"></script>
+
+    <!-- Модальное окно файлового менеджера / облака (одно на всю админку) -->
+    <div class="modal fade" id="fileManagerModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-folder2-open"></i>
+                        {% if current_user.is_admin %}Вставка файла{% else %}Вставка из моего облака{% endif %}
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+
+                    {# Вкладки: админ видит обе, редактор — только «Облако» #}
+                    {% if current_user.is_admin %}
+                    <ul class="nav nav-tabs mb-3" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="fmTabUploadsBtn" data-bs-toggle="tab"
+                                data-bs-target="#fmTabUploads" type="button" role="tab"
+                                data-fm-source="uploads">
+                                <i class="bi bi-folder2-open"></i> Файловый менеджер
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="fmTabCloudBtn" data-bs-toggle="tab"
+                                data-bs-target="#fmTabCloud" type="button" role="tab"
+                                data-fm-source="cloud">
+                                <i class="bi bi-cloud"></i> Облако
+                            </button>
+                        </li>
+                    </ul>
+                    {% else %}
+                    {# Редактор: только одна «вкладка», но оставляем визуальный отступ #}
+                    <input type="hidden" id="fmTabCloudBtn" data-fm-source="cloud">
+                    {% endif %}
+
+                    <div class="tab-content">
+
+                        {# === Вкладка 1: Файловый менеджер (uploads/) — только админ === #}
+                        {% if current_user.is_admin %}
+                        <div class="tab-pane fade show active" id="fmTabUploads" role="tabpanel">
+
+                            <!-- Фильтры по типу -->
+                            <div class="btn-group mb-3 flex-wrap" role="group">
+                                <button type="button" class="btn btn-sm btn-outline-secondary active"
+                                    data-fm-filter="all" data-fm-context="uploads">Все</button>
+                                <button type="button" class="btn btn-sm btn-outline-info"
+                                    data-fm-filter="image" data-fm-context="uploads">Изображения</button>
+                                <button type="button" class="btn btn-sm btn-outline-warning"
+                                    data-fm-filter="video" data-fm-context="uploads">Видео</button>
+                                <button type="button" class="btn btn-sm btn-outline-success"
+                                    data-fm-filter="document" data-fm-context="uploads">Документы</button>
+                                <button type="button" class="btn btn-sm btn-outline-dark"
+                                    data-fm-filter="archive" data-fm-context="uploads">Архивы</button>
+                            </div>
+
+                            <!-- Загрузка нового файла прямо отсюда -->
+                            <div class="input-group mb-3">
+                                <input type="file" id="fmUploadInput" class="form-control form-control-sm" multiple>
+                                <button class="btn btn-sm btn-primary" id="fmUploadBtn">
+                                    <i class="bi bi-upload"></i> Загрузить
+                                </button>
+                            </div>
+
+                            <!-- Список файлов -->
+                            <div id="fmListUploads" class="list-group">
+                                <div class="text-muted text-center py-3">Загрузка…</div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {# === Вкладка 2: Облако — админ (все юзеры) и редактор (свои) === #}
+                        <div class="tab-pane fade {% if not current_user.is_admin %}show active{% endif %}" id="fmTabCloud" role="tabpanel">
+
+                            {% if current_user.is_admin %}
+                            {# Фильтр по владельцу — только админу #}
+                            <div class="mb-2">
+                                <select id="fmCloudOwnerFilter" class="form-select form-select-sm">
+                                    <option value="">Все пользователи</option>
+                                    {# Заполняется через JS или Jinja — оставим на Jinja #}
+                                    {% for u in fm_cloud_users|default([]) %}
+                                    <option value="{{ u.id }}">{{ u.username }} ({{ u.role }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            {% endif %}
+
+                            <!-- Фильтры по типу -->
+                            <div class="btn-group mb-3 flex-wrap" role="group">
+                                <button type="button" class="btn btn-sm btn-outline-secondary active"
+                                    data-fm-filter="all" data-fm-context="cloud">Все</button>
+                                <button type="button" class="btn btn-sm btn-outline-info"
+                                    data-fm-filter="image" data-fm-context="cloud">Изображения</button>
+                                <button type="button" class="btn btn-sm btn-outline-warning"
+                                    data-fm-filter="video" data-fm-context="cloud">Видео</button>
+                                <button type="button" class="btn btn-sm btn-outline-success"
+                                    data-fm-filter="document" data-fm-context="cloud">Документы</button>
+                                <button type="button" class="btn btn-sm btn-outline-dark"
+                                    data-fm-filter="archive" data-fm-context="cloud">Архивы</button>
+                            </div>
+
+                            <!-- Информационная плашка: загрузка — через mycloud -->
+                            <div class="alert alert-info small py-2 px-3 mb-2">
+                                <i class="bi bi-info-circle"></i>
+                                Загрузка файлов — через
+                                <a href="http://{{ request.host.split(':')[0] }}:5001/" target="_blank">облако</a>.
+                            </div>
+
+                            <!-- Список облачных файлов -->
+                            <div id="fmListCloud" class="list-group">
+                                <div class="text-muted text-center py-3">Загрузка…</div>
+                            </div>
+                        </div>
+
+                    </div>{# /tab-content #}
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Скрипт-инициализатор TinyMCE и файлового менеджера -->
+    <script>
+        (function () {
+            // === Инициализация TinyMCE для всех textarea с классом "rich-editor" ===
+            if (typeof tinymce !== 'undefined') {
+                tinymce.init({
+
+                    paste_preprocess: function (plugin, args) {
+                        args.content = args.content
+                            .replace(/¶/g, '')
+                            .replace(/\u00A0/g, ' ')
+                            .replace(/\u200B/g, '');
+                    },
+                    paste_data_images: true,
+
+                    content_css: [
+                        '{{ url_for("static", filename="vendor/bootstrap-icons/bootstrap-icons.css") }}',
+                        '{{ url_for("static", filename="css/style.css") }}'
+                    ],
+
+                    selector: 'textarea.rich-editor',
+                    license_key: 'gpl',
+                    language: 'ru',
+                    height: 500,
+                    menubar: true,
+                    plugins: [
+                        'advlist', 'autolink', 'lists', 'link', 'image', 'charmap',
+                        'preview', 'anchor', 'searchreplace', 'visualblocks',
+                        'code', 'fullscreen', 'insertdatetime', 'media', 'table',
+                        'help', 'wordcount'
+                    ],
+                    toolbar: 'undo redo | blocks | ' +
+                        'bold italic underline strikethrough | ' +
+                        'forecolor backcolor | alignleft aligncenter alignright alignjustify | ' +
+                        'bullist numlist outdent indent | ' +
+                        'link image media table | ' +
+                        'attachfile | code fullscreen | removeformat help',
+                    // Кнопка «Прикрепить файл из менеджера»
+                    setup: function (editor) {
+                        editor.ui.registry.addButton('attachfile', {
+                            icon: 'browse',
+                            tooltip: 'Прикрепить файл из менеджера',
+                            onAction: function () {
+                                // Сохраняем ссылку на активный редактор
+                                window.__activeEditor = editor;
+                                // Загружаем список файлов и показываем модалку
+                                loadFileManagerList('all');
+                                new bootstrap.Modal(document.getElementById('fileManagerModal')).show();
+                            }
+                        });
+
+                        // Автоматически назначаем активный редактор при фокусе
+                        editor.on('focus', function () {
+                            window.__activeEditor = editor;
+                        });
+                    },
+                    // Разрешаем iframe, video, audio и figure в контенте
+                    extended_valid_elements: 'iframe[src|width|height|frameborder|allowfullscreen],video[controls|src|width|height],audio[controls|src],figure,figcaption,i[class|style|aria-hidden],span[class|style|aria-hidden],a[href|target|rel|class|download|title]',
+                    // Включаем вставку из Word с сохранением форматирования
+                    paste_data_images: true,
+                    // Стили внутри редактора — как в Word
+                    content_style: `
+                    body { font-family: 'Calibri', 'Segoe UI', Arial, sans-serif; font-size: 15px; line-height: 1.6; }
+                    img { max-width: 100%; height: auto; }
+                    table { border-collapse: collapse; }
+                    table td, table th { border: 1px solid #ccc; padding: 4px 8px; }
+                    
+                    /* === Ссылки на файлы с иконкой === */
+                    .file-link {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 6px;
+                        padding: 4px 10px;
+                        margin: 2px 4px;
+                        border-radius: 6px;
+                        background: #f1f5f9;
+                        border: 1px solid #cbd5e1;
+                        color: #334155;
+                        text-decoration: none;
+                        font-size: 0.9em;
+                        transition: background 0.15s ease, border-color 0.15s ease;
+                    }
+
+                    .file-link:hover {
+                        background: #e2e8f0;
+                        border-color: #94a3b8;
+                        color: #1e293b;
+                    }
+
+                    .file-link i {
+                     font-size: 1.1em;
+                    }
+
+                    .file-link-pdf      i { color: #dc3545; }
+                    .file-link-doc i,
+                    .file-link-docx i   { color: #0d6efd; }
+                    .file-link-xls i,
+                    .file-link-xlsx i,
+                    .file-link-csv i    { color: #198754; }
+                    .file-link-ppt i,
+                    .file-link-pptx i   { color: #fd7e14; }
+                    .file-link-zip i,
+                    .file-link-rar i,
+                    .file-link-7z i     { color: #6f42c1; }
+                    .file-link-txt i,
+                    .file-link-md i     { color: #6c757d; }
+                    .file-link-py i,
+                    .file-link-js i,
+                    .file-link-css i,
+                    .file-link-html i   { color: #0f172a; }
+                `
+                });
+            }
+
+            // === Определение иконки для файла по имени/типу ===
+            function getFileIcon(filename, type) {
+                const ext = (filename.split('.').pop() || '').toLowerCase();
+
+                const byExt = {
+                    'pdf':  {class: 'bi-file-earmark-pdf',  color: 'text-danger'},
+                    'doc':  {class: 'bi-file-earmark-word', color: 'text-primary'},
+                    'docx': {class: 'bi-file-earmark-word', color: 'text-primary'},
+                    'rtf':  {class: 'bi-file-earmark-word', color: 'text-primary'},
+                    'odt':  {class: 'bi-file-earmark-word', color: 'text-primary'},
+                    'xls':  {class: 'bi-file-earmark-excel', color: 'text-success'},
+                    'xlsx': {class: 'bi-file-earmark-excel', color: 'text-success'},
+                    'csv':  {class: 'bi-file-earmark-excel', color: 'text-success'},
+                    'ods':  {class: 'bi-file-earmark-excel', color: 'text-success'},
+                    'ppt':  {class: 'bi-file-earmark-ppt',  color: 'text-warning'},
+                    'pptx': {class: 'bi-file-earmark-ppt',  color: 'text-warning'},
+                    'odp':  {class: 'bi-file-earmark-ppt',  color: 'text-warning'},
+                    'txt':  {class: 'bi-file-earmark-text', color: 'text-secondary'},
+                    'md':   {class: 'bi-file-earmark-text', color: 'text-secondary'},
+                    'zip':  {class: 'bi-file-earmark-zip',  color: 'text-primary'},
+                    'rar':  {class: 'bi-file-earmark-zip',  color: 'text-primary'},
+                    '7z':   {class: 'bi-file-earmark-zip',  color: 'text-primary'},
+                    'tar':  {class: 'bi-file-earmark-zip',  color: 'text-primary'},
+                    'gz':   {class: 'bi-file-earmark-zip',  color: 'text-primary'},
+                    'bz2':  {class: 'bi-file-earmark-zip',  color: 'text-primary'},
+                    'py':   {class: 'bi-file-earmark-code', color: 'text-dark'},
+                    'js':   {class: 'bi-file-earmark-code', color: 'text-dark'},
+                    'css':  {class: 'bi-file-earmark-code', color: 'text-dark'},
+                    'html': {class: 'bi-file-earmark-code', color: 'text-dark'},
+                    'json': {class: 'bi-file-earmark-code', color: 'text-dark'},
+                    'xml':  {class: 'bi-file-earmark-code', color: 'text-dark'},
+                };
+                if (byExt[ext]) return byExt[ext];
+
+                const byType = {
+                    'video':    {class: 'bi-file-earmark-play',  color: 'text-danger'},
+                    'audio':    {class: 'bi-file-earmark-music', color: 'text-info'},
+                    'archive':  {class: 'bi-file-earmark-zip',   color: 'text-primary'},
+                    'document': {class: 'bi-file-earmark-text',  color: 'text-secondary'},
+                    'image':    {class: 'bi-file-earmark-image', color: 'text-info'},
+                };
+                return byType[type] || {class: 'bi-file-earmark', color: 'text-secondary'};
+            }
+
+            // === Определение расширения файла (без точки) ===
+            function getFileExt(filename) {
+                return (filename.split('.').pop() || '').toLowerCase();
+            }
+
+            // === Определение типа файла по имени (для cloud, там нет file_type) ===
+            function guessCloudType(filename, mimeType) {
+                const mime = (mimeType || '').toLowerCase();
+                if (mime.startsWith('image/')) return 'image';
+                if (mime.startsWith('video/')) return 'video';
+                if (mime.startsWith('audio/')) return 'audio';
+                const ext = getFileExt(filename);
+                if (['zip','rar','7z','tar','gz','bz2'].includes(ext)) return 'archive';
+                if (['pdf','doc','docx','xls','xlsx','ppt','pptx','txt','md','rtf','odt','ods','odp'].includes(ext)) return 'document';
+                return 'other';
+            }
+
+            // === Рендер одного файла в списке ===
+            function renderFileItem(f) {
+                let media;
+                if (f.type === 'image' && f.thumbnail_url) {
+                    media = `<img src="${f.thumbnail_url}"
+                                  alt="" loading="lazy" decoding="async"
+                                  style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; flex-shrink: 0;">`;
+                } else {
+                    const icon = getFileIcon(f.name, f.type);
+                    media = `<i class="bi ${icon.class} fs-3 ${icon.color}"
+                                style="width: 40px; text-align: center; flex-shrink: 0;"></i>`;
+                }
+                const ownerBadge = f.owner_name
+                    ? `<small class="text-muted d-block">владелец: ${f.owner_name}</small>`
+                    : '';
+                return `
+                    <button type="button" class="list-group-item list-group-item-action d-flex align-items-center gap-2"
+                            data-fm-file='${JSON.stringify(f).replace(/'/g, "&apos;")}'>
+                        ${media}
+                        <span class="flex-grow-1 text-start">
+                            <strong>${f.name}</strong>
+                            <small class="text-muted d-block">${f.type} • ${f.size} • ${f.date}</small>
+                            ${ownerBadge}
+                        </span>
+                        <i class="bi bi-plus-circle text-primary"></i>
+                    </button>
+                `;
+            }
+
+            // === Загрузка списка «uploads» ===
+            window.loadFileManagerUploads = function (type) {
+                const list = document.getElementById('fmListUploads');
+                if (!list) return;
+                list.innerHTML = '<div class="text-muted text-center py-3">Загрузка…</div>';
+                fetch('/admin/api/files?type=' + encodeURIComponent(type))
+                    .then(r => r.json())
+                    .then(files => {
+                        if (!files.length) {
+                            list.innerHTML = '<div class="text-muted text-center py-3">Файлов нет</div>';
+                            return;
+                        }
+                        list.innerHTML = files.map(renderFileItem).join('');
+                    })
+                    .catch(() => {
+                        list.innerHTML = '<div class="text-danger text-center py-3">Ошибка загрузки</div>';
+                    });
+            };
+
+            // === Загрузка списка «Облако» ===
+            window.loadFileManagerCloud = function (type) {
+                const list = document.getElementById('fmListCloud');
+                if (!list) return;
+                list.innerHTML = '<div class="text-muted text-center py-3">Загрузка…</div>';
+
+                const params = new URLSearchParams({type: type || 'all'});
+                const ownerSel = document.getElementById('fmCloudOwnerFilter');
+                if (ownerSel && ownerSel.value) {
+                    params.set('owner', ownerSel.value);
+                }
+
+                fetch('/admin/api/cloud-files?' + params.toString())
+                    .then(r => r.json())
+                    .then(files => {
+                        if (!files.length) {
+                            list.innerHTML = '<div class="text-muted text-center py-3">Файлов нет</div>';
+                            return;
+                        }
+                        list.innerHTML = files.map(renderFileItem).join('');
+                    })
+                    .catch(() => {
+                        list.innerHTML = '<div class="text-danger text-center py-3">Ошибка загрузки</div>';
+                    });
+            };
+
+            // === Универсальная загрузка (переключение по контексту) ===
+            window.loadFileManagerList = function (type, context) {
+                context = context || currentFmContext();
+                if (context === 'cloud') {
+                    loadFileManagerCloud(type);
+                } else {
+                    loadFileManagerUploads(type);
+                }
+            };
+
+            // === Определение активного контекста (uploads / cloud) ===
+            function currentFmContext() {
+                const activeTab = document.querySelector('#fileManagerModal .nav-link.active');
+                if (activeTab) {
+                    return activeTab.getAttribute('data-fm-source') || 'uploads';
+                }
+                // Редактор без вкладок: hidden input
+                const hidden = document.getElementById('fmTabCloudBtn');
+                if (hidden) return hidden.getAttribute('data-fm-source') || 'cloud';
+                return 'uploads';
+            }
+
+            // === Клик по файлу — вставка в активный редактор ===
+            document.addEventListener('click', function (e) {
+                const item = e.target.closest('[data-fm-file]');
+                if (!item) return;
+
+                const file = JSON.parse(item.getAttribute('data-fm-file'));
+                const editor = window.__activeEditor;
+                if (!editor) return;
+
+                if (file.type === 'image') {
+                    editor.insertContent(`<img src="${file.public_url}" alt="${file.name}">`);
+                } else if (file.type === 'video') {
+                    editor.insertContent(`<video src="${file.public_url}" controls style="max-width:100%"></video>`);
+                } else if (file.type === 'audio') {
+                    editor.insertContent(`<audio src="${file.public_url}" controls></audio>`);
+                } else {
+                    const icon = getFileIcon(file.name, file.type);
+                    const ext = getFileExt(file.name);
+                    const html = `<a href="${file.public_url}" target="_blank" rel="noopener" class="file-link file-link-${ext}"><i class="bi ${icon.class}" aria-hidden="true"></i><span>${file.name}</span></a>`;
+                    editor.insertContent(html);
+                }
+
+                const modalEl = document.getElementById('fileManagerModal');
+                bootstrap.Modal.getInstance(modalEl).hide();
+            });
+
+            // === Кнопки фильтров ===
+            document.addEventListener('click', function (e) {
+                const btn = e.target.closest('[data-fm-filter]');
+                if (!btn) return;
+                const ctx = btn.getAttribute('data-fm-context') || 'uploads';
+                // Снимаем active только в своей вкладке
+                document.querySelectorAll(`[data-fm-filter][data-fm-context="${ctx}"]`)
+                    .forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                loadFileManagerList(btn.getAttribute('data-fm-filter'), ctx);
+            });
+
+            // === Переключение вкладок модалки — подгружаем список ===
+            document.addEventListener('shown.bs.tab', function (e) {
+                const src = e.target.getAttribute('data-fm-source');
+                if (!src) return;
+                loadFileManagerList('all', src);
+            });
+
+            // === Открытие модалки: подгружаем список активной вкладки ===
+            document.getElementById('fileManagerModal')?.addEventListener('show.bs.modal', function () {
+                loadFileManagerList('all');
+            });
+
+            // === Смена фильтра «владелец» в облаке ===
+            document.getElementById('fmCloudOwnerFilter')?.addEventListener('change', function () {
+                loadFileManagerCloud('all');
+            });
+
+            // === AJAX-загрузка файла из модалки (только uploads) ===
+            document.getElementById('fmUploadBtn')?.addEventListener('click', async function () {
+                const input = document.getElementById('fmUploadInput');
+                if (!input.files.length) {
+                    alert('Файлы не выбраны');
+                    return;
+                }
+
+                const fd = new FormData();
+                for (const f of input.files) {
+                    fd.append('files', f);
+                }
+                fd.append('csrf_token', '{{ csrf_token() }}');
+
+                try {
+                    const resp = await fetch('/admin/api/upload-multiple', {
+                        method: 'POST',
+                        body: fd,
+                        headers: {'X-CSRFToken': '{{ csrf_token() }}'}
+                    });
+
+                    let data;
+                    try { data = await resp.json(); }
+                    catch { throw new Error('Некорректный ответ сервера'); }
+
+                    if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+
+                    loadFileManagerUploads('all');
+                    input.value = '';
+                } catch (err) {
+                    console.error('Upload failed:', err);
+                    alert('Ошибка загрузки: ' + err.message);
+                }
+            });
+        })();
+    </script>
+    <!-- Sortable.js — для drag & drop сортировки -->
+    <script src="{{ url_for('static', filename='vendor/sortable.min.js') }}"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // === Сортировка фото в альбоме ===
+            const albumPhotos = document.getElementById('albumPhotosSortable');
+            if (albumPhotos && typeof Sortable !== 'undefined') {
+                const albumId = window.location.pathname.match(/\/admin\/albums\/(\d+)/)?.[1];
+
+                Sortable.create(albumPhotos, {
+                    animation: 150,                       // плавность
+                    ghostClass: 'sortable-ghost',         // класс для «призрака»
+                    chosenClass: 'sortable-chosen',       // класс для выбранного
+                    dragClass: 'sortable-drag',           // класс для перетаскиваемого
+                    filter: 'form, button, input',        // не тащим за формы/кнопки
+                    preventOnFilter: false,               // разрешить клики по кнопкам
+                    onEnd: function (evt) {
+                        // Собираем новый порядок ID
+                        const items = albumPhotos.querySelectorAll('[data-photo-id]');
+                        const order = Array.from(items).map(el => parseInt(el.dataset.photoId));
+
+                        // Отправляем на сервер
+                        fetch(`/admin/albums/${albumId}/reorder`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': '{{ csrf_token() }}'
+                            },
+                            body: JSON.stringify({order: order})
+                        })
+                            .then(r => r.json())
+                            .then(data => {
+                                if (data.ok) {
+                                    console.log('[sortable] Порядок сохранён:', data.count);
+                                } else {
+                                    alert('Ошибка сохранения порядка');
+                                }
+                            })
+                            .catch(err => {
+                                console.error('[sortable] Ошибка:', err);
+                                alert('Ошибка сети при сохранении порядка');
+                            });
+                    }
+                });
+            }
+        });
+    </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // === Сортировка альбомов ===
+            const albumsSortable = document.getElementById('albumsSortable');
+            if (albumsSortable && typeof Sortable !== 'undefined') {
+                Sortable.create(albumsSortable, {
+                    animation: 150,
+                    handle: '.bi-grip-vertical',
+                    ghostClass: 'sortable-ghost',
+                    chosenClass: 'sortable-chosen',
+                    dragClass: 'sortable-drag',
+                    onEnd: function (evt) {
+                        const rows = albumsSortable.querySelectorAll('[data-album-id]');
+                        const order = Array.from(rows).map(r => parseInt(r.dataset.albumId));
+
+                        fetch('/admin/albums/reorder', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': '{{ csrf_token() }}'
+                            },
+                            body: JSON.stringify({order: order})
+                        })
+                            .then(r => r.json())
+                            .then(data => {
+                                if (data.ok) {
+                                    console.log('[sortable] Альбомы сохранены:', data.count);
+                                } else {
+                                    alert('Ошибка сохранения порядка альбомов');
+                                }
+                            })
+                            .catch(err => {
+                                console.error('[sortable]', err);
+                            });
+                    }
+                });
+            }
+        });
+    </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const openBtn = document.getElementById('openAlbumModal');
+            if (!openBtn) return;
+
+            const clearBtn = document.getElementById('clearAlbumsBtn');
+            const modal = new bootstrap.Modal(document.getElementById('albumPickerModal'));
+            const list = document.getElementById('albumPickerList');
+            const checkboxes = list.querySelectorAll('input[type="checkbox"]');
+            const badges = document.getElementById('selectedAlbumsBadges');
+            const hiddenInputs = document.getElementById('hiddenAlbumInputs');
+            const countEl = document.getElementById('selectedAlbumsCount');
+            const searchInput = document.getElementById('albumSearchInput');
+            const confirmBtn = document.getElementById('confirmAlbumsBtn');
+
+            // === Обновление бейджей и скрытых полей ===
+            function syncSelection() {
+                const selected = [];
+
+                checkboxes.forEach(cb => {
+                    if (cb.checked) {
+                        selected.push({
+                            id: cb.value,
+                            title: cb.dataset.title || 'Без названия'
+                        });
+                    }
+                });
+
+                // Очищаем бейджи
+                badges.innerHTML = '';
+                hiddenInputs.innerHTML = '';
+
+                // Добавляем бейджи и скрытые input-ы
+                selected.forEach(item => {
+                    // Скрытый input для отправки на сервер
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'album_ids';
+                    input.value = item.id;
+                    hiddenInputs.appendChild(input);
+
+                    // Бейдж
+                    const badge = document.createElement('span');
+                    badge.className = 'album-badge';
+                    badge.innerHTML = `
+                ${item.title}
+                <span class="remove-badge" data-id="${item.id}" title="Убрать">×</span>
+            `;
+                    badges.appendChild(badge);
+                });
+
+                // Счётчик
+                countEl.textContent = selected.length;
+            }
+
+            // === Открытие модалки ===
+            openBtn.addEventListener('click', function () {
+                modal.show();
+            });
+
+            // === Поиск ===
+            if (searchInput) {
+                searchInput.addEventListener('input', function () {
+                    const q = this.value.toLowerCase().trim();
+                    const items = list.querySelectorAll('.album-picker-item');
+                    items.forEach(item => {
+                        const title = item.dataset.albumTitle || '';
+                        item.style.display = title.includes(q) ? '' : 'none';
+                    });
+                });
+            }
+
+            // === Клик по бейджу — убрать альбом ===
+            badges.addEventListener('click', function (e) {
+                const removeBtn = e.target.closest('.remove-badge');
+                if (!removeBtn) return;
+
+                const id = removeBtn.dataset.id;
+                checkboxes.forEach(cb => {
+                    if (cb.value === id) cb.checked = false;
+                });
+                syncSelection();
+            });
+
+            // === Очистить всё ===
+            if (clearBtn) {
+                clearBtn.addEventListener('click', function () {
+                    checkboxes.forEach(cb => cb.checked = false);
+                    syncSelection();
+                });
+            }
+
+            // === Подтверждение ===
+            confirmBtn.addEventListener('click', function () {
+                syncSelection();
+                modal.hide();
+            });
+
+            // === Первичная синхронизация (для существующей статьи) ===
+            syncSelection();
+        });
+    </script>
+
+</body>
+
+</html>

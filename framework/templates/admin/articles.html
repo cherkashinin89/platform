@@ -1,0 +1,115 @@
+{% extends 'admin/base_admin.html' %}
+{% from '_pagination.html' import render_pagination with context %}
+
+{% block title %}Управление статьями{% endblock %}
+
+{% block content %}
+<!-- Заголовок и кнопка создания -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">Управление статьями</h2>
+    <form method="get" class="admin-search-form">
+        <i class="bi bi-search"></i>
+        <input type="text" name="q" value="{{ q or '' }}" placeholder="Поиск по статьям…" autocomplete="off">
+        {% if q %}
+        <a href="{{ url_for('admin_articles') }}" class="admin-search-clear" title="Сбросить">
+            <i class="bi bi-x-lg"></i>
+        </a>
+        {% endif %}
+    </form>
+    <a href="{{ url_for('admin_article_create') }}" class="btn btn-primary">
+        + Создать статью
+    </a>
+</div>
+
+<!-- Таблица со списком статей -->
+{% if articles %}
+<div class="table-responsive">
+    <table class="table table-striped table-hover align-middle">
+        <thead class="table-dark">
+            <tr>
+                <th scope="col" style="width: 50px;">ID</th>
+                <th scope="col">Заголовок</th>
+                <th scope="col" style="width: 130px;">Статус</th>
+                <th scope="col" style="width: 120px;">Дата</th>
+                <th scope="col" style="width: 200px;">Авторы</th>
+                <th scope="col" style="width: 180px;">Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for article in articles %}
+            <tr>
+                <!-- ID статьи -->
+                <td>{{ article.id }}</td>
+
+                <!-- Заголовок со ссылкой на просмотр -->
+                <td>
+                    <a href="{{ url_for('show_article', id=article.id) }}" target="_blank"
+                        class="text-decoration-none fw-bold">
+                        {{ article.title }}
+                    </a>
+                    {% if article.summary %}
+                    <br>
+                    <small class="text-muted">
+                        {{ article.summary[:80] }}{% if article.summary|length > 80 %}...{% endif %}
+                    </small>
+                    {% endif %}
+                </td>
+
+                <!-- Статус публикации -->
+                <td>
+                    {% if article.is_published %}
+                    <span class="badge bg-success">Опубликовано</span>
+                    {% else %}
+                    <span class="badge bg-secondary">Черновик</span>
+                    {% endif %}
+                </td>
+
+                <!-- Дата создания -->
+                <td>
+                    <small>{{ article.created_at.strftime('%d.%m.%Y') }}</small><br>
+                    <small class="text-muted">{{ article.created_at.strftime('%H:%M') }}</small>
+                </td>
+
+                <!-- Список авторов статьи -->
+                <td>
+                    {% if article.authors %}
+                    {% for author in article.authors %}
+                    <span class="badge bg-info text-dark">{{ author.username }}</span>
+                    {% endfor %}
+                    {% else %}
+                    <span class="text-muted">—</span>
+                    {% endif %}
+                </td>
+
+                <!-- Кнопки действий -->
+                <td>
+                    <a href="{{ url_for('admin_article_edit', id=article.id) }}" class="btn btn-sm btn-outline-primary">
+                        Редактировать
+                    </a>
+                    <!-- Форма удаления с подтверждением -->
+                    <form method="POST" action="{{ url_for('admin_article_delete', id=article.id) }}" class="d-inline"
+                        onsubmit="return confirm('Удалить статью «{{ article.title }}»?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                            Удалить
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{# Пагинация #}
+{{ render_pagination(pagination, 'admin_articles') }}
+{% else %}
+<!-- Сообщение, если статей нет -->
+<div class="alert alert-info text-center py-4">
+    <h5 class="mb-2">Статей пока нет</h5>
+    <p class="mb-3">Создайте первую статью, чтобы она отобразилась здесь.</p>
+    <a href="{{ url_for('admin_article_create') }}" class="btn btn-primary">
+        + Создать первую статью
+    </a>
+</div>
+{% endif %}
+{% endblock %}

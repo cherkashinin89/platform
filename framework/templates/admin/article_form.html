@@ -1,0 +1,144 @@
+{% extends 'admin/base_admin.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">{{ title }}</h2>
+    <a href="{{ url_for('admin_articles') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Назад к списку
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="POST" novalidate>
+            {{ form.hidden_tag() }}
+
+            <!-- Заголовок -->
+            <div class="mb-3">
+                {{ form.title.label(class="form-label") }}
+                {{ form.title(class="form-control" + (" is-invalid" if form.title.errors else "")) }}
+                {% for error in form.title.errors %}
+                <div class="invalid-feedback">{{ error }}</div>
+                {% endfor %}
+            </div>
+
+            <!-- Краткое описание -->
+            <div class="mb-3">
+                {{ form.summary.label(class="form-label") }}
+                {{ form.summary(class="form-control", rows="3") }}
+            </div>
+
+            <!-- Содержимое: визуальный редактор -->
+            <div class="mb-3">
+                {{ form.content.label(class="form-label") }}
+                {{ form.content(class="form-control rich-editor" + (" is-invalid" if form.content.errors else ""), rows="20") }}
+                <small class="form-text text-muted">
+                    Визуальный редактор: форматирование, таблицы, картинки, файлы.
+                    Кнопка <i class="bi bi-folder2-open"></i> открывает файловый менеджер.
+                </small>
+                {% for error in form.content.errors %}
+                <div class="invalid-feedback">{{ error }}</div>
+                {% endfor %}
+            </div>
+
+            <!-- Фотоальбомы -->
+            <div class="mb-3">
+                <label class="form-label">Фотоальбомы</label>
+
+                {% if all_albums %}
+                {# Кнопка открытия модалки #}
+                <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="openAlbumModal">
+                        <i class="bi bi-images"></i> Выбрать альбомы
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="clearAlbumsBtn">
+                        <i class="bi bi-x-lg"></i> Очистить
+                    </button>
+                    <small class="text-muted">
+                        Выбрано: <span id="selectedAlbumsCount">0</span>
+                    </small>
+                </div>
+
+                {# Бейджи выбранных альбомов #}
+                <div id="selectedAlbumsBadges" class="d-flex flex-wrap gap-1"></div>
+
+                {# Скрытые input-ы, которые отправятся на сервер #}
+                <div id="hiddenAlbumInputs"></div>
+
+                {# Модальное окно выбора #}
+                <div class="modal fade" id="albumPickerModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">
+                                    <i class="bi bi-images"></i> Выбор фотоальбомов
+                                </h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                {# Поиск по названию #}
+                                <div class="input-group mb-3">
+                                    <span class="input-group-text">
+                                        <i class="bi bi-search"></i>
+                                    </span>
+                                    <input type="text" class="form-control" id="albumSearchInput"
+                                           placeholder="Поиск по названию...">
+                                </div>
+
+                                <div class="list-group" id="albumPickerList">
+                                    {% for album in all_albums %}
+                                    <label class="list-group-item d-flex align-items-center gap-2 album-picker-item"
+                                           data-album-title="{{ album.title|lower }}">
+                                        <input class="form-check-input flex-shrink-0" type="checkbox"
+                                               value="{{ album.id }}"
+                                               data-title="{{ album.title }}"
+                                               {% if album.id in selected_album_ids %}checked{% endif %}>
+                                        <div class="flex-grow-1">
+                                            <strong>{{ album.title }}</strong>
+                                            <small class="text-muted ms-2">
+                                                {{ album.photos|length }} фото
+                                            </small>
+                                            {% if not album.is_published %}
+                                            <span class="badge bg-secondary ms-2">Скрыт</span>
+                                            {% endif %}
+                                        </div>
+                                    </label>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                    Отмена
+                                </button>
+                                <button type="button" class="btn btn-primary" id="confirmAlbumsBtn">
+                                    <i class="bi bi-check-lg"></i> Сохранить
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-muted small mb-0">
+                    Альбомов нет. <a href="{{ url_for('admin_album_create') }}">Создать</a>.
+                </p>
+                {% endif %}
+            </div>
+
+            <!-- Публикация -->
+            <div class="form-check mb-3">
+                {{ form.is_published(class="form-check-input") }}
+                {{ form.is_published.label(class="form-check-label") }}
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-lg"></i> Сохранить
+                </button>
+                <a href="{{ url_for('admin_articles') }}" class="btn btn-outline-secondary">Отмена</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

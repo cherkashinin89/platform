@@ -1,0 +1,351 @@
+{% extends 'admin/base_admin.html' %}
+
+{% block title %}Дашборд - Админка{% endblock %}
+
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-speedometer2"></i> Панель управления</h2>
+
+<!-- Карточки статистики -->
+<div class="row g-3">
+    <div class="col-12 col-sm-6 col-lg-4 col-xl-2">
+        <div class="card bg-primary text-white h-100">
+            <div class="card-body d-flex flex-column">
+                <h6 class="card-title mb-2"><i class="bi bi-people"></i> Пользователи</h6>
+                <p class="display-6 mb-3">{{ stats.users }}</p>
+                <a href="{{ url_for('admin_users') }}" class="text-white mt-auto text-decoration-none small">
+                    Управлять <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-4 col-xl-2">
+        <div class="card bg-success text-white h-100">
+            <div class="card-body d-flex flex-column">
+                <h6 class="card-title mb-2"><i class="bi bi-file-text"></i> Статьи</h6>
+                <p class="display-6 mb-3">{{ stats.articles }}</p>
+                <a href="{{ url_for('admin_articles') }}" class="text-white mt-auto text-decoration-none small">
+                    Управлять <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-4 col-xl-2">
+        <div class="card bg-info text-white h-100">
+            <div class="card-body d-flex flex-column">
+                <h6 class="card-title mb-2"><i class="bi bi-file-earmark"></i> Страницы</h6>
+                <p class="display-6 mb-3">{{ stats.pages }}</p>
+                <a href="{{ url_for('admin_pages') }}" class="text-white mt-auto text-decoration-none small">
+                    Управлять <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-4 col-xl-2">
+        <div class="card bg-warning text-dark h-100">
+            <div class="card-body d-flex flex-column">
+                <h6 class="card-title mb-2"><i class="bi bi-list"></i> Пункты меню</h6>
+                <p class="display-6 mb-3">{{ stats.menu_items }}</p>
+                <a href="{{ url_for('admin_menu') }}" class="text-dark mt-auto text-decoration-none small">
+                    Управлять <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-4 col-xl-2">
+        <div class="card bg-secondary text-white h-100">
+            <div class="card-body d-flex flex-column">
+                <h6 class="card-title mb-2"><i class="bi bi-folder2-open"></i> Файлы</h6>
+                <p class="display-6 mb-3">{{ stats.files }}</p>
+                <a href="{{ url_for('admin_files') }}" class="text-white mt-auto text-decoration-none small">
+                    Управлять <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-4 col-xl-2">
+        <div class="card bg-danger text-white h-100">
+            <div class="card-body d-flex flex-column">
+                <h6 class="card-title mb-2"><i class="bi bi-images"></i> Альбомы</h6>
+                <p class="display-6 mb-3">{{ stats.albums }}</p>
+                <a href="{{ url_for('admin_albums') }}" class="text-white mt-auto text-decoration-none small">
+                    Управлять <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- СТАТИСТИКА СЕРВЕРА -->
+<div class="row g-3 mt-3">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <strong><i class="bi bi-cpu"></i> Статистика сервера</strong>
+                <small class="text-muted" id="serverStatsUpdated">
+                    Обновлено: только что
+                </small>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+
+                    <!-- CPU -->
+                    <div class="col-6 col-md-3">
+                        <div class="text-muted small">Загрузка CPU</div>
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <strong id="cpuPercent">{{ server_stats.cpu_percent }}%</strong>
+                            <small class="text-muted" id="cpuDetails">
+                                {{ server_stats.cpu_count }} ядер
+                                {% if server_stats.cpu_freq %} • {{ server_stats.cpu_freq }} МГц{% endif %}
+                            </small>
+                        </div>
+                        <div class="progress" style="height: 6px;">
+                            <div class="progress-bar bg-primary" id="cpuBar"
+                                 style="width: {{ server_stats.cpu_percent }}%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Память RAM -->
+                    <div class="col-6 col-md-3">
+                        <div class="text-muted small">Память (RAM)</div>
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <strong id="memPercent">{{ server_stats.mem_percent }}%</strong>
+                            <small class="text-muted" id="memDetails">
+                                {{ server_stats.mem_used_mb }} / {{ server_stats.mem_total_mb }} МБ
+                            </small>
+                        </div>
+                        <div class="progress" style="height: 6px;">
+                            <div class="progress-bar bg-success" id="memBar"
+                                 style="width: {{ server_stats.mem_percent }}%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Диск -->
+                    <div class="col-6 col-md-3">
+                        <div class="text-muted small">Диск ({{ server_stats.disk_path }})</div>
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <strong id="diskPercent">{{ server_stats.disk_percent }}%</strong>
+                            <small class="text-muted" id="diskDetails">
+                                {{ server_stats.disk_used_gb }} / {{ server_stats.disk_total_gb }} ГБ
+                            </small>
+                        </div>
+                        <div class="progress" style="height: 6px;">
+                            <div class="progress-bar bg-info" id="diskBar"
+                                 style="width: {{ server_stats.disk_percent }}%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Температура (только Pi/Linux) -->
+                    {% if server_stats.cpu_temp %}
+                    <div class="col-6 col-md-3">
+                        <div class="text-muted small">Температура CPU</div>
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <strong id="tempValue" class="{% if server_stats.cpu_temp > 75 %}text-danger{% elif server_stats.cpu_temp > 65 %}text-warning{% else %}text-success{% endif %}">
+                                {{ server_stats.cpu_temp }}°C
+                            </strong>
+                            <small class="text-muted">
+                                {% if server_stats.cpu_temp > 75 %}🔥 Нагрев{% elif server_stats.cpu_temp > 65 %}Тепло{% else %}Норма{% endif %}
+                            </small>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Swap -->
+                    <div class="col-6 col-md-3">
+                        <div class="text-muted small">Swap</div>
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <strong id="swapPercent">{{ server_stats.swap_percent }}%</strong>
+                            <small class="text-muted" id="swapDetails">
+                                {{ server_stats.swap_used_mb }} / {{ server_stats.swap_total_mb }} МБ
+                            </small>
+                        </div>
+                        <div class="progress" style="height: 6px;">
+                            <div class="progress-bar bg-warning" id="swapBar"
+                                 style="width: {{ server_stats.swap_percent }}%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Load average (только Linux) -->
+                    {% if server_stats.load_avg %}
+                    <div class="col-6 col-md-3">
+                        <div class="text-muted small">Load Average</div>
+                        <strong>{{ server_stats.load_avg | join(' / ') }}</strong>
+                        <div class="text-muted small">1м / 5м / 15м</div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Время работы -->
+                    <div class="col-6 col-md-3">
+                        <div class="text-muted small">Время работы</div>
+                        <strong id="uptimeValue">{{ server_stats.uptime }}</strong>
+                        <div class="text-muted small">с {{ server_stats.boot_time }}</div>
+                    </div>
+
+                    <!-- Процессы -->
+                    <div class="col-6 col-md-3">
+                        <div class="text-muted small">Процессов</div>
+                        <strong>{{ server_stats.process_count }}</strong>
+                        <div class="text-muted small">{{ server_stats.hostname }}</div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Скрипт автообновления статистики -->
+<script>
+(function () {
+    const UPDATE_INTERVAL = 100; // 5 секунд
+
+    function formatTemp(temp) {
+        if (temp === null || temp === undefined) return '—';
+        return temp.toFixed(1) + '°C';
+    }
+
+    function tempClass(temp) {
+        if (temp === null) return '';
+        if (temp > 75) return 'text-danger';
+        if (temp > 65) return 'text-warning';
+        return 'text-success';
+    }
+
+    async function updateStats() {
+        try {
+            const resp = await fetch('/admin/api/system-stats');
+            if (!resp.ok) return;
+            const s = await resp.json();
+
+            // CPU
+            const cpuEl = document.getElementById('cpuPercent');
+            const cpuBar = document.getElementById('cpuBar');
+            if (cpuEl) cpuEl.textContent = s.cpu_percent.toFixed(1) + '%';
+            if (cpuBar) cpuBar.style.width = s.cpu_percent + '%';
+
+            // RAM
+            const memEl = document.getElementById('memPercent');
+            const memBar = document.getElementById('memBar');
+            const memDet = document.getElementById('memDetails');
+            if (memEl) memEl.textContent = s.mem_percent.toFixed(1) + '%';
+            if (memBar) memBar.style.width = s.mem_percent + '%';
+            if (memDet) memDet.textContent = `${s.mem_used_mb} / ${s.mem_total_mb} МБ`;
+
+            // Disk
+            const diskEl = document.getElementById('diskPercent');
+            const diskBar = document.getElementById('diskBar');
+            const diskDet = document.getElementById('diskDetails');
+            if (diskEl) diskEl.textContent = s.disk_percent.toFixed(1) + '%';
+            if (diskBar) diskBar.style.width = s.disk_percent + '%';
+            if (diskDet) diskDet.textContent = `${s.disk_used_gb} / ${s.disk_total_gb} ГБ`;
+
+            // Temperature
+            const tempEl = document.getElementById('tempValue');
+            if (tempEl && s.cpu_temp !== null) {
+                tempEl.textContent = formatTemp(s.cpu_temp);
+                tempEl.className = tempClass(s.cpu_temp);
+            }
+
+            // Swap
+            const swapEl = document.getElementById('swapPercent');
+            const swapBar = document.getElementById('swapBar');
+            const swapDet = document.getElementById('swapDetails');
+            if (swapEl) swapEl.textContent = s.swap_percent.toFixed(1) + '%';
+            if (swapBar) swapBar.style.width = s.swap_percent + '%';
+            if (swapDet) swapDet.textContent = `${s.swap_used_mb} / ${s.swap_total_mb} МБ`;
+
+            // Uptime
+            const uptimeEl = document.getElementById('uptimeValue');
+            if (uptimeEl) uptimeEl.textContent = s.uptime;
+
+            // Метка обновления
+            const updEl = document.getElementById('serverStatsUpdated');
+            if (updEl) {
+                const now = new Date();
+                updEl.textContent = 'Обновлено: ' +
+                    now.toLocaleTimeString('ru-RU');
+            }
+        } catch (e) {
+            console.error('Ошибка обновления статистики:', e);
+        }
+    }
+
+    // Первое обновление через 2 секунды, потом — каждые 5 секунд
+    setTimeout(updateStats, 2000);
+    setInterval(updateStats, UPDATE_INTERVAL);
+})();
+</script>
+
+<!-- Быстрые действия -->
+<div class="row g-3 mt-3">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <strong><i class="bi bi-lightning-charge"></i> Быстрые действия</strong>
+            </div>
+            <div class="card-body d-flex flex-wrap gap-2">
+                <a href="{{ url_for('admin_article_create') }}" class="btn btn-outline-success btn-sm">
+                    <i class="bi bi-plus-lg"></i> Новая статья
+                </a>
+                <a href="{{ url_for('admin_page_create') }}" class="btn btn-outline-info btn-sm">
+                    <i class="bi bi-plus-lg"></i> Новая страница
+                </a>
+                <a href="{{ url_for('admin_album_create') }}" class="btn btn-outline-danger btn-sm">
+                    <i class="bi bi-plus-lg"></i> Новый альбом
+                </a>
+                <a href="{{ url_for('admin_user_create') }}" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-plus-lg"></i> Новый пользователь
+                </a>
+                <a href="{{ url_for('admin_files') }}" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-upload"></i> Загрузить файл
+                </a>
+                <a href="{{ url_for('index') }}" class="btn btn-outline-dark btn-sm ms-auto">
+                    <i class="bi bi-box-arrow-up-right"></i> Открыть сайт
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ПОСЛЕДНИЕ АЛЬБОМЫ -->
+{% if recent_albums %}
+<div class="row g-3 mt-3">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <strong><i class="bi bi-images"></i> Последние альбомы</strong>
+            </div>
+            <div class="card-body">
+                <div class="row g-2">
+                    {% for album in recent_albums %}
+                        <div class="col-6 col-md-3">
+                            <a href="{{ url_for('admin_album_edit', id=album.id) }}"
+                               class="text-decoration-none text-dark">
+                                {% set cover = album.cover_photo %}
+                                {% if not cover and album.photos %}
+                                    {% set cover = album.photos[0] %}
+                                {% endif %}
+                                {% if cover %}
+                                    <img src="{{ url_for('serve_media', file_id=cover.file_id) }}"
+                                         class="img-fluid rounded mb-1"
+                                         style="aspect-ratio: 4/3; object-fit: cover; width: 100%;"
+                                         alt="{{ album.title }}">
+                                {% else %}
+                                    <div class="bg-light rounded mb-1 d-flex align-items-center justify-content-center"
+                                         style="aspect-ratio: 4/3;">
+                                        <i class="bi bi-image text-muted fs-3"></i>
+                                    </div>
+                                {% endif %}
+                                <small>
+                                    <strong>{{ album.title }}</strong><br>
+                                    <span class="text-muted">{{ album.photos|length }} фото</span>
+                                </small>
+                            </a>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

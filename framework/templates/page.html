@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ page.title }} - Мой Сайт{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Главная</a></li>
+        <li class="breadcrumb-item active">{{ page.title }}</li>
+    </ol>
+</nav>
+
+<h1 class="mb-4">{{ page.title }}</h1>
+
+<!-- Содержимое рендерится как HTML (используем |safe) -->
+<div class="page-content">
+    {{ page.content|safe }}
+</div>
+
+<style>
+    .article-content img,
+    .page-content img { max-width: 100%; height: auto; }
+    .article-content table,
+    .page-content table { border-collapse: collapse; width: 100%; }
+    .article-content table td,
+    .article-content table th,
+    .page-content table td,
+    .page-content table th { border: 1px solid #ccc; padding: 6px 10px; }
+</style>
+
+<hr class="my-4">
+<small class="text-muted">
+    Создано: {{ page.created_at.strftime('%d.%m.%Y %H:%M') }}
+</small>
+{% endblock %}

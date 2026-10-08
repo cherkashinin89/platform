@@ -1,0 +1,257 @@
+{% extends 'admin/base_admin.html' %}
+
+{% block title %}{{ user.username }} — Облако{% endblock %}
+
+{% block content %}
+
+<!-- Хлебные крошки -->
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item">
+            <a href="{{ url_for('admin_cloud_users') }}">Облако</a>
+        </li>
+        <li class="breadcrumb-item active">{{ user.username }}</li>
+    </ol>
+</nav>
+
+<!-- Заголовок + имя -->
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <h2 class="mb-0">
+        <i class="bi bi-person-circle"></i>
+        {{ user.username }}
+        <small class="text-muted fs-6">{{ user.email }}</small>
+    </h2>
+    <a href="{{ url_for('admin_cloud_users') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> К списку
+    </a>
+</div>
+
+<!-- Основная информация -->
+<div class="row g-3 mb-4">
+    <!-- Роль -->
+    <div class="col-md-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <h6 class="text-muted mb-2">Роль</h6>
+                {% if user.role == 'admin' %}
+                <span class="badge bg-danger fs-6">Администратор</span>
+                {% elif user.role == 'editor' %}
+                <span class="badge bg-warning text-dark fs-6">Редактор</span>
+                {% elif user.role == 'user' %}
+                <span class="badge bg-primary fs-6">Пользователь</span>
+                {% else %}
+                <span class="badge bg-secondary fs-6">Наблюдатель</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Занято -->
+    <div class="col-md-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <h6 class="text-muted mb-2">Занято</h6>
+                <div class="fs-5"><strong>{{ used | human_size_bytes }}</strong></div>
+                {% if trashed > 0 %}
+                <small class="text-warning">в корзине: {{ trashed | human_size_bytes }}</small>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Квота -->
+    <div class="col-md-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <h6 class="text-muted mb-2">Квота</h6>
+                <div class="fs-5"><strong>{{ quota | human_size_bytes }}</strong></div>
+                <small class="text-muted">свободно: {{ free | human_size_bytes }}</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Использование -->
+    <div class="col-md-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <h6 class="text-muted mb-2">Использование</h6>
+                <div class="progress mb-2" style="height: 22px;">
+                    <div class="progress-bar
+                                {% if percent > 90 %}bg-danger
+                                {% elif percent > 70 %}bg-warning
+                                {% else %}bg-success{% endif %}"
+                         style="width: {{ percent }}%;">
+                        {{ percent }}%
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Форма квоты -->
+<div class="card mb-4">
+    <div class="card-header">
+        <strong><i class="bi bi-sliders"></i> Изменить квоту</strong>
+    </div>
+    <div class="card-body">
+        <form method="POST"
+              action="{{ url_for('admin_cloud_user_quota', user_id=user.id) }}"
+              class="row g-2 align-items-center">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="col-auto">
+                <label for="quota_mb" class="col-form-label">Квота (МБ):</label>
+            </div>
+            <div class="col-auto">
+                <input type="number"
+                       id="quota_mb"
+                       name="quota_mb"
+                       class="form-control"
+                       value="{{ (quota / 1024 / 1024) | round(0) | int }}"
+                       min="0"
+                       step="100"
+                       style="width: 150px;">
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-lg"></i> Сохранить
+                </button>
+            </div>
+            <div class="col-auto ms-auto">
+                <small class="text-muted">
+                    Текущая: {{ (quota / 1024 / 1024) | round(1) }} МБ
+                    ({{ quota | human_size_bytes }})
+                </small>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Очистка корзины -->
+{% if trashed > 0 %}
+<div class="alert alert-warning d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <i class="bi bi-exclamation-triangle"></i>
+        В корзине пользователя <strong>{{ trashed | human_size_bytes }}</strong>.
+    </div>
+    <form method="POST"
+          action="{{ url_for('admin_cloud_user_trash', user_id=user.id) }}"
+          onsubmit="return confirm('Удалить всё из корзины пользователя?\n\nЭто действие нельзя отменить.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-danger btn-sm">
+            <i class="bi bi-trash"></i> Очистить корзину
+        </button>
+    </form>
+</div>
+{% endif %}
+
+<!-- Файлы пользователя -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <strong><i class="bi bi-folder2-open"></i> Файлы и папки</strong>
+        <span class="text-muted small">{{ items | length }} элементов</span>
+    </div>
+    <div class="card-body p-0">
+        {% if items %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Имя</th>
+                        <th style="width: 100px;">Тип</th>
+                        <th style="width: 120px;">Размер</th>
+                        <th style="width: 160px;">Изменён</th>
+                        <th style="width: 100px;">Статус</th>
+                        <th style="width: 80px;">Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr {% if item.is_trashed %}class="table-warning"{% endif %}>
+                        <td>
+                            {% if item.is_folder %}
+                                <i class="bi bi-folder-fill text-warning"></i>
+                            {% else %}
+                                <i class="bi bi-file-earmark text-secondary"></i>
+                            {% endif %}
+                            {{ item.name }}
+                            {% if item.parent_id %}
+                            <br><small class="text-muted">
+                                <i class="bi bi-arrow-return-right"></i> в папке
+                            </small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.is_folder %}
+                            <span class="badge bg-warning text-dark">папка</span>
+                            {% else %}
+                            <span class="badge bg-secondary">файл</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ item.size_human() }}</td>
+                        <td>
+                            <small>{{ item.updated_at.strftime('%d.%m.%Y %H:%M') if item.updated_at else '—' }}</small>
+                        </td>
+                        <td>
+                            {% if item.is_trashed %}
+                            <span class="badge bg-warning text-dark">в корзине</span>
+                            {% else %}
+                            <span class="badge bg-success">активен</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if not item.is_folder %}
+                            <a href="{{ url_for('admin_cloud_user_download', user_id=user.id, file_id=item.id) }}"
+                               class="btn btn-sm btn-outline-primary"
+                               title="Скачать">
+                                <i class="bi bi-download"></i>
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5 text-muted">
+            <i class="bi bi-inbox fs-1 d-block mb-3"></i>
+            У пользователя пока нет файлов
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Публичные ссылки -->
+{% if shares %}
+<div class="card">
+    <div class="card-header">
+        <strong><i class="bi bi-link-45deg"></i> Публичные ссылки ({{ shares | length }})</strong>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Файл/папка</th>
+                    <th>Токен</th>
+                    <th>Создана</th>
+                    <th>Скачиваний</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in shares %}
+                <tr {% if s.is_expired() %}class="table-secondary"{% endif %}>
+                    <td>{{ s.file.name if s.file else '—' }}</td>
+                    <td><code>/s/{{ s.token[:16] }}…</code></td>
+                    <td>{{ s.created_at.strftime('%d.%m.%Y') if s.created_at else '—' }}</td>
+                    <td>{{ s.download_count or 0 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

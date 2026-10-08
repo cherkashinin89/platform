@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ album.title }} — Фотогалерея{% endblock %}
+
+{% block content %}
+
+<nav aria-label="breadcrumb" class="article-breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item">
+            <a href="{{ url_for('index') }}"><i class="bi bi-house"></i> Главная</a>
+        </li>
+        <li class="breadcrumb-item">
+            <a href="{{ url_for('gallery_index') }}">Галерея</a>
+        </li>
+        <li class="breadcrumb-item active">{{ album.title }}</li>
+    </ol>
+</nav>
+
+<div class="gallery-header">
+    <h1 class="gallery-title">{{ album.title }}</h1>
+    {% if photos %}
+    <span class="gallery-count">{{ photos|length }} фото</span>
+    {% endif %}
+</div>
+
+{% if album.description %}
+<p class="gallery-description">{{ album.description }}</p>
+{% endif %}
+
+{% if photos %}
+<div class="row g-3">
+    {% for p in photos %}
+    <div class="col-6 col-md-4 col-lg-3">
+        {# W3: фото альбома — облачный файл, /media/<file_id> #}
+        <div class="album-photo">
+            <img src="{{ url_for('serve_media', file_id=p.file_id) }}"
+                data-full="{{ url_for('serve_media', file_id=p.file_id) }}" data-lightbox
+                alt="{{ p.caption or album.title }}" loading="lazy" decoding="async">
+            {% if p.caption %}
+            <div class="album-photo-caption">{{ p.caption }}</div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="gallery-empty">
+    <i class="bi bi-camera"></i>
+    <h4>В этом альбоме пока нет фотографий</h4>
+</div>
+{% endif %}
+
+<div class="article-footer">
+    <a href="{{ url_for('gallery_index') }}" class="btn-back">
+        <i class="bi bi-arrow-left"></i> К списку альбомов
+    </a>
+</div>
+
+{% endblock %}

@@ -1,0 +1,125 @@
+{% extends 'admin/base_admin.html' %}
+
+{% block title %}Управление меню{% endblock %}
+
+{% block content %}
+
+{# === Макрос: рендер одного пункта меню === #}
+{% macro render_menu_item(item, all_items, depth=0) %}
+<li class="list-group-item" style="padding-left: {{ 12 + depth * 24 }}px;">
+    <!-- Первая строка: название + порядок -->
+    <div class="d-flex justify-content-between align-items-start">
+        <div class="me-2">
+            {% if depth > 0 %}
+                <i class="bi bi-arrow-return-right text-muted"></i>
+            {% endif %}
+            <strong>{{ item.title }}</strong>
+            <div>
+                <small class="text-muted">
+                    <code>{{ item.url }}</code>
+                </small>
+            </div>
+        </div>
+        <span class="badge bg-light text-dark flex-shrink-0">
+            #{{ item.order }}
+        </span>
+    </div>
+
+    <!-- Вторая строка: кнопки действий -->
+    <div class="mt-2 d-flex gap-1">
+        <a href="{{ url_for('admin_menu_edit', id=item.id) }}"
+           class="btn btn-sm btn-outline-primary flex-fill">
+            <i class="bi bi-pencil"></i>
+        </a>
+        <form method="POST"
+              action="{{ url_for('admin_menu_delete', id=item.id) }}"
+              class="flex-fill"
+              onsubmit="return confirm('Удалить пункт «{{ item.title }}»?{% if item.children.count() %} Дочерние пункты перестанут быть вложенными.{% endif %}');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-sm btn-outline-danger w-100">
+                <i class="bi bi-trash"></i>
+            </button>
+        </form>
+    </div>
+
+    {# === Дочерние пункты (рекурсивно) === #}
+    {% set children = all_items | selectattr('parent_id', 'equalto', item.id) | list %}
+    {% if children %}
+    <ul class="list-group list-group-flush mt-2" style="margin: 0 -12px -12px;">
+        {% for child in children %}
+            {{ render_menu_item(child, all_items, depth + 1) }}
+        {% endfor %}
+    </ul>
+    {% endif %}
+</li>
+{% endmacro %}
+
+
+<!-- Заголовок и кнопка создания -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">Управление меню</h2>
+    <a href="{{ url_for('admin_menu_create') }}" class="btn btn-primary">
+        <i class="bi bi-plus-lg"></i> Создать пункт меню
+    </a>
+</div>
+
+{% if menu_items %}
+    <!-- Три колонки: Шапка / Боковое меню / Подвал -->
+    <div class="row g-3">
+        {% set positions = [('header', 'Шапка', 'primary', 'bi-window'),
+                            ('sidebar', 'Боковое меню', 'success', 'bi-layout-sidebar'),
+                            ('footer', 'Подвал', 'secondary', 'bi-window-stack')] %}
+
+        {% for pos_key, pos_label, pos_color, pos_icon in positions %}
+            <div class="col-12 col-md-4">
+                <div class="card h-100">
+                    <!-- Заголовок колонки -->
+                    <div class="card-header bg-{{ pos_color }} text-white d-flex justify-content-between align-items-center">
+                        <span>
+                            <i class="bi {{ pos_icon }}"></i> {{ pos_label }}
+                        </span>
+                        <span class="badge bg-light text-dark">
+                            {{ menu_items | selectattr('position', 'equalto', pos_key) | list | length }}
+                        </span>
+                    </div>
+
+                    {# Берём только корневые пункты этой позиции #}
+                    {% set pos_root_items = menu_items
+                        | selectattr('position', 'equalto', pos_key)
+                        | rejectattr('parent_id')
+                        | list
+                        | sort(attribute='order') %}
+
+                    {% set pos_items_all = menu_items
+                        | selectattr('position', 'equalto', pos_key)
+                        | list %}
+
+                    {% if pos_root_items %}
+                        <ul class="list-group list-group-flush">
+                            {% for item in pos_root_items %}
+                                {{ render_menu_item(item, pos_items_all, 0) }}
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <!-- Пустая колонка -->
+                        <div class="card-body text-center text-muted py-4">
+                            <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+                            <small>Пунктов нет</small>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <!-- Пустое состояние: ни одного пункта меню -->
+    <div class="alert alert-info text-center py-5">
+        <i class="bi bi-list fs-1 d-block mb-3"></i>
+        <h5 class="mb-2">Пунктов меню пока нет</h5>
+        <p class="mb-3">Создайте первый пункт — он появится в одном из трёх контейнеров сайта.</p>
+        <a href="{{ url_for('admin_menu_create') }}" class="btn btn-primary">
+            <i class="bi bi-plus-lg"></i> Создать первый пункт меню
+        </a>
+    </div>
+{% endif %}
+{% endblock %}

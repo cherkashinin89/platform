@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+{% from '_pagination.html' import render_pagination with context %}
+
+{% block title %}Фотогалерея — {{ site_settings.site_title if site_settings else 'Мой Сайт' }}{% endblock %}
+
+{% block content %}
+
+<nav aria-label="breadcrumb" class="article-breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item">
+            <a href="{{ url_for('index') }}"><i class="bi bi-house"></i> Главная</a>
+        </li>
+        <li class="breadcrumb-item active">Фотогалерея</li>
+    </ol>
+</nav>
+
+<div class="gallery-header">
+    <h1 class="gallery-title"><i class="bi bi-images"></i> Фотогалерея</h1>
+    {% if albums %}
+    <span class="gallery-count">{{ pagination.total }} альбомов</span>
+    {% endif %}
+</div>
+
+{% if albums %}
+<div class="row g-4">
+    {% for album in albums %}
+    {% set cover = album.cover_photo or (album.photos[0] if album.photos else None) %}
+    <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+        <a href="{{ url_for('gallery_album', slug=album.slug) }}" class="album-card">
+            <div class="album-card-cover">
+                {% if cover %}
+                <img src="{{ url_for('serve_media', file_id=cover.file_id) }}" alt="{{ album.title }}" loading="lazy"
+                    decoding="async">
+                {% else %}
+                <div class="album-card-cover-empty">
+                    <i class="bi bi-images"></i>
+                </div>
+                {% endif %}
+
+                {# Бейдж с количеством фото #}
+                <span class="album-card-badge">
+                    <i class="bi bi-camera"></i> {{ album.photos|length }}
+                </span>
+            </div>
+
+            <div class="album-card-body">
+                <h5 class="album-card-title">{{ album.title }}</h5>
+                {% if album.description %}
+                <p class="album-card-description">{{ album.description }}</p>
+                {% endif %}
+                <span class="album-card-readmore">
+                    Смотреть <i class="bi bi-arrow-right"></i>
+                </span>
+            </div>
+        </a>
+    </div>
+    {% endfor %}
+</div>
+
+{{ render_pagination(pagination, 'gallery_index') }}
+{% else %}
+<div class="gallery-empty">
+    <i class="bi bi-images"></i>
+    <h4>Альбомов пока нет</h4>
+    <p class="text-muted">Заглядывайте позже — мы скоро добавим фотографии.</p>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,75 @@
+{# ================================================================
+   Макросы для рекурсивного рендера меню.
+   Использование в base.html:
+     {% from 'partials/_menu_macros.html' import render_header_menu, render_sidebar_menu with context %}
+   ================================================================ #}
+
+
+{# === Верхнее меню (dropdown, 1 уровень вложенности) === #}
+{% macro render_header_menu(nodes) %}
+    {% for node in nodes %}
+        {% set item = node.item %}
+        <li class="site-nav-item {% if node.children %}has-children{% endif %}">
+            <a href="{{ item.url }}"
+               class="site-nav-link {% if request.path == item.url %}is-active{% endif %}">
+                {{ item.title }}
+                {% if node.children %}
+                    <i class="bi bi-chevron-down nav-arrow"></i>
+                {% endif %}
+            </a>
+
+            {% if node.children %}
+            <ul class="site-nav-submenu">
+                {% for child_node in node.children %}
+                    {% set child = child_node.item %}
+                    <li>
+                        <a href="{{ child.url }}"
+                           class="site-nav-sublink {% if request.path == child.url %}is-active{% endif %}">
+                            {{ child.title }}
+                        </a>
+                    </li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </li>
+    {% endfor %}
+{% endmacro %}
+
+
+{# === Боковое меню (аккордеон, рекурсивно) === #}
+{% macro render_sidebar_menu(nodes) %}
+    {% for node in nodes %}
+        {{ render_sidebar_node(node) }}
+    {% endfor %}
+{% endmacro %}
+
+
+{% macro render_sidebar_node(node) %}
+    {% set item = node.item %}
+    {% set has_children = node.children | length > 0 %}
+
+    <li class="sidebar-item {% if has_children %}has-children{% endif %}">
+        <div class="sidebar-item-row">
+            {% if has_children %}
+            <button type="button" class="sidebar-toggle" aria-label="Раскрыть">
+                <i class="bi bi-chevron-right"></i>
+            </button>
+            {% endif %}
+            <a href="{{ item.url }}"
+               class="sidebar-link {% if request.path == item.url %}is-active{% endif %}">
+                {% if not has_children %}
+                <i class="bi bi-chevron-right"></i>
+                {% endif %}
+                <span>{{ item.title }}</span>
+            </a>
+        </div>
+
+        {% if has_children %}
+        <ul class="sidebar-submenu">
+            {% for child_node in node.children %}
+                {{ render_sidebar_node(child_node) }}
+            {% endfor %}
+        </ul>
+        {% endif %}
+    </li>
+{% endmacro %}

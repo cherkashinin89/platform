@@ -1,0 +1,95 @@
+{% extends 'admin/base_admin.html' %}
+{% from '_pagination.html' import render_pagination with context %}
+
+{% block title %}Альбомы{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0"><i class="bi bi-images"></i> Альбомы</h2>
+    <a href="{{ url_for('admin_album_create') }}" class="btn btn-primary">
+        <i class="bi bi-plus-lg"></i> Создать альбом
+    </a>
+</div>
+
+{% if albums %}
+<div class="table-responsive">
+    <table class="table table-striped align-middle">
+        <thead class="table-dark">
+            <tr>
+                <th style="width: 40px;"></th>
+                <th style="width: 80px;">Обложка</th>
+                <th>Название</th>
+                <th style="width: 200px;">Slug</th>
+                <th style="width: 100px;">Фото</th>
+                <th style="width: 130px;">Статус</th>
+                <th style="width: 180px;">Действия</th>
+            </tr>
+        </thead>
+        <tbody id="albumsSortable">
+            {% for album in albums %}
+            <tr data-album-id="{{ album.id }}">
+                <td class="text-muted text-center">
+                    <i class="bi bi-grip-vertical" style="cursor: grab; font-size: 1.2rem;"
+                        title="Перетащите, чтобы изменить порядок"></i>
+                </td>
+                <td>
+                    {% set cover = album.cover_photo or (album.photos[0] if album.photos else None) %}
+                    {% if cover %}
+                    {# W3: обложка — облачный файл, /media/<file_id> #}
+                    <img src="{{ url_for('serve_media', file_id=cover.file_id) }}"
+                        style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px;" alt="" loading="lazy">
+                    {% else %}
+                    <div class="bg-light d-flex align-items-center justify-content-center"
+                        style="width: 60px; height: 60px; border-radius: 4px;">
+                        <i class="bi bi-image text-muted"></i>
+                    </div>
+                    {% endif %}
+                </td>
+                <td><strong>{{ album.title }}</strong></td>
+                <td><code>{{ album.slug }}</code></td>
+                <td><span class="badge bg-info text-dark">{{ album.photos|length }}</span></td>
+                <td>
+                    {% if album.is_published %}
+                    <span class="badge bg-success">Опубликован</span>
+                    {% else %}
+                    <span class="badge bg-secondary">Скрыт</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="{{ url_for('admin_album_edit', id=album.id) }}" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-pencil"></i>
+                    </a>
+                    <a href="{{ url_for('gallery_album', slug=album.slug) }}" target="_blank"
+                        class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-eye"></i>
+                    </a>
+                    <form method="POST" action="{{ url_for('admin_album_delete', id=album.id) }}" class="d-inline"
+                        onsubmit="return confirm('Удалить альбом «{{ album.title }}»? Файлы в uploads/ останутся.');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<small class="text-muted d-block mb-3">
+    <i class="bi bi-info-circle"></i> Перетаскивайте строки за <i class="bi bi-grip-vertical"></i>, чтобы изменить
+    порядок альбомов на публичной галерее.
+</small>
+
+{{ render_pagination(pagination, 'admin_albums') }}
+{% else %}
+<div class="alert alert-info text-center py-5">
+    <i class="bi bi-images fs-1 d-block mb-3"></i>
+    <h5>Альбомов пока нет</h5>
+    <a href="{{ url_for('admin_album_create') }}" class="btn btn-primary mt-2">
+        <i class="bi bi-plus-lg"></i> Создать первый альбом
+    </a>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+
+{% from '_pagination.html' import render_pagination with context %}
+
+{% block title %}Статьи — {{ site_settings.site_title if site_settings else 'Мой Сайт' }}{% endblock %}
+
+{% block content %}
+
+<h1 class="mb-4" style="font-size: 1.8rem; font-weight: 700;">
+    <i class="bi bi-file-text"></i> Статьи
+</h1>
+
+{# === Сетка карточек (общий партиал) === #}
+{% include 'partials/articles_grid.html' %}
+
+{# === Пагинация === #}
+{% if pagination and pagination.pages > 1 %}
+<div class="mt-4">
+    {{ render_pagination(pagination, 'articles_list') }}
+</div>
+{% endif %}
+
+{% endblock %}
