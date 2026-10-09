@@ -177,7 +177,7 @@
                     </button>
 
                     <form method="POST"
-                          action="{{ header_login_url }}"
+                          action="{{ header_login_url or url_for('login') }}"
                           class="site-login-form"
                           id="loginForm"
                           autocomplete="off">
