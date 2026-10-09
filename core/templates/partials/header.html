@@ -13,6 +13,12 @@
    - header_is_mail          : (устар.) — можно не задавать
    ================================================================ #}
 
+{# Дефолты: если header_vars не пробросил (Jinja-скоуп блока), берём из site_settings #}
+{% set header_cloud_url = header_cloud_url|default(site_settings.cloud_base_url if site_settings else '') %}
+{% set header_mail_url = header_mail_url|default(site_settings.mail_base_url if site_settings else '') %}
+{% set header_site_url = header_site_url|default(site_settings.site_base_url if site_settings else '') %}
+{% set header_admin_url = header_admin_url|default('') %}
+
 {% if not site_settings or site_settings.show_header %}
 <header class="site-header">
     <div class="container">
