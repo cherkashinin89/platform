@@ -40,7 +40,7 @@
 <body class="d-flex flex-column min-vh-100">
     <div class="d-flex flex-column flex-grow-1">
 
-        {# === ПАРАМЕТРЫ ШАПКИ (проект может переопределить) === #}
+        {# === ПАРАМЕТРЫ ШАПКИ + ОБЩАЯ ШАПКА (проект переопределяет блок целиком) === #}
         {% block header_vars %}
         {% set header_current = 'site' %}
         {% set header_site_url = site_settings.site_base_url if site_settings else '' %}
@@ -50,25 +50,7 @@
         {% set header_logout_url = url_for('logout') %}
         {% set header_admin_url = '' %}
         {% set header_admin_editor_url = '' %}
-        {% endblock %}
-
-        {# === ОБЩАЯ ШАПКА === #}
         {% include 'partials/header.html' %}
-
-        {# === FLASH-СООБЩЕНИЯ === #}
-        {% block flash %}
-        <div class="container mt-3">
-            {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-            {% for category, message in messages %}
-            <div class="alert alert-{{ category }} alert-dismissible fade show">
-                {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-            {% endfor %}
-            {% endif %}
-            {% endwith %}
-        </div>
         {% endblock %}
 
         {# === ОСНОВНОЙ КОНТЕНТ (layout проекта) === #}

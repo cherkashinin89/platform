@@ -33,6 +33,7 @@
 {% set header_logout_url = header_site_url ~ '/logout' %}
 {% set header_admin_url = header_site_url ~ '/admin/' %}
 {% set header_admin_editor_url = header_site_url ~ '/admin/articles/' %}
+{% include 'partials/header.html' %}
 {% endblock %}
 
 {% block footer_links %}
@@ -82,6 +83,19 @@
 
 {# === КОНТЕНТ === #}
 <main class="container my-4 flex-grow-1">
+
+    {# === FLASH-СООБЩЕНИЯ === #}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, message in messages %}
+    <div class="alert alert-{{ category }} alert-dismissible fade show">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+
     {% block content %}{% endblock %}
 </main>
 
