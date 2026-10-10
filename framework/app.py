@@ -211,6 +211,158 @@ def _build_menu_tree(items):
     return build(None)
 
 # === ФАБРИКА ПРИЛОЖЕНИЯ ===
+def _process_attached_files_in_html(content_html, target_type, target_id, user_id):
+    """
+    W3: обработка прикреплённых файлов в HTML при сохранении статьи/страницы.
+
+    Что делает:
+    1. Находит data-file-id (новые файлы, только что прикреплённые).
+    2. Для каждого создаёт шару через cloud API.
+    3. Заменяет data-file-id → data-share-token, убирает is-temp.
+    4. Создаёт ShareAttach для новых связей.
+    5. Удаляет ShareAttach, если токен пропал из HTML.
+    6. Удаляет CloudShare, если у неё не осталось ShareAttach.
+
+    Возвращает (ok: bool, new_html: str | None, error: str | None).
+    """
+    import re
+    import requests
+    from flask import current_app
+    from core.models import ShareAttach, CloudShare
+
+    if not content_html:
+        return True, content_html, None
+
+    cloud_base = 'http://127.0.0.1:5002'
+    internal_key = current_app.config.get('INTERNAL_API_KEY') or os.getenv('INTERNAL_API_KEY')
+    if not internal_key:
+        return False, None, 'INTERNAL_API_KEY не настроен'
+
+    headers = {
+        'X-Internal-Key': internal_key,
+        'X-User-Id': str(user_id),
+    }
+
+    # --- 1. Находим все data-file-id в HTML ---
+    # Паттерн: data-file-id="42"
+    file_id_pattern = re.compile(r'data-file-id="(\d+)"')
+    new_file_ids = set(file_id_pattern.findall(content_html))
+
+    # --- 2. Для каждого file_id — создаём шару и заменяем в HTML ---
+    # Карта file_id → token
+    file_id_to_token = {}
+    for fid in new_file_ids:
+        try:
+            resp = requests.post(
+                f'{cloud_base}/api/internal-share/{fid}',
+                headers=headers,
+                timeout=5,
+            )
+        except requests.RequestException as e:
+            return False, None, f'Cloud недоступен: {e}'
+
+        if resp.status_code != 200:
+            return False, None, f'Cloud вернул {resp.status_code}: {resp.text[:200]}'
+
+        j = resp.json()
+        if not j.get('ok'):
+            return False, None, j.get('error', 'Ошибка cloud')
+
+        share_info = j['share']
+        file_id_to_token[fid] = share_info['token']
+
+        # Создаём ShareAttach
+        existing = ShareAttach.query.filter_by(
+            share_id=share_info['id'],
+            target_type=target_type,
+            target_id=target_id,
+        ).first()
+        if not existing:
+            attach = ShareAttach(
+                share_id=share_info['id'],
+                target_type=target_type,
+                target_id=target_id,
+            )
+            db.session.add(attach)
+
+    # --- 3. Заменяем в HTML: data-file-id → data-share-token, убираем is-temp ---
+    # 3a. Сначала заменяем data-file-id → data-share-token
+    def replace_file_id(match):
+        fid = match.group(1)
+        token = file_id_to_token.get(fid)
+        if not token:
+            return match.group(0)
+        return f'data-share-token="{token}"'
+
+    new_html = file_id_pattern.sub(replace_file_id, content_html)
+
+    # 3b. Добавляем href к плиткам, у которых его нет
+    #     (только что созданные через makeTempHtml — там нет href)
+    def add_href_to_anchor(match):
+        full_tag = match.group(0)
+        # Уже есть href — не трогаем
+        if 'href=' in full_tag:
+            return full_tag
+        # Извлекаем data-share-token
+        token_match = re.search(r'data-share-token="([^"]+)"', full_tag)
+        if not token_match:
+            return full_tag
+        token = token_match.group(1)
+        # Вставляем href после <a
+        return full_tag.replace('<a ', f'<a href="/s/{token}" ', 1)
+
+    # Паттерн: <a ...>...</a> (нежадный)
+    new_html = re.sub(r'<a\s[^>]*>', add_href_to_anchor, new_html)
+
+    # Убираем класс is-temp
+    new_html = re.sub(r'\s+is-temp', '', new_html)
+
+    # --- 4. Собираем все data-share-token в новом HTML ---
+    token_pattern = re.compile(r'data-share-token="([^"]+)"')
+    tokens_in_html = set(token_pattern.findall(new_html))
+
+    # --- 5. Для каждого токена в HTML — убеждаемся, что есть ShareAttach ---
+    for token in tokens_in_html:
+        share = CloudShare.query.filter_by(token=token).first()
+        if not share:
+            # Шара не найдена — возможно, удалена. Оставляем как есть (плитка станет (недоступно) при рендере).
+            continue
+        existing = ShareAttach.query.filter_by(
+            share_id=share.id,
+            target_type=target_type,
+            target_id=target_id,
+        ).first()
+        if not existing:
+            attach = ShareAttach(
+                share_id=share.id,
+                target_type=target_type,
+                target_id=target_id,
+            )
+            db.session.add(attach)
+
+    # --- 6. Удаляем ShareAttach, чьи токены не в HTML ---
+    attaches_for_target = ShareAttach.query.filter_by(
+        target_type=target_type,
+        target_id=target_id,
+    ).all()
+
+    for attach in attaches_for_target:
+        share = CloudShare.query.get(attach.share_id)
+        if not share:
+            # Шара уже нет — удаляем attach
+            db.session.delete(attach)
+            continue
+        if share.token not in tokens_in_html:
+            # Токен пропал из HTML — удаляем attach
+            db.session.delete(attach)
+            # Проверяем, остались ли другие attach для этой шары
+            db.session.flush()  # чтобы изменения вступили в силу для запроса ниже
+            remaining = ShareAttach.query.filter_by(share_id=share.id).count()
+            if remaining == 0:
+                # Больше нигде не используется — удаляем и шару
+                db.session.delete(share)
+
+    return True, new_html, None
 
 def create_app(config_class=Config):
     """Создаёт и настраивает экземпляр Flask"""
@@ -926,7 +1078,7 @@ def create_app(config_class=Config):
         if form.validate_on_submit():
             article = Article(
                 title=form.title.data,
-                content=form.content.data,
+                content=form.content.data,   # временно, заменим после flush
                 summary=form.summary.data,
                 is_published=form.is_published.data
             )
@@ -940,6 +1092,26 @@ def create_app(config_class=Config):
                     article.albums.append(album)
 
             db.session.add(article)
+            db.session.flush()   # получаем article.id без commit
+
+            # W3: обработка прикреплённых файлов (data-file-id → data-share-token)
+            ok, new_content, err = _process_attached_files_in_html(
+                content_html=form.content.data,
+                target_type='article',
+                target_id=article.id,
+                user_id=current_user.id,
+            )
+            if not ok:
+                db.session.rollback()
+                flash(f'Ошибка обработки прикреплённых файлов: {err}', 'danger')
+                all_albums = Album.query.order_by(Album.title).all()
+                return render_template('admin/article_form.html',
+                                       form=form,
+                                       all_albums=all_albums,
+                                       selected_album_ids=[],
+                                       title='Создание статьи')
+
+            article.content = new_content
             db.session.commit()
 
             # W3: регистрируем использование облачных файлов в статье
@@ -979,7 +1151,26 @@ def create_app(config_class=Config):
         if form.validate_on_submit():
             article.title = form.title.data
             article.summary = form.summary.data
-            article.content = form.content.data
+
+            # W3: обработка прикреплённых файлов (data-file-id → data-share-token)
+            ok, new_content, err = _process_attached_files_in_html(
+                content_html=form.content.data,
+                target_type='article',
+                target_id=article.id,
+                user_id=current_user.id,
+            )
+            if not ok:
+                flash(f'Ошибка обработки прикреплённых файлов: {err}', 'danger')
+                db.session.rollback()
+                all_albums = Album.query.order_by(Album.title).all()
+                return render_template('admin/article_form.html',
+                                       form=form,
+                                       article=article,
+                                       all_albums=all_albums,
+                                       selected_album_ids=[a.id for a in article.albums],
+                                       title=f'Редактирование: {article.title}')
+
+            article.content = new_content
             article.is_published = form.is_published.data
 
             # Пересобираем привязки альбомов
@@ -1034,6 +1225,21 @@ def create_app(config_class=Config):
             current_app.logger.warning(
                 f'unregister_file_usages (article delete) failed: {e}'
             )
+
+        # W3: удаляем ShareAttach + шары-сироты
+        from core.models import ShareAttach, CloudShare
+        attaches = ShareAttach.query.filter_by(
+            target_type='article',
+            target_id=article.id,
+        ).all()
+        for attach in attaches:
+            share = CloudShare.query.get(attach.share_id)
+            db.session.delete(attach)
+            db.session.flush()
+            if share:
+                remaining = ShareAttach.query.filter_by(share_id=share.id).count()
+                if remaining == 0:
+                    db.session.delete(share)
 
         db.session.delete(article)
         db.session.commit()
@@ -1101,6 +1307,28 @@ def create_app(config_class=Config):
 
             db.session.add(page)
             db.session.flush()
+
+            _save_page_menu(page, form)
+
+            # W3: обработка прикреплённых файлов
+            ok, new_content, err = _process_attached_files_in_html(
+                content_html=form.content.data,
+                target_type='page',
+                target_id=page.id,
+                user_id=current_user.id,
+            )
+            if not ok:
+                db.session.rollback()
+                flash(f'Ошибка обработки прикреплённых файлов: {err}', 'danger')
+                return render_template(
+                    'admin/page_form.html',
+                    form=form,
+                    title='Создание страницы',
+                    menu_parent_choices_rich=_get_menu_parent_choices_rich(),
+                )
+            page.content = new_content
+
+            db.session.commit()
 
             _save_page_menu(page, form)
 
@@ -1176,9 +1404,27 @@ def create_app(config_class=Config):
 
             page.title = form.title.data
             page.slug = slug
-            page.content = form.content.data
 
             _save_page_menu(page, form)
+
+            # W3: обработка прикреплённых файлов
+            ok, new_content, err = _process_attached_files_in_html(
+                content_html=form.content.data,
+                target_type='page',
+                target_id=page.id,
+                user_id=current_user.id,
+            )
+            if not ok:
+                db.session.rollback()
+                flash(f'Ошибка обработки прикреплённых файлов: {err}', 'danger')
+                return render_template(
+                    'admin/page_form.html',
+                    form=form,
+                    title=f'Редактирование: {page.title}',
+                    page=page,
+                    menu_parent_choices_rich=_get_menu_parent_choices_rich(exclude_id=exclude_menu_id),
+                )
+            page.content = new_content
 
             db.session.commit()
 
@@ -1222,6 +1468,21 @@ def create_app(config_class=Config):
             current_app.logger.warning(
                 f'unregister_file_usages (page delete) failed: {e}'
             )
+
+        # W3: удаляем ShareAttach + шары-сироты
+        from core.models import ShareAttach, CloudShare
+        attaches = ShareAttach.query.filter_by(
+            target_type='page',
+            target_id=page.id,
+        ).all()
+        for attach in attaches:
+            share = CloudShare.query.get(attach.share_id)
+            db.session.delete(attach)
+            db.session.flush()
+            if share:
+                remaining = ShareAttach.query.filter_by(share_id=share.id).count()
+                if remaining == 0:
+                    db.session.delete(share)
 
         menu_item = page.menu_item
         if menu_item:
@@ -2187,30 +2448,40 @@ def create_app(config_class=Config):
     @editor_required
     def admin_api_attach_to_article():
         """
-        Прикрепляет файлы облака к статье.
+        Прикрепляет файлы облака к статье или странице.
 
-        Создаёт шары через cloud API (/api/internal-share/<file_id>),
-        создаёт записи ShareAttach, возвращает данные для плиток.
-
-        Формат запроса: {"article_id": 3, "file_ids": [8, 12, 15]}
+        Формат запроса: {"article_id": 3, "file_ids": [8, 12]}
+                     или {"page_id": 6, "file_ids": [8, 12]}
         Формат ответа:  {"ok": true, "attachments": [...]}
         """
         import requests
-        from flask import current_app
-        from core.models import ShareAttach, Article
+        from core.models import ShareAttach, Article, Page
 
         data = request.get_json(silent=True) or {}
         article_id = data.get('article_id')
+        page_id = data.get('page_id')
         file_ids = data.get('file_ids') or []
 
-        if not article_id or not file_ids:
-            return jsonify({'ok': False, 'error': 'article_id и file_ids обязательны'}), 400
+        if not file_ids or (not article_id and not page_id):
+            return jsonify({'ok': False, 'error': 'Нужны file_ids + article_id или page_id'}), 400
 
-        article = Article.query.get(article_id)
-        if not article:
-            return jsonify({'ok': False, 'error': 'Статья не найдена'}), 404
+        if article_id and page_id:
+            return jsonify({'ok': False, 'error': 'Укажите только article_id или только page_id'}), 400
 
-        # Адрес cloud API и ключ — из конфига/окружения
+        # Определяем target_type и target_id
+        if article_id:
+            target = Article.query.get(article_id)
+            if not target:
+                return jsonify({'ok': False, 'error': 'Статья не найдена'}), 404
+            target_type = 'article'
+            target_id = article_id
+        else:
+            target = Page.query.get(page_id)
+            if not target:
+                return jsonify({'ok': False, 'error': 'Страница не найдена'}), 404
+            target_type = 'page'
+            target_id = page_id
+
         cloud_base = 'http://127.0.0.1:5002'
         internal_key = current_app.config.get('INTERNAL_API_KEY') or os.getenv('INTERNAL_API_KEY')
         if not internal_key:
@@ -2233,7 +2504,7 @@ def create_app(config_class=Config):
                 return jsonify({'ok': False, 'error': f'Cloud недоступен: {e}'}), 502
 
             if resp.status_code != 200:
-                return jsonify({'ok': False, 'error': f'Cloud вернул {resp.status_code}: {resp.text[:200]}'}), 502
+                return jsonify({'ok': False, 'error': f'Cloud вернул {resp.status_code}'}), 502
 
             j = resp.json()
             if not j.get('ok'):
@@ -2241,24 +2512,20 @@ def create_app(config_class=Config):
 
             share_info = j['share']
 
-            # Создаём ShareAttach, если ещё нет
             existing = ShareAttach.query.filter_by(
                 share_id=share_info['id'],
-                target_type='article',
-                target_id=article_id,
+                target_type=target_type,
+                target_id=target_id,
             ).first()
 
             if not existing:
                 attach = ShareAttach(
                     share_id=share_info['id'],
-                    target_type='article',
-                    target_id=article_id,
+                    target_type=target_type,
+                    target_id=target_id,
                 )
                 db.session.add(attach)
 
-            # Определяем тип файла (для рендера плитки на клиенте)
-            # Cloud возвращает is_folder + file_name; mime_type определим позже,
-            # пока фронт может сам решить по расширению.
             attachments.append({
                 'share_id': share_info['id'],
                 'token': share_info['token'],

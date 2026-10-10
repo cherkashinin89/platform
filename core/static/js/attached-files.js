@@ -341,35 +341,46 @@
             return;
         }
 
-        // Определяем article_id из URL: /admin/articles/<id>/edit или /admin/pages/<id>/edit
+        // Определяем режим: create (нет id) или edit (есть id)
         const match = window.location.pathname.match(/\/admin\/(articles|pages)\/(\d+)/);
-        if (!match) {
-            alert('Не удалось определить статью/страницу');
-            return;
-        }
-        const targetType = match[1];   // 'articles' или 'pages'
-        const targetId = parseInt(match[2]);
+        const isCreateMode = !match;
 
-        // Пока что шлём только file_ids (без папок — они не поддерживаются в attach-to-article)
-        const fileIds = [];
-        for (const item of state.selected.values()) {
-            if (item.type === 'file') fileIds.push(item.file_id);
-            // папки пока не прикрепляем — отложим
-        }
+        // Собираем выбранные элементы
+        const selectedItems = Array.from(state.selected.values());
+        const fileItems = selectedItems.filter(i => i.type === 'file');
 
-        if (fileIds.length === 0) {
+        // Что делать с папками (пока не поддерживаются)
+        const folderItems = selectedItems.filter(i => i.type === 'folder');
+        if (folderItems.length > 0 && fileItems.length === 0) {
             alert('Выбраны только папки. Прикрепление папок пока не реализовано.');
             return;
         }
-
-        if (fileIds.length > 20) {
-            if (!confirm(`Выбрано ${fileIds.length} файлов. Продолжить?`)) return;
+        if (folderItems.length > 0) {
+            alert('Папки пока не прикрепляются. Будут прикреплены только файлы.');
         }
+
+        if (fileItems.length === 0) return;
+
+        if (fileItems.length > 20) {
+            if (!confirm(`Выбрано ${fileItems.length} файлов. Продолжить?`)) return;
+        }
+
+        // === РЕЖИМ CREATE: вставляем data-file-id, без API ===
+        if (isCreateMode) {
+            const html = fileItems.map(item => makeTempHtml(item)).join(' ');
+            window.__activeEditor.insertContent(`<p>${html}</p>`);
+            closeModal();
+            return;
+        }
+
+        // === РЕЖИМ EDIT: создаём шары через API, вставляем data-share-token ===
+        const targetType = match[1];   // 'articles' или 'pages'
+        const targetId = parseInt(match[2]);
 
         const payload = {
             article_id: targetType === 'articles' ? targetId : null,
             page_id: targetType === 'pages' ? targetId : null,
-            file_ids: fileIds,
+            file_ids: fileItems.map(i => i.file_id),
         };
 
         try {
@@ -385,14 +396,15 @@
 
             const text = await resp.text();
             let data;
-            try { data = JSON.parse(text); } catch (e) { throw new Error('Некорректный JSON: ' + text.slice(0, 200)); }
+            try { data = JSON.parse(text); } catch (e) {
+                throw new Error('Некорректный JSON: ' + text.slice(0, 200));
+            }
 
             if (!resp.ok || !data.ok) {
                 alert('Ошибка: ' + (data.error || ('HTTP ' + resp.status)));
                 return;
             }
 
-            // Формируем HTML плиток и вставляем в TinyMCE
             const html = data.attachments.map(makeAttachedHtml).join(' ');
             window.__activeEditor.insertContent(`<p>${html}</p>`);
 
@@ -401,6 +413,18 @@
             console.error('attach error:', e);
             alert('Ошибка прикрепления: ' + e.message);
         }
+    }
+
+    function makeTempHtml(item) {
+        // Временная плитка: data-file-id + класс is-temp
+        const ext = (item.name.split('.').pop() || '').toLowerCase();
+        const isImage = ['jpg','jpeg','png','gif','webp','bmp','svg'].includes(ext);
+        const iconClass = getIconClassForExt(ext);
+
+        if (isImage) {
+            return `<a class="attached-file attached-file-image is-temp" data-file-id="${item.file_id}"><img src="/media/${item.file_id}" alt="${escapeAttr(item.name)}"></a>`;
+        }
+        return `<a class="attached-file is-temp" data-file-id="${item.file_id}"><i class="bi ${iconClass}"></i> <span class="attached-file-name">${escapeHtml(item.name)}</span></a>`;
     }
 
     function makeAttachedHtml(att) {
