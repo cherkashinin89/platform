@@ -100,15 +100,18 @@
 
     <!-- ТЕЛО АДМИНКИ: только контент раздела -->
     <main class="container-fluid py-4">
-        <!-- Flash-сообщения -->
+        {# W31: flash → toast-уведомления #}
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-        {% for category, message in messages %}
-        <div class="alert alert-{{ category }} alert-dismissible fade show">
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-        {% endfor %}
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                {% for category, message in messages %}
+                if (window.showToast) {
+                    showToast({{ message|tojson }}, '{{ category if category in ("success","danger","warning","info") else "info" }}', 5000);
+                }
+                {% endfor %}
+            });
+        </script>
         {% endif %}
         {% endwith %}
 

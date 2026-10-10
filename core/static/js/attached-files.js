@@ -338,7 +338,7 @@
     async function attachSelected() {
         if (state.selected.size === 0) return;
         if (!window.__activeEditor) {
-            alert('Не найден активный редактор');
+            showToast('Не найден активный редактор', 'danger');
             return;
         }
 
@@ -396,7 +396,7 @@
             }
 
             if (!resp.ok || !data.ok) {
-                alert('Ошибка: ' + (data.error || ('HTTP ' + resp.status)));
+                showToast('Ошибка: ' + (data.error || ('HTTP ' + resp.status)), 'danger');
                 return;
             }
 
@@ -406,7 +406,7 @@
             closeModal();
         } catch (e) {
             console.error('attach error:', e);
-            alert('Ошибка прикрепления: ' + e.message);
+            showToast('Ошибка прикрепления: ' + e.message, 'danger');
         }
     }
 

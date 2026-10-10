@@ -3619,3 +3619,109 @@ mark,
     text-decoration: none;
     color: var(--color-text);
 }
+
+
+
+
+/* ================================================================
+   W31: Toast-уведомления (правый-верхний угол, стек)
+   ================================================================ */
+
+.app-toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    pointer-events: none;
+    max-width: calc(100vw - 40px);
+    width: 380px;
+}
+
+.app-toast {
+    background: #1f2937;
+    color: #f1f5f9;
+    padding: 14px 16px 14px 20px;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    border-left: 4px solid #64748b;
+    font-size: 0.95rem;
+    pointer-events: auto;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    cursor: pointer;
+    opacity: 0;
+    transform: translateX(120%);
+    transition: opacity 0.28s ease, transform 0.28s ease;
+    position: relative;
+}
+
+.app-toast.is-visible {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.app-toast.is-hiding {
+    opacity: 0;
+    transform: translateX(120%);
+}
+
+.app-toast-icon {
+    flex-shrink: 0;
+    font-size: 1.3rem;
+    line-height: 1.2;
+    margin-top: 1px;
+}
+
+.app-toast-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.app-toast-message {
+    line-height: 1.4;
+    word-break: break-word;
+    color: #f1f5f9;
+}
+
+.app-toast-close-x {
+    flex-shrink: 0;
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+    transition: color 0.15s ease;
+}
+
+.app-toast-close-x:hover {
+    color: #fff;
+}
+
+/* Типы — цвет левой полосы и иконки */
+.app-toast-success { border-left-color: #22c55e; }
+.app-toast-success .app-toast-icon { color: #22c55e; }
+
+.app-toast-danger { border-left-color: #ef4444; }
+.app-toast-danger .app-toast-icon { color: #ef4444; }
+
+.app-toast-warning { border-left-color: #f59e0b; }
+.app-toast-warning .app-toast-icon { color: #f59e0b; }
+
+.app-toast-info { border-left-color: #3b82f6; }
+.app-toast-info .app-toast-icon { color: #3b82f6; }
+
+/* На мобильных — растянуть на всю ширину */
+@media (max-width: 480px) {
+    .app-toast-container {
+        width: auto;
+        left: 12px;
+        right: 12px;
+        top: 12px;
+    }
+}

@@ -333,5 +333,8 @@
     {# === Дополнительные скрипты проекта === #}
     {% block scripts %}{% endblock %}
 
+    {# W31: toast-уведомления (fade-in/fade-out) #}
+    <script src="{{ url_for('static', filename='shared/js/toast.js') }}"></script>
+
 </body>
 </html>
