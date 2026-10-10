@@ -55,7 +55,7 @@
 
     {# === Содержимое === #}
     <div class="article-content">
-        {{ article.content|safe }}
+        {{ (processed_content if processed_content is defined else article.content)|safe }}
     </div>
 
 </article>

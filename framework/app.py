@@ -364,6 +364,68 @@ def _process_attached_files_in_html(content_html, target_type, target_id, user_i
 
     return True, new_html, None
 
+def _mark_unavailable_shares(content_html):
+    """
+    W3: заменяет плитки с недействительными шарами на (недоступно).
+
+    Логика:
+    1. Находит все data-share-token в HTML.
+    2. Для каждого — проверяет, есть ли активная CloudShare.
+    3. Если нет — заменяет плитку на серую с пометкой (недоступно),
+       без href, без data-share-token.
+
+    Возвращает обработанный HTML.
+    """
+    import re
+    from core.models import CloudShare
+
+    if not content_html:
+        return content_html
+
+    # Находим все токены в HTML
+    token_pattern = re.compile(r'data-share-token="([^"]+)"')
+    tokens = set(token_pattern.findall(content_html))
+
+    if not tokens:
+        return content_html
+
+    # Проверяем, какие токены «мертвы»
+    dead_tokens = set()
+    for token in tokens:
+        share = CloudShare.query.filter_by(token=token).first()
+        if not share or share.is_expired():
+            dead_tokens.add(token)
+
+    if not dead_tokens:
+        return content_html
+
+    # Заменяем плитки с мёртвыми токенами на неактивные
+    # Паттерн: <a ... data-share-token="dead_token" ...>...</a>
+    # Заменяем на <span class="attached-file is-unavailable">...</span>
+    def replace_dead(match):
+        full_tag = match.group(0)
+        token_match = re.search(r'data-share-token="([^"]+)"', full_tag)
+        if not token_match or token_match.group(1) not in dead_tokens:
+            return full_tag
+
+        # Извлекаем содержимое <a>...</a>
+        inner_match = re.search(r'<a[^>]*>(.*?)</a>', full_tag, re.DOTALL)
+        if not inner_match:
+            return full_tag
+        inner = inner_match.group(1)
+
+        return f'<span class="attached-file is-unavailable">{inner}</span>'
+
+    # Паттерн: жадный поиск <a ...>...</a>
+    new_html = re.sub(
+        r'<a[^>]*data-share-token="[^"]+"[^>]*>.*?</a>',
+        replace_dead,
+        content_html,
+        flags=re.DOTALL,
+    )
+
+    return new_html
+
 def create_app(config_class=Config):
     """Создаёт и настраивает экземпляр Flask"""
     app = Flask(__name__)
@@ -462,7 +524,15 @@ def create_app(config_class=Config):
     def show_article(id):
         """Отображение статьи по ID"""
         article = Article.query.get_or_404(id)
-        return render_template('article.html', article=article)
+
+        # W3: помечаем плитки с мёртвыми шарами как (недоступно)
+        processed_content = _mark_unavailable_shares(article.content)
+
+        return render_template(
+            'article.html',
+            article=article,
+            processed_content=processed_content,
+        )
 
     """Поиск"""
     @app.route('/search')

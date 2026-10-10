@@ -468,7 +468,11 @@ class ShareAttach(db.Model):
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    share = db.relationship('CloudShare', backref='attachments')
+    share = db.relationship(
+        'CloudShare',
+        backref=db.backref('attachments', passive_deletes=True),
+        passive_deletes=True,
+    )
 
     def __repr__(self):
         return f'<ShareAttach share={self.share_id} {self.target_type}={self.target_id}>'
