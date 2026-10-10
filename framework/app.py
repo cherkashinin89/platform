@@ -2126,6 +2126,96 @@ def create_app(config_class=Config):
 
         return jsonify({'ok': True, 'attachments': attachments})
 
+    @app.route('/admin/api/attach-to-article', methods=['POST'])
+    @login_required
+    @editor_required
+    def admin_api_attach_to_article():
+        """
+        Прикрепляет файлы облака к статье.
+
+        Создаёт шары через cloud API (/api/internal-share/<file_id>),
+        создаёт записи ShareAttach, возвращает данные для плиток.
+
+        Формат запроса: {"article_id": 3, "file_ids": [8, 12, 15]}
+        Формат ответа:  {"ok": true, "attachments": [...]}
+        """
+        import requests
+        from flask import current_app
+        from core.models import ShareAttach, Article
+
+        data = request.get_json(silent=True) or {}
+        article_id = data.get('article_id')
+        file_ids = data.get('file_ids') or []
+
+        if not article_id or not file_ids:
+            return jsonify({'ok': False, 'error': 'article_id и file_ids обязательны'}), 400
+
+        article = Article.query.get(article_id)
+        if not article:
+            return jsonify({'ok': False, 'error': 'Статья не найдена'}), 404
+
+        # Адрес cloud API и ключ — из конфига/окружения
+        cloud_base = 'http://127.0.0.1:5002'
+        internal_key = current_app.config.get('INTERNAL_API_KEY') or os.getenv('INTERNAL_API_KEY')
+        if not internal_key:
+            return jsonify({'ok': False, 'error': 'INTERNAL_API_KEY не настроен'}), 500
+
+        headers = {
+            'X-Internal-Key': internal_key,
+            'X-User-Id': str(current_user.id),
+        }
+
+        attachments = []
+        for fid in file_ids:
+            try:
+                resp = requests.post(
+                    f'{cloud_base}/api/internal-share/{fid}',
+                    headers=headers,
+                    timeout=5,
+                )
+            except requests.RequestException as e:
+                return jsonify({'ok': False, 'error': f'Cloud недоступен: {e}'}), 502
+
+            if resp.status_code != 200:
+                return jsonify({'ok': False, 'error': f'Cloud вернул {resp.status_code}: {resp.text[:200]}'}), 502
+
+            j = resp.json()
+            if not j.get('ok'):
+                return jsonify({'ok': False, 'error': j.get('error', 'Ошибка cloud')}), 502
+
+            share_info = j['share']
+
+            # Создаём ShareAttach, если ещё нет
+            existing = ShareAttach.query.filter_by(
+                share_id=share_info['id'],
+                target_type='article',
+                target_id=article_id,
+            ).first()
+
+            if not existing:
+                attach = ShareAttach(
+                    share_id=share_info['id'],
+                    target_type='article',
+                    target_id=article_id,
+                )
+                db.session.add(attach)
+
+            # Определяем тип файла (для рендера плитки на клиенте)
+            # Cloud возвращает is_folder + file_name; mime_type определим позже,
+            # пока фронт может сам решить по расширению.
+            attachments.append({
+                'share_id': share_info['id'],
+                'token': share_info['token'],
+                'path': share_info['path'],
+                'file_id': share_info['file_id'],
+                'file_name': share_info['file_name'],
+                'is_folder': share_info['is_folder'],
+            })
+
+        db.session.commit()
+
+        return jsonify({'ok': True, 'attachments': attachments})
+
     @app.route('/admin/api/cloud-files')
     @login_required
     @editor_required
