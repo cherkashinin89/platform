@@ -10,4 +10,4 @@ email_validator==2.1.1
 python-dotenv==1.0.1
 psutil==5.9.8
 Pillow==11.3.0
-psycopg[binary]==3.3.6
+psycopg[binary]==3.3.6requests==2.34.2

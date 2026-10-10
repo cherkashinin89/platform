@@ -2231,7 +2231,7 @@ def create_app(config_class=Config):
         owner_param = request.args.get('owner', type=int)
 
         # База: файлы (не папки), не в корзине
-        q = CloudFile.query.filter_by(is_folder=False, is_trashed=False)
+        q = CloudFile.query.filter_by(is_trashed=False)
 
         if current_user.is_admin:
             # Админ может фильтровать по владельцу, иначе — все
@@ -2248,6 +2248,24 @@ def create_app(config_class=Config):
 
         data = []
         for f in files:
+            # Папки обрабатываем отдельно — у них нет mime_type
+            if f.is_folder:
+                data.append({
+                    'id': f.id,
+                    'name': f.name,
+                    'is_folder': True,
+                    'parent_id': f.parent_id,
+                    'type': 'folder',
+                    'size': None,
+                    'date': f.created_at.strftime('%d.%m.%Y %H:%M'),
+                    'owner_id': f.owner_id,
+                    'owner_name': f.owner.username if f.owner else '—',
+                    'url': None,
+                    'public_url': None,
+                    'thumbnail_url': None,
+                })
+                continue
+
             # Определяем category (image / video / audio / document / archive / other)
             mime = (f.mime_type or '').lower()
             if mime.startswith('image/'):
@@ -2266,6 +2284,8 @@ def create_app(config_class=Config):
             data.append({
                 'id': f.id,
                 'name': f.name,
+                'is_folder': False,
+                'parent_id': f.parent_id,
                 'url': url_for('serve_media', file_id=f.id),
                 'public_url': url_for('serve_media', file_id=f.id),
                 'thumbnail_url': url_for('serve_media', file_id=f.id)
