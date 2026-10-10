@@ -3169,9 +3169,6 @@ def create_app(config_class=Config):
 
             # Дерево для верхнего меню
             header_menu_tree = _build_menu_tree(header_all)
-            print(f'[DEBUG] header_menu_tree type: {type(header_menu_tree).__name__}, len: {len(header_menu_tree)}')
-            if header_menu_tree:
-                print(f'[DEBUG] first node type: {type(header_menu_tree[0]).__name__}')
             sidebar_menu_tree = _build_menu_tree(sidebar_all)
 
             return {
