@@ -60,6 +60,7 @@ FRAMEWORK_TABLES = {
     # W3-рефакторинг: реестр использования файлов и журнал действий
     'file_usage',
     'audit_log',
+    'share_attach',
     # НЕ включаем: cloud_file, cloud_share, alembic_version_cloud — это mycloud
 }
 

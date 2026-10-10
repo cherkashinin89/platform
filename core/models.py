@@ -432,6 +432,46 @@ class CloudShare(db.Model):
     def __repr__(self):
         return f'<CloudShare {self.token}>'
 
+class ShareAttach(db.Model):
+    """
+    Привязка публичной шары к статье или странице.
+
+    Полиморфная M2M-связь:
+    - одна шара может быть привязана к нескольким статьям/страницам;
+    - одна статья/страница может иметь несколько привязанных шар.
+
+    При удалении CloudShare — записи удаляются каскадом (FK).
+    При удалении статьи/страницы — записи удаляются в коде (полиморфизм,
+    FK не срабатывает).
+    """
+    __tablename__ = 'share_attach'
+
+    __table_args__ = (
+        db.CheckConstraint(
+            "target_type IN ('article', 'page')",
+            name='ck_share_attach_target_type'
+        ),
+        db.Index('idx_share_attach_target', 'target_type', 'target_id'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    share_id = db.Column(
+        db.Integer,
+        db.ForeignKey('cloud_share.id', ondelete='CASCADE'),
+        nullable=False,
+        index=True,
+    )
+
+    target_type = db.Column(db.String(20), nullable=False)
+    target_id = db.Column(db.Integer, nullable=False, index=True)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    share = db.relationship('CloudShare', backref='attachments')
+
+    def __repr__(self):
+        return f'<ShareAttach share={self.share_id} {self.target_type}={self.target_id}>'
 
 # ============================================================
 # W3: реестр использования и аудит
