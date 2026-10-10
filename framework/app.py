@@ -1947,6 +1947,185 @@ def create_app(config_class=Config):
 
         return jsonify(data)
 
+    @app.route('/admin/api/cloud-tree')
+    @login_required
+    @editor_required
+    def admin_api_cloud_tree():
+        """
+        JSON-дерево папок текущего пользователя (для модалки выбора файлов).
+
+        Возвращает плоский список всех папок пользователя:
+            [{id, name, parent_id}, ...]
+
+        Дерево строит JS на клиенте (как в облаке).
+        Пустые папки тоже включаются.
+        """
+        folders = (
+            CloudFile.query
+            .filter_by(
+                owner_id=current_user.id,
+                is_folder=True,
+                is_trashed=False,
+            )
+            .order_by(CloudFile.name)
+            .all()
+        )
+
+        data = [
+            {
+                'id': f.id,
+                'name': f.name,
+                'parent_id': f.parent_id,
+            }
+            for f in folders
+        ]
+
+        return jsonify(data)
+
+    @app.route('/admin/api/cloud-folder/<int:folder_id>')
+    @login_required
+    @editor_required
+    def admin_api_cloud_folder(folder_id):
+        """
+        JSON-содержимое папки облака (для модалки выбора файлов).
+
+        Возвращает:
+            {
+                id, name,
+                folders: [{id, name, parent_id}, ...],
+                files:   [{id, name, type, size, public_url, thumbnail_url}, ...]
+            }
+
+        Логика доступа:
+          - админ: к любой папке
+          - редактор: только к своим папкам
+        """
+        # Проверяем, что папка существует и доступна
+        q = CloudFile.query.filter_by(id=folder_id, is_folder=True, is_trashed=False)
+        if not current_user.is_admin:
+            q = q.filter(CloudFile.owner_id == current_user.id)
+
+        folder = q.first()
+        if not folder:
+            return jsonify({'ok': False, 'error': 'Папка не найдена'}), 404
+
+        # Вспомогательная функция: тип файла по mime
+        def detect_ftype(mime):
+            mime = (mime or '').lower()
+            if mime.startswith('image/'):
+                return 'image'
+            if mime.startswith('video/'):
+                return 'video'
+            if mime.startswith('audio/'):
+                return 'audio'
+            if any(x in mime for x in ('zip', 'tar', 'gzip', 'rar', '7z')):
+                return 'archive'
+            if any(x in mime for x in ('pdf', 'word', 'excel', 'powerpoint', 'text', 'officedocument')):
+                return 'document'
+            return 'other'
+
+        # Подпапки
+        subfolders = (
+            CloudFile.query
+            .filter_by(
+                owner_id=folder.owner_id,
+                parent_id=folder.id,
+                is_folder=True,
+                is_trashed=False,
+            )
+            .order_by(CloudFile.name)
+            .all()
+        )
+
+        # Файлы
+        files = (
+            CloudFile.query
+            .filter_by(
+                owner_id=folder.owner_id,
+                parent_id=folder.id,
+                is_folder=False,
+                is_trashed=False,
+            )
+            .order_by(CloudFile.name)
+            .all()
+        )
+
+        return jsonify({
+            'id': folder.id,
+            'name': folder.name,
+            'parent_id': folder.parent_id,
+            'folders': [
+                {'id': f.id, 'name': f.name, 'parent_id': f.parent_id}
+                for f in subfolders
+            ],
+            'files': [
+                {
+                    'id': f.id,
+                    'name': f.name,
+                    'type': detect_ftype(f.mime_type),
+                    'size': f.size_human(),
+                    'public_url': url_for('serve_media', file_id=f.id),
+                    'thumbnail_url': url_for('serve_media', file_id=f.id)
+                        if detect_ftype(f.mime_type) == 'image' else None,
+                }
+                for f in files
+            ],
+        })
+
+    @app.route('/admin/api/check-attachments/<int:file_id>')
+    @login_required
+    @editor_required
+    def admin_api_check_attachments(file_id):
+        """
+        Проверяет, к каким статьям и страницам привязан файл.
+
+        Используется перед удалением файла в облаке —
+        чтобы предупредить пользователя, что связи оборвутся.
+
+        Возвращает:
+            {ok: true, attachments: [
+                {share_id, target_type, target_id, target_title, target_url},
+                ...
+            ]}
+        """
+        from core.models import ShareAttach, Article, Page, CloudShare
+
+        # Находим все активные шары на этот файл
+        shares = CloudShare.query.filter_by(file_id=file_id).all()
+        if not shares:
+            return jsonify({'ok': True, 'attachments': []})
+
+        share_ids = [s.id for s in shares]
+
+        # Находим все ShareAttach для этих шар
+        attaches = ShareAttach.query.filter(ShareAttach.share_id.in_(share_ids)).all()
+
+        # Собираем target_title и target_url
+        attachments = []
+        for a in attaches:
+            title = None
+            url = None
+            if a.target_type == 'article':
+                article = Article.query.get(a.target_id)
+                if article:
+                    title = article.title
+                    url = url_for('article_view', slug=article.slug) if hasattr(article, 'slug') else f'/article/{article.id}'
+            elif a.target_type == 'page':
+                page = Page.query.get(a.target_id)
+                if page:
+                    title = page.title
+                    url = url_for('page_view', slug=page.slug) if hasattr(page, 'slug') else f'/page/{page.id}'
+
+            attachments.append({
+                'share_id': a.share_id,
+                'target_type': a.target_type,
+                'target_id': a.target_id,
+                'target_title': title or '—',
+                'target_url': url or '#',
+            })
+
+        return jsonify({'ok': True, 'attachments': attachments})
+
     @app.route('/admin/api/cloud-files')
     @login_required
     @editor_required
