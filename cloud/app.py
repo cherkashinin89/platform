@@ -748,6 +748,82 @@ def create_app(config_class=Config):
             return jsonify({'ok': False, 'error': result}), 404
         return jsonify({'ok': True})
 
+        # === INTERNAL API: создание шары от имени другого пользователя ===
+    # Используется framework для прикрепления файлов к статьям.
+    # Авторизация через X-Internal-Key + X-User-Id.
+
+    @app.route('/api/internal-share/<int:file_id>', methods=['POST'])
+    @csrf.exempt
+    def api_internal_share(file_id):
+        """
+        Создаёт/переиспользует шару на файл от имени пользователя.
+
+        Заголовки:
+        - X-Internal-Key: <INTERNAL_API_KEY>  — общий секрет framework↔cloud
+        - X-User-Id: <int>                     — id пользователя-владельца
+
+        Ответ — тот же, что у /api/share/<id>.
+        """
+        import os
+        from flask import current_app
+
+        # 1. Проверка ключа
+        expected_key = current_app.config.get('INTERNAL_API_KEY') or os.getenv('INTERNAL_API_KEY')
+        provided_key = request.headers.get('X-Internal-Key', '')
+
+        if not expected_key:
+            return jsonify({'ok': False, 'error': 'INTERNAL_API_KEY не настроен'}), 500
+
+        if provided_key != expected_key:
+            return jsonify({'ok': False, 'error': 'Доступ запрещён'}), 403
+
+        # 2. Получаем user_id из заголовка
+        user_id_raw = request.headers.get('X-User-Id', '')
+        try:
+            user_id = int(user_id_raw)
+        except (ValueError, TypeError):
+            return jsonify({'ok': False, 'error': 'X-User-Id обязателен'}), 400
+
+        # 3. Проверяем, что пользователь существует
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'ok': False, 'error': 'Пользователь не найден'}), 404
+
+        # 4. Проверяем, что файл существует, принадлежит этому пользователю и не в корзине
+        item = get_item(user_id, file_id, allow_trashed=False)
+        if not item:
+            return jsonify({'ok': False, 'error': 'Элемент не найден'}), 404
+
+        # 5. Ищем существующую активную шару или создаём новую
+        existing = CloudShare.query.filter_by(
+            file_id=file_id,
+            created_by_id=user_id,
+        ).order_by(CloudShare.created_at.desc()).first()
+
+        if existing and not existing.is_expired():
+            share = existing
+        else:
+            ok, result = create_share(user_id, file_id)
+            if not ok:
+                return jsonify({'ok': False, 'error': result}), 400
+            share = result
+
+        public_url = url_for('public_share', token=share.token, _external=True)
+
+        return jsonify({
+            'ok': True,
+            'share': {
+                'id': share.id,
+                'token': share.token,
+                'url': public_url,
+                'path': f'/s/{share.token}',
+                'file_id': share.file_id,
+                'file_name': share.file.name,
+                'is_folder': share.file.is_folder,
+                'created_at': share.created_at.isoformat() if share.created_at else None,
+            },
+        })
+
     return app
 
 
