@@ -1,0 +1,64 @@
+{# ================================================================
+   W3: фрагмент содержимого папки (для AJAX-навигации в статье)
+   Подключается через /article/<id>/folder/<folder_id>
+   ================================================================ #}
+
+<div class="folder-view" data-token="{{ token }}" data-folder-id="{{ folder.id }}" data-item-id="{{ item.id }}">
+
+    {# === Шапка: кнопки + заголовок === #}
+    <div class="folder-view-header">
+        {# Показываем «Назад» только если папка не корень шары #}
+        {% if folder.id != item.id %}
+        <button type="button" class="folder-view-btn folder-view-back" id="fvBack" title="Назад">
+            <i class="bi bi-arrow-left"></i> Назад
+        </button>
+        {% else %}
+        <span class="folder-view-back-spacer"></span>
+        {% endif %}
+        <button type="button" class="folder-view-btn folder-view-close" id="fvClose" title="Закрыть">
+            <i class="bi bi-x-lg"></i>
+        </button>
+
+        <h3 class="folder-view-title">
+            <i class="bi bi-folder-fill"></i>
+            Папка: {{ folder.name }}
+        </h3>
+    </div>
+
+    {# === Список содержимого (сетка плиток) === #}
+    {% if items %}
+        <div class="folder-view-grid">
+            {% for f in items %}
+                {% if f.is_folder %}
+                    <a href="#"
+                       class="fm-tile is-folder folder-view-folder"
+                       data-folder-id="{{ f.id }}"
+                       data-token="{{ token }}">
+                        <div class="fm-tile-preview">
+                            <i class="bi bi-folder-fill"></i>
+                        </div>
+                        <div class="fm-tile-name">{{ f.name }}</div>
+                        <div class="fm-tile-size">папка</div>
+                    </a>
+                {% else %}
+                    <a href="/s/{{ token }}/download/{{ f.id }}"
+                       class="fm-tile"
+                       {% if f.mime_type and f.mime_type.startswith('image/') %}data-lightbox="1"{% endif %}>
+                        <div class="fm-tile-preview">
+                            {% if f.mime_type and f.mime_type.startswith('image/') %}
+                                <img src="/media/{{ f.id }}" alt="{{ f.name }}" loading="lazy">
+                            {% else %}
+                                <i class="bi bi-file-earmark"></i>
+                            {% endif %}
+                        </div>
+                        <div class="fm-tile-name">{{ f.name }}</div>
+                        <div class="fm-tile-size">{{ f.size_human() }}</div>
+                    </a>
+                {% endif %}
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="text-muted mt-3">Папка пуста</p>
+    {% endif %}
+
+</div>

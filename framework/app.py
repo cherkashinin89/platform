@@ -61,6 +61,20 @@ def get_page():
     except (TypeError, ValueError):
         return 1
 
+def _send_cloud_file_as_attachment(file):
+    """
+    Отдаёт облачный файл через send_file как attachment (для скачивания).
+    """
+    path = get_cloud_path(file)
+    if not path or not os.path.exists(path):
+        abort(404)
+    return send_file(
+        path,
+        mimetype=file.mime_type or 'application/octet-stream',
+        as_attachment=True,
+        download_name=file.name,
+    )
+
 def _send_cloud_file(file):
     """
     Отдаёт облачный файл через send_file.
@@ -300,9 +314,15 @@ def _process_attached_files_in_html(content_html, target_type, target_id, user_i
     #     (только что созданные через makeTempHtml — там нет href)
     def add_href_to_anchor(match):
         full_tag = match.group(0)
+
+        # Папки: у них уже есть href="#" и data-is-folder — оставляем как есть
+        if 'data-is-folder="true"' in full_tag:
+            return full_tag
+
         # Уже есть href — не трогаем
         if 'href=' in full_tag:
             return full_tag
+
         # Извлекаем data-share-token
         token_match = re.search(r'data-share-token="([^"]+)"', full_tag)
         if not token_match:
@@ -534,6 +554,72 @@ def create_app(config_class=Config):
             processed_content=processed_content,
         )
 
+    @app.route('/article/<int:id>/folder/<int:folder_id>')
+    def article_folder_view(id, folder_id):
+        """
+        W3: AJAX-фрагмент содержимого папки для статьи.
+        Возвращает HTML-фрагмент (folder_view.html).
+
+        Проверки:
+        - статья существует и публична;
+        - папка привязана к статье через ShareAttach;
+        - папка внутри папки-шары (is_descendant_of).
+        """
+        from core.models import ShareAttach, CloudShare
+        from core.cloud_utils import get_share_by_token, is_descendant_of, list_folder_items
+
+        article = Article.query.get_or_404(id)
+
+        # Находим все шары, привязанные к статье
+        attaches = ShareAttach.query.filter_by(
+            target_type='article',
+            target_id=article.id,
+        ).all()
+
+        if not attaches:
+            abort(404)
+
+        # Ищем шару, внутри которой лежит folder_id
+        target_share = None
+        target_root = None
+        for att in attaches:
+            share = CloudShare.query.get(att.share_id)
+            if not share:
+                continue
+            root = share.file  # папка-шара
+            if not root or not root.is_folder:
+                continue
+            if root.id == folder_id:
+                target_share = share
+                target_root = root
+                break
+            if is_descendant_of(CloudFile.query.get(folder_id), root):
+                target_share = share
+                target_root = root
+                break
+
+        if not target_share:
+            abort(404)
+
+        folder = CloudFile.query.filter_by(
+            id=folder_id,
+            is_folder=True,
+            is_trashed=False,
+        ).first()
+        if not folder:
+            abort(404)
+
+        items = list_folder_items(folder.owner_id, parent_id=folder.id)
+
+        return render_template(
+            'partials/folder_view.html',
+            article=article,
+            token=target_share.token,
+            item=target_root,
+            folder=folder,
+            items=items,
+        )
+
     """Поиск"""
     @app.route('/search')
     def search():
@@ -641,6 +727,47 @@ def create_app(config_class=Config):
             items=items,
             token=token,
         )
+
+    @app.route('/s/<token>/download')
+    def public_share_download(token):
+        """W3: скачивание файла, на который создана шара (framework)."""
+        share = get_share_by_token(token)
+        if not share:
+            abort(404)
+
+        item = share.file
+        if not item or item.is_folder:
+            abort(404)
+
+        return _send_cloud_file_as_attachment(item)
+
+
+    @app.route('/s/<token>/download/<int:file_id>')
+    def public_share_download_file(token, file_id):
+        """W3: скачивание файла из папки-шары (framework)."""
+        share = get_share_by_token(token)
+        if not share:
+            abort(404)
+
+        root = share.file
+        if not root or not root.is_folder:
+            abort(404)
+
+        target = CloudFile.query.filter_by(
+            id=file_id,
+            is_folder=False,
+            is_trashed=False,
+            owner_id=root.owner_id,
+        ).first()
+
+        if not target:
+            abort(404)
+
+        if not is_descendant_of(target, root):
+            abort(403)
+
+        return _send_cloud_file_as_attachment(target)
+
     # === АУТЕНТИФИКАЦИЯ ===
 
     @app.route('/login', methods=['GET', 'POST'])

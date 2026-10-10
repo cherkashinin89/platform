@@ -241,6 +241,7 @@
             toggleSelect({
                 id: 'folder:' + folder.id,
                 type: 'folder',
+                file_id: folder.id,
                 name: folder.name,
                 is_folder: true,
                 size: null,
@@ -351,15 +352,9 @@
 
         // Что делать с папками (пока не поддерживаются)
         const folderItems = selectedItems.filter(i => i.type === 'folder');
-        if (folderItems.length > 0 && fileItems.length === 0) {
-            alert('Выбраны только папки. Прикрепление папок пока не реализовано.');
-            return;
-        }
-        if (folderItems.length > 0) {
-            alert('Папки пока не прикрепляются. Будут прикреплены только файлы.');
-        }
+        const allItems = [...folderItems, ...fileItems];
 
-        if (fileItems.length === 0) return;
+        if (allItems.length === 0) return;
 
         if (fileItems.length > 20) {
             if (!confirm(`Выбрано ${fileItems.length} файлов. Продолжить?`)) return;
@@ -367,7 +362,7 @@
 
         // === РЕЖИМ CREATE: вставляем data-file-id, без API ===
         if (isCreateMode) {
-            const html = fileItems.map(item => makeTempHtml(item)).join(' ');
+            const html = allItems.map(item => makeTempHtml(item)).join(' ');
             window.__activeEditor.insertContent(`<p>${html}</p>`);
             closeModal();
             return;
@@ -380,7 +375,7 @@
         const payload = {
             article_id: targetType === 'articles' ? targetId : null,
             page_id: targetType === 'pages' ? targetId : null,
-            file_ids: fileItems.map(i => i.file_id),
+            file_ids: allItems.map(i => i.file_id),
         };
 
         try {
@@ -417,6 +412,13 @@
 
     function makeTempHtml(item) {
         // Временная плитка: data-file-id + класс is-temp
+        // Различаем папки и файлы
+
+        if (item.type === 'folder') {
+            // Папка: data-file-id + data-folder-id (для навигации после сохранения)
+            return `<a class="attached-file attached-file-folder is-temp" href="#" data-file-id="${item.file_id}" data-folder-id="${item.file_id}" data-is-folder="true"><i class="bi bi-folder-fill"></i> <span class="attached-file-name">${escapeHtml(item.name)}</span></a>`;
+        }
+
         const ext = (item.name.split('.').pop() || '').toLowerCase();
         const isImage = ['jpg','jpeg','png','gif','webp','bmp','svg'].includes(ext);
         const iconClass = getIconClassForExt(ext);
@@ -432,7 +434,7 @@
         const name = att.file_name;
 
         if (att.is_folder) {
-            return `<a class="attached-file attached-file-folder" href="#" data-share-token="${escapeAttr(att.token)}" data-is-folder="true"><i class="bi bi-folder-fill"></i> <span class="attached-file-name">${escapeHtml(name)}</span></a>`;
+            return `<a class="attached-file attached-file-folder" href="#" data-share-token="${escapeAttr(att.token)}" data-folder-id="${att.file_id}" data-is-folder="true"><i class="bi bi-folder-fill"></i> <span class="attached-file-name">${escapeHtml(name)}</span></a>`;
         }
         // Файл — иконку подберём на клиенте (пока по расширению)
         const ext = (name.split('.').pop() || '').toLowerCase();
@@ -507,6 +509,127 @@
         if (el.attachBtn) el.attachBtn.addEventListener('click', attachSelected);
 
         console.log('attached-files.js: инициализирован');
+    });
+
+        // ============ W3: НАВИГАЦИЯ ПО ПАПКАМ В СТАТЬЕ ============
+    function initArticleFolderNavigation() {
+        // Только на публичных страницах статьи (не в админке)
+        if (window.location.pathname.startsWith('/admin/')) return;
+
+        // Клик по плитке папки в статье
+        document.addEventListener('click', function (e) {
+            const folderLink = e.target.closest('.attached-file-folder[data-share-token]');
+            if (!folderLink) return;
+
+            // Не перехватываем, если уже открыт folder-view
+            if (document.querySelector('.folder-view')) return;
+
+            e.preventDefault();
+
+            const token = folderLink.getAttribute('data-share-token');
+            const folderId = folderLink.getAttribute('data-folder-id');
+
+            // folder_id у плитки нет в текущей верстке — вычислим по контексту.
+            // Плитка папки имеет только data-share-token, значит это корень шары.
+            // Определяем article_id из URL: /article/<id>
+            const match = window.location.pathname.match(/\/article\/(\d+)/);
+            if (!match) return;
+            const articleId = match[1];
+
+            // Находим id корня папки-шары. К сожалению, в HTML его нет.
+            // Проще: сделать запрос на /s/<token>?folder=<root> — но у нас нет root_id.
+            // Поэтому плитка папки должна иметь data-folder-id в HTML.
+            // См. обновление шаблона плитки папки: см. attached_file.html (TODO).
+            // Пока — используем data-folder-id, если он есть.
+            const rootFolderId = folderLink.getAttribute('data-folder-id');
+            if (!rootFolderId) {
+                console.warn('attached-file-folder без data-folder-id');
+                return;
+            }
+
+            openFolderView(articleId, rootFolderId);
+        });
+
+        // Делегирование: клик по кнопкам внутри folder-view
+        document.addEventListener('click', function (e) {
+            // Кнопка "Крестик" — закрыть
+            if (e.target.closest('#fvClose')) {
+                e.preventDefault();
+                closeFolderView();
+                return;
+            }
+
+            // Кнопка "Назад" — на уровень выше
+            if (e.target.closest('#fvBack')) {
+                e.preventDefault();
+                const fv = document.querySelector('.folder-view');
+                if (!fv) return;
+                const currentFolderId = fv.getAttribute('data-folder-id');
+                const token = fv.getAttribute('data-token');
+                // Запрашиваем содержимое, но нам нужен parent. К сожалению, мы его не знаем.
+                // Просто перезагружаем корень папки-шары.
+                const articleId = window.location.pathname.match(/\/article\/(\d+)/)?.[1];
+                if (articleId && token) {
+                    // Пока «Назад» ведёт в корень. Полноценная навигация — позже.
+                    const rootId = fv.getAttribute('data-item-id');
+                    if (rootId) openFolderView(articleId, rootId);
+                }
+                return;
+            }
+
+            // Клик по подпапке внутри folder-view
+            const subFolder = e.target.closest('.folder-view-folder[data-folder-id]');
+            if (subFolder) {
+                e.preventDefault();
+                const articleId = window.location.pathname.match(/\/article\/(\d+)/)?.[1];
+                if (!articleId) return;
+                const folderId = subFolder.getAttribute('data-folder-id');
+                openFolderView(articleId, folderId);
+                return;
+            }
+        });
+    }
+
+    function openFolderView(articleId, folderId) {
+        const articleContent = document.querySelector('.article-content');
+        if (!articleContent) return;
+
+        // Скрываем текст статьи
+        articleContent.style.display = 'none';
+
+        // Контейнер для фрагмента — после article-content
+        let container = document.getElementById('folderViewContainer');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'folderViewContainer';
+            articleContent.parentNode.insertBefore(container, articleContent.nextSibling);
+        }
+
+        container.innerHTML = '<div class="text-muted text-center py-3">Загрузка…</div>';
+
+        fetch(`/article/${articleId}/folder/${folderId}`, { credentials: 'same-origin' })
+            .then(r => {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.text();
+            })
+            .then(html => {
+                container.innerHTML = html;
+            })
+            .catch(e => {
+                console.error('folder view error:', e);
+                container.innerHTML = '<div class="text-danger text-center py-3">Не удалось загрузить папку</div>';
+            });
+    }
+
+    function closeFolderView() {
+        const articleContent = document.querySelector('.article-content');
+        const container = document.getElementById('folderViewContainer');
+        if (articleContent) articleContent.style.display = '';
+        if (container) container.innerHTML = '';
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        initArticleFolderNavigation();
     });
 
 })();

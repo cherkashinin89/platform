@@ -158,6 +158,11 @@
 
 {% block scripts %}
 
+
+{# W3: скрипт навигации по папкам (для публичных страниц) #}
+<script src="{{ url_for('static', filename='shared/js/attached-files.js') }}"></script>
+
+
 {# === СКРИПТ СЛАЙДЕРА === #}
 {% if site_settings and site_settings.show_slider and slider_photos %}
 <script>
