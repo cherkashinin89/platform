@@ -114,3 +114,74 @@ def cloud_file_by_stored_name(stored_name):
     if not stored_name:
         return None
     return CloudFile.query.filter_by(stored_name=stored_name).first()
+
+# ================================================================
+# W3: хелперы для публичной шары (используются framework и cloud)
+# ================================================================
+
+def is_descendant_of(item, ancestor):
+    """
+    Проверяет, что item — потомок ancestor (на любом уровне).
+
+    Если item == ancestor → False (это не потомок, это тот же элемент).
+    Ограничение по глубине (100) — защита от циклов в БД.
+    """
+    if item.id == ancestor.id:
+        return False
+
+    current = item
+    guard = 0
+    while current.parent_id is not None and guard < 100:
+        if current.parent_id == ancestor.id:
+            return True
+        current = CloudFile.query.get(current.parent_id)
+        if current is None:
+            break
+        guard += 1
+
+    return False
+
+
+def get_share_by_token(token):
+    """
+    Находит CloudShare по токену.
+    Возвращает CloudShare или None.
+    Проверяет срок действия / лимит скачиваний.
+    """
+    from core.models import CloudShare
+
+    if not token:
+        return None
+
+    share = CloudShare.query.filter_by(token=token).first()
+    if not share:
+        return None
+
+    if share.is_expired():
+        return None
+
+    return share
+
+
+def list_folder_items(owner_id, parent_id=None, include_trashed=False):
+    """
+    Список файлов и папок внутри указанной папки (только текущий уровень).
+
+    Возвращает список CloudFile (папки + файлы), отсортированный:
+    папки первыми, потом файлы (по имени).
+    """
+    from core.models import CloudFile
+
+    q = CloudFile.query.filter_by(
+        owner_id=owner_id,
+        parent_id=parent_id,
+    )
+    if not include_trashed:
+        q = q.filter_by(is_trashed=False)
+
+    items = q.all()
+
+    folders = sorted([f for f in items if f.is_folder], key=lambda f: (f.name or '').lower())
+    files = sorted([f for f in items if not f.is_folder], key=lambda f: (f.name or '').lower())
+
+    return folders + files

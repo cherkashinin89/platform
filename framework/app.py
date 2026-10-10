@@ -44,6 +44,7 @@ from core.slug_utils import slugify, unique_slug
 from core.cloud_utils import (
     get_cloud_file, get_cloud_path, media_url,
     list_cloud_files, user_used_bytes,
+    is_descendant_of, get_share_by_token, list_folder_items,
 )
 from core.content_service import (
     register_file_usages, unregister_file_usages,
@@ -363,6 +364,61 @@ def create_app(config_class=Config):
         # Иначе — 403, чтобы не палить существование файла
         abort(403)
 
+    @app.route('/s/<token>')
+    def public_share_view(token):
+        """
+        W3: публичная страница шары (файл или папка) в контексте framework.
+
+        Логика:
+        - Если шара на файл → страница с плиткой + кнопка скачать.
+        - Если шара на папку → страница с содержимым папки + навигация.
+        - Поддерживает ?folder=<id> для навигации внутри папки-шары.
+        """
+        share = get_share_by_token(token)
+        if not share:
+            return render_template('public_share_invalid.html'), 404
+
+        item = share.file
+        if not item:
+            return render_template('public_share_invalid.html'), 404
+
+        folder_id = request.args.get('folder', type=int)
+
+        # Шара на файл — страница с файлом
+        if not item.is_folder:
+            return render_template(
+                'public_share.html',
+                share=share,
+                item=item,
+                folder=None,
+                items=None,
+                token=token,
+            )
+
+        # Шара на папку — навигация
+        if folder_id is None:
+            current_folder = item
+        else:
+            current_folder = CloudFile.query.filter_by(
+                id=folder_id,
+                is_folder=True,
+                is_trashed=False,
+            ).first()
+            if not current_folder:
+                return render_template('public_share_invalid.html'), 404
+            if not is_descendant_of(current_folder, item):
+                return render_template('public_share_invalid.html'), 404
+
+        items = list_folder_items(current_folder.owner_id, parent_id=current_folder.id)
+
+        return render_template(
+            'public_share.html',
+            share=share,
+            item=item,
+            folder=current_folder,
+            items=items,
+            token=token,
+        )
     # === АУТЕНТИФИКАЦИЯ ===
 
     @app.route('/login', methods=['GET', 'POST'])

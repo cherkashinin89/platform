@@ -117,129 +117,13 @@
     </main>
 
     <script src="{{ url_for('static', filename='shared/vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
+    {# W3: модалка выбора файлов из облака (двухпанельная) #}
+    {% include "partials/file_manager_modal.html" %}
+
     <!-- TinyMCE (локальная копия в static/tinymce) -->
+    <script src="{{ url_for('static', filename='shared/js/attached-files.js') }}"></script>
     <script src="{{ url_for('static', filename='tinymce/tinymce.min.js') }}"></script>
-
-    <!-- Модальное окно файлового менеджера / облака (одно на всю админку) -->
-    <div class="modal fade" id="fileManagerModal" tabindex="-1">
-        <div class="modal-dialog modal-lg modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">
-                        <i class="bi bi-folder2-open"></i>
-                        {% if current_user.is_admin %}Вставка файла{% else %}Вставка из моего облака{% endif %}
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-
-                    {# Вкладки: админ видит обе, редактор — только «Облако» #}
-                    {% if current_user.is_admin %}
-                    <ul class="nav nav-tabs mb-3" role="tablist">
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link active" id="fmTabUploadsBtn" data-bs-toggle="tab"
-                                data-bs-target="#fmTabUploads" type="button" role="tab"
-                                data-fm-source="uploads">
-                                <i class="bi bi-folder2-open"></i> Файловый менеджер
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="fmTabCloudBtn" data-bs-toggle="tab"
-                                data-bs-target="#fmTabCloud" type="button" role="tab"
-                                data-fm-source="cloud">
-                                <i class="bi bi-cloud"></i> Облако
-                            </button>
-                        </li>
-                    </ul>
-                    {% else %}
-                    {# Редактор: только одна «вкладка», но оставляем визуальный отступ #}
-                    <input type="hidden" id="fmTabCloudBtn" data-fm-source="cloud">
-                    {% endif %}
-
-                    <div class="tab-content">
-
-                        {# === Вкладка 1: Файловый менеджер (uploads/) — только админ === #}
-                        {% if current_user.is_admin %}
-                        <div class="tab-pane fade show active" id="fmTabUploads" role="tabpanel">
-
-                            <!-- Фильтры по типу -->
-                            <div class="btn-group mb-3 flex-wrap" role="group">
-                                <button type="button" class="btn btn-sm btn-outline-secondary active"
-                                    data-fm-filter="all" data-fm-context="uploads">Все</button>
-                                <button type="button" class="btn btn-sm btn-outline-info"
-                                    data-fm-filter="image" data-fm-context="uploads">Изображения</button>
-                                <button type="button" class="btn btn-sm btn-outline-warning"
-                                    data-fm-filter="video" data-fm-context="uploads">Видео</button>
-                                <button type="button" class="btn btn-sm btn-outline-success"
-                                    data-fm-filter="document" data-fm-context="uploads">Документы</button>
-                                <button type="button" class="btn btn-sm btn-outline-dark"
-                                    data-fm-filter="archive" data-fm-context="uploads">Архивы</button>
-                            </div>
-
-                            <!-- Загрузка нового файла прямо отсюда -->
-                            <div class="input-group mb-3">
-                                <input type="file" id="fmUploadInput" class="form-control form-control-sm" multiple>
-                                <button class="btn btn-sm btn-primary" id="fmUploadBtn">
-                                    <i class="bi bi-upload"></i> Загрузить
-                                </button>
-                            </div>
-
-                            <!-- Список файлов -->
-                            <div id="fmListUploads" class="list-group">
-                                <div class="text-muted text-center py-3">Загрузка…</div>
-                            </div>
-                        </div>
-                        {% endif %}
-
-                        {# === Вкладка 2: Облако — админ (все юзеры) и редактор (свои) === #}
-                        <div class="tab-pane fade {% if not current_user.is_admin %}show active{% endif %}" id="fmTabCloud" role="tabpanel">
-
-                            {% if current_user.is_admin %}
-                            {# Фильтр по владельцу — только админу #}
-                            <div class="mb-2">
-                                <select id="fmCloudOwnerFilter" class="form-select form-select-sm">
-                                    <option value="">Все пользователи</option>
-                                    {# Заполняется через JS или Jinja — оставим на Jinja #}
-                                    {% for u in fm_cloud_users|default([]) %}
-                                    <option value="{{ u.id }}">{{ u.username }} ({{ u.role }})</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            {% endif %}
-
-                            <!-- Фильтры по типу -->
-                            <div class="btn-group mb-3 flex-wrap" role="group">
-                                <button type="button" class="btn btn-sm btn-outline-secondary active"
-                                    data-fm-filter="all" data-fm-context="cloud">Все</button>
-                                <button type="button" class="btn btn-sm btn-outline-info"
-                                    data-fm-filter="image" data-fm-context="cloud">Изображения</button>
-                                <button type="button" class="btn btn-sm btn-outline-warning"
-                                    data-fm-filter="video" data-fm-context="cloud">Видео</button>
-                                <button type="button" class="btn btn-sm btn-outline-success"
-                                    data-fm-filter="document" data-fm-context="cloud">Документы</button>
-                                <button type="button" class="btn btn-sm btn-outline-dark"
-                                    data-fm-filter="archive" data-fm-context="cloud">Архивы</button>
-                            </div>
-
-                            <!-- Информационная плашка: загрузка — через mycloud -->
-                            <div class="alert alert-info small py-2 px-3 mb-2">
-                                <i class="bi bi-info-circle"></i>
-                                Загрузка файлов — через
-                                <a href="http://{{ request.host.split(':')[0] }}:5001/" target="_blank">облако</a>.
-                            </div>
-
-                            <!-- Список облачных файлов -->
-                            <div id="fmListCloud" class="list-group">
-                                <div class="text-muted text-center py-3">Загрузка…</div>
-                            </div>
-                        </div>
-
-                    </div>{# /tab-content #}
-
-                </div>
-            </div>
-        </div>
-    </div>
+    <script src="{{ url_for('static', filename='tinymce/tinymce.min.js') }}"></script>
 
     <!-- Скрипт-инициализатор TinyMCE и файлового менеджера -->
     <script>
@@ -247,6 +131,10 @@
             // === Инициализация TinyMCE для всех textarea с классом "rich-editor" ===
             if (typeof tinymce !== 'undefined') {
                 tinymce.init({
+                    // W3: запрещаем TinyMCE преобразовывать абсолютные URL в относительные
+                    relative_urls: false,
+                    convert_urls: false,
+                    remove_script_host: false,
 
                     paste_preprocess: function (plugin, args) {
                         args.content = args.content
@@ -286,9 +174,12 @@
                             onAction: function () {
                                 // Сохраняем ссылку на активный редактор
                                 window.__activeEditor = editor;
-                                // Загружаем список файлов и показываем модалку
-                                loadFileManagerList('all');
-                                new bootstrap.Modal(document.getElementById('fileManagerModal')).show();
+                                // Открываем новую модалку (см. attached-files.js)
+                                if (window.fmOpen) {
+                                    window.fmOpen();
+                                } else {
+                                    console.error('fmOpen не найден — проверьте attached-files.js');
+                                }
                             }
                         });
 
@@ -416,191 +307,6 @@
                 return 'other';
             }
 
-            // === Рендер одного файла в списке ===
-            function renderFileItem(f) {
-                let media;
-                if (f.type === 'image' && f.thumbnail_url) {
-                    media = `<img src="${f.thumbnail_url}"
-                                  alt="" loading="lazy" decoding="async"
-                                  style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; flex-shrink: 0;">`;
-                } else {
-                    const icon = getFileIcon(f.name, f.type);
-                    media = `<i class="bi ${icon.class} fs-3 ${icon.color}"
-                                style="width: 40px; text-align: center; flex-shrink: 0;"></i>`;
-                }
-                const ownerBadge = f.owner_name
-                    ? `<small class="text-muted d-block">владелец: ${f.owner_name}</small>`
-                    : '';
-                return `
-                    <button type="button" class="list-group-item list-group-item-action d-flex align-items-center gap-2"
-                            data-fm-file='${JSON.stringify(f).replace(/'/g, "&apos;")}'>
-                        ${media}
-                        <span class="flex-grow-1 text-start">
-                            <strong>${f.name}</strong>
-                            <small class="text-muted d-block">${f.type} • ${f.size} • ${f.date}</small>
-                            ${ownerBadge}
-                        </span>
-                        <i class="bi bi-plus-circle text-primary"></i>
-                    </button>
-                `;
-            }
-
-            // === Загрузка списка «uploads» ===
-            window.loadFileManagerUploads = function (type) {
-                const list = document.getElementById('fmListUploads');
-                if (!list) return;
-                list.innerHTML = '<div class="text-muted text-center py-3">Загрузка…</div>';
-                fetch('/admin/api/files?type=' + encodeURIComponent(type))
-                    .then(r => r.json())
-                    .then(files => {
-                        if (!files.length) {
-                            list.innerHTML = '<div class="text-muted text-center py-3">Файлов нет</div>';
-                            return;
-                        }
-                        list.innerHTML = files.map(renderFileItem).join('');
-                    })
-                    .catch(() => {
-                        list.innerHTML = '<div class="text-danger text-center py-3">Ошибка загрузки</div>';
-                    });
-            };
-
-            // === Загрузка списка «Облако» ===
-            window.loadFileManagerCloud = function (type) {
-                const list = document.getElementById('fmListCloud');
-                if (!list) return;
-                list.innerHTML = '<div class="text-muted text-center py-3">Загрузка…</div>';
-
-                const params = new URLSearchParams({type: type || 'all'});
-                const ownerSel = document.getElementById('fmCloudOwnerFilter');
-                if (ownerSel && ownerSel.value) {
-                    params.set('owner', ownerSel.value);
-                }
-
-                fetch('/admin/api/cloud-files?' + params.toString())
-                    .then(r => r.json())
-                    .then(files => {
-                        if (!files.length) {
-                            list.innerHTML = '<div class="text-muted text-center py-3">Файлов нет</div>';
-                            return;
-                        }
-                        list.innerHTML = files.map(renderFileItem).join('');
-                    })
-                    .catch(() => {
-                        list.innerHTML = '<div class="text-danger text-center py-3">Ошибка загрузки</div>';
-                    });
-            };
-
-            // === Универсальная загрузка (переключение по контексту) ===
-            window.loadFileManagerList = function (type, context) {
-                context = context || currentFmContext();
-                if (context === 'cloud') {
-                    loadFileManagerCloud(type);
-                } else {
-                    loadFileManagerUploads(type);
-                }
-            };
-
-            // === Определение активного контекста (uploads / cloud) ===
-            function currentFmContext() {
-                const activeTab = document.querySelector('#fileManagerModal .nav-link.active');
-                if (activeTab) {
-                    return activeTab.getAttribute('data-fm-source') || 'uploads';
-                }
-                // Редактор без вкладок: hidden input
-                const hidden = document.getElementById('fmTabCloudBtn');
-                if (hidden) return hidden.getAttribute('data-fm-source') || 'cloud';
-                return 'uploads';
-            }
-
-            // === Клик по файлу — вставка в активный редактор ===
-            document.addEventListener('click', function (e) {
-                const item = e.target.closest('[data-fm-file]');
-                if (!item) return;
-
-                const file = JSON.parse(item.getAttribute('data-fm-file'));
-                const editor = window.__activeEditor;
-                if (!editor) return;
-
-                if (file.type === 'image') {
-                    editor.insertContent(`<img src="${file.public_url}" alt="${file.name}">`);
-                } else if (file.type === 'video') {
-                    editor.insertContent(`<video src="${file.public_url}" controls style="max-width:100%"></video>`);
-                } else if (file.type === 'audio') {
-                    editor.insertContent(`<audio src="${file.public_url}" controls></audio>`);
-                } else {
-                    const icon = getFileIcon(file.name, file.type);
-                    const ext = getFileExt(file.name);
-                    const html = `<a href="${file.public_url}" target="_blank" rel="noopener" class="file-link file-link-${ext}"><i class="bi ${icon.class}" aria-hidden="true"></i><span>${file.name}</span></a>`;
-                    editor.insertContent(html);
-                }
-
-                const modalEl = document.getElementById('fileManagerModal');
-                bootstrap.Modal.getInstance(modalEl).hide();
-            });
-
-            // === Кнопки фильтров ===
-            document.addEventListener('click', function (e) {
-                const btn = e.target.closest('[data-fm-filter]');
-                if (!btn) return;
-                const ctx = btn.getAttribute('data-fm-context') || 'uploads';
-                // Снимаем active только в своей вкладке
-                document.querySelectorAll(`[data-fm-filter][data-fm-context="${ctx}"]`)
-                    .forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                loadFileManagerList(btn.getAttribute('data-fm-filter'), ctx);
-            });
-
-            // === Переключение вкладок модалки — подгружаем список ===
-            document.addEventListener('shown.bs.tab', function (e) {
-                const src = e.target.getAttribute('data-fm-source');
-                if (!src) return;
-                loadFileManagerList('all', src);
-            });
-
-            // === Открытие модалки: подгружаем список активной вкладки ===
-            document.getElementById('fileManagerModal')?.addEventListener('show.bs.modal', function () {
-                loadFileManagerList('all');
-            });
-
-            // === Смена фильтра «владелец» в облаке ===
-            document.getElementById('fmCloudOwnerFilter')?.addEventListener('change', function () {
-                loadFileManagerCloud('all');
-            });
-
-            // === AJAX-загрузка файла из модалки (только uploads) ===
-            document.getElementById('fmUploadBtn')?.addEventListener('click', async function () {
-                const input = document.getElementById('fmUploadInput');
-                if (!input.files.length) {
-                    alert('Файлы не выбраны');
-                    return;
-                }
-
-                const fd = new FormData();
-                for (const f of input.files) {
-                    fd.append('files', f);
-                }
-                fd.append('csrf_token', '{{ csrf_token() }}');
-
-                try {
-                    const resp = await fetch('/admin/api/upload-multiple', {
-                        method: 'POST',
-                        body: fd,
-                        headers: {'X-CSRFToken': '{{ csrf_token() }}'}
-                    });
-
-                    let data;
-                    try { data = await resp.json(); }
-                    catch { throw new Error('Некорректный ответ сервера'); }
-
-                    if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
-
-                    loadFileManagerUploads('all');
-                    input.value = '';
-                } catch (err) {
-                    console.error('Upload failed:', err);
-                    alert('Ошибка загрузки: ' + err.message);
-                }
-            });
         })();
     </script>
     <!-- Sortable.js — для drag & drop сортировки -->

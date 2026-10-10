@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+
+{% block title %}
+{% if item.is_folder %}Папка: {{ item.name }}{% else %}{{ item.name }}{% endif %} — {{ site_settings.site_title if site_settings else 'Мой Сайт' }}
+{% endblock %}
+
+{% block content %}
+
+{# === ЗАГОЛОВОК === #}
+<div class="public-share-header mb-4">
+    <div class="public-share-meta text-muted small mb-2">
+        <i class="bi bi-share"></i>
+        Поделился: <strong>{{ share.created_by.username if share.created_by else '—' }}</strong>
+        • {{ share.created_at.strftime('%d.%m.%Y') }}
+    </div>
+
+    <h1 class="public-share-title">
+        {% if item.is_folder %}
+            <i class="bi bi-folder-fill"></i> {{ item.name }}
+        {% else %}
+            <i class="bi bi-file-earmark"></i> {{ item.name }}
+        {% endif %}
+    </h1>
+</div>
+
+{# === ФАЙЛ === #}
+{% if not item.is_folder %}
+    <div class="public-share-file">
+        {% if item.mime_type and item.mime_type.startswith('image/') %}
+            <div class="text-center mb-3">
+                <a href="/media/{{ item.id }}" class="lightbox-trigger">
+                    <img src="/media/{{ item.id }}" alt="{{ item.name }}" class="img-fluid" style="max-height: 70vh;">
+                </a>
+            </div>
+        {% elif item.mime_type and item.mime_type.startswith('video/') %}
+            <video src="/media/{{ item.id }}" controls style="max-width: 100%;"></video>
+        {% elif item.mime_type and item.mime_type.startswith('audio/') %}
+            <audio src="/media/{{ item.id }}" controls></audio>
+        {% endif %}
+
+        <div class="text-center mt-3">
+            <a href="/media/{{ item.id }}" download class="btn btn-primary">
+                <i class="bi bi-download"></i> Скачать
+            </a>
+        </div>
+    </div>
+{% endif %}
+
+{# === ПАПКА === #}
+{% if item.is_folder %}
+    {% if folder and folder.id != item.id %}
+    <div class="mb-3">
+        <a href="{{ url_for('public_share_view', token=token) }}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> В корень папки
+        </a>
+    </div>
+    {% endif %}
+
+    {% if items %}
+        <div class="public-share-list">
+            {% for f in items %}
+                {% if f.is_folder %}
+                    <a href="{{ url_for('public_share_view', token=token) }}?folder={{ f.id }}"
+                       class="attached-file attached-file-folder">
+                        <i class="bi bi-folder-fill"></i>
+                        <span class="attached-file-name">{{ f.name }}</span>
+                    </a>
+                {% else %}
+                    <a href="/media/{{ f.id }}" class="attached-file"
+                       {% if f.mime_type and f.mime_type.startswith('image/') %}data-lightbox="1"{% endif %}>
+                        {% if f.mime_type and f.mime_type.startswith('image/') %}
+                            <img src="/media/{{ f.id }}" alt="{{ f.name }}" style="max-width: 80px; max-height: 80px;">
+                        {% else %}
+                            <i class="bi bi-file-earmark"></i>
+                        {% endif %}
+                        <span class="attached-file-name">{{ f.name }}</span>
+                    </a>
+                {% endif %}
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="text-muted">Папка пуста</p>
+    {% endif %}
+{% endif %}
+
+{% endblock %}
