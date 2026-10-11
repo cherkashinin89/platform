@@ -511,6 +511,19 @@ def create_app(config_class=Config):
             quota=quota,
         )
 
+    @app.route('/attached')
+    @login_required
+    def attached():
+        """W36: страница «Прикреплено к статьям» — список привязанных шар."""
+        from cloud_service import list_attached_shares
+        attached_list = list_attached_shares(current_user.id)
+        quota = get_quota_info(current_user)
+
+        return render_template(
+            'attached.html',
+            attached_list=attached_list,
+            quota=quota,
+        )
 
         # === ПУБЛИЧНЫЙ ДОСТУП ПО ССЫЛКЕ (без авторизации) ===
 

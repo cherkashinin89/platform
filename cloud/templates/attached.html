@@ -1,0 +1,104 @@
+{% extends 'base_cloud.html' %}
+
+{% block title %}MyCloud — Прикреплено к статьям{% endblock %}
+
+{% block content %}
+
+{# === ЗАГОЛОВОК === #}
+<h1 class="cloud-page-title">
+    <i class="bi bi-paperclip"></i>
+    Прикреплено к статьям
+</h1>
+
+{# === КНОПКА НАЗАД === #}
+<div class="mb-3">
+    <a href="{{ url_for('index') }}" class="btn-cloud btn-cloud-back">
+        <i class="bi bi-arrow-left"></i> К файлам
+    </a>
+</div>
+
+{# === СПИСОК === #}
+{% if attached_list %}
+    <table class="cloud-table">
+        <thead>
+            <tr>
+                <th>Файл / папка</th>
+                <th>Прикреплено к</th>
+                <th>Дата</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in attached_list %}
+                {% set s = entry.share %}
+                <tr>
+                    {# === Имя файла === #}
+                    <td>
+                        {% set icon_class, icon_color = s.file.name | icon_for_file() %}
+                        <span class="item-icon file" style="color: {{ icon_color }};">
+                            <i class="bi {{ icon_class }}"></i>
+                        </span>
+                        <a href="/s/{{ s.token }}" target="_blank" class="item-link">
+                            {{ s.file.name }}
+                        </a>
+                    </td>
+
+                    {# === Прикреплено к (список) === #}
+                    <td>
+                        {% for a in entry.attachments %}
+                            {% if a.target_type == 'article' %}
+                                <span class="attached-badge">
+                                    <i class="bi bi-file-text"></i>
+                                    <a href="{{ a.url }}" target="_blank">{{ a.title }}</a>
+                                </span>
+                            {% elif a.target_type == 'page' %}
+                                <span class="attached-badge">
+                                    <i class="bi bi-file-earmark"></i>
+                                    <a href="{{ a.url }}" target="_blank">{{ a.title }}</a>
+                                </span>
+                            {% endif %}
+                            {% if not loop.last %}<br>{% endif %}
+                        {% endfor %}
+                    </td>
+
+                    {# === Дата === #}
+                    <td>
+                        {% if entry.attachments %}
+                            {{ entry.attachments[0].date.strftime('%d.%m.%Y %H:%M') }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+
+                    {# === Действия === #}
+                    <td>
+                        <button class="btn-icon-action btn-copy"
+                                onclick="copyToClipboard('/s/{{ s.token }}')"
+                                title="Скопировать ссылку">
+                            <i class="bi bi-link-45deg"></i>
+                        </button>
+                        <a href="/s/{{ s.token }}" target="_blank"
+                           class="btn-icon-action btn-share"
+                           title="Открыть">
+                            <i class="bi bi-box-arrow-up-right"></i>
+                        </a>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <p class="text-muted text-center mt-4">
+        Всего: {{ attached_list|length }}
+    </p>
+{% else %}
+    <div class="cloud-empty-state">
+        <i class="bi bi-paperclip"></i>
+        <p>У вас пока нет файлов, прикреплённых к статьям или страницам.</p>
+        <p class="text-muted small">
+            Файлы появятся здесь, когда вы прикрепите их в редакторе статьи.
+        </p>
+    </div>
+{% endif %}
+
+{% endblock %}

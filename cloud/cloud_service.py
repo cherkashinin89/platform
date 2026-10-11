@@ -635,6 +635,78 @@ def list_shares(owner_id):
         .all()
     )
 
+def list_attached_shares(owner_id):
+    """
+    W36: список шар пользователя, привязанных к статьям/страницам.
+
+    Возвращает список словарей:
+        [{share, attachments: [{target_type, target_id, title, url, date}]}, ...]
+
+    Где share — объект CloudShare, attachments — список привязок через ShareAttach.
+    """
+    from core.models import ShareAttach, Article, Page
+
+    # Все шары пользователя, у которых есть привязки
+    shares = (
+        CloudShare.query
+        .filter_by(created_by_id=owner_id)
+        .order_by(CloudShare.created_at.desc())
+        .all()
+    )
+
+    if not shares:
+        return []
+
+    share_ids = [s.id for s in shares]
+
+    # Все привязки для этих шар
+    attaches = (
+        ShareAttach.query
+        .filter(ShareAttach.share_id.in_(share_ids))
+        .order_by(ShareAttach.created_at.desc())
+        .all()
+    )
+
+    # Группируем по share_id
+    by_share = {}
+    for a in attaches:
+        by_share.setdefault(a.share_id, []).append(a)
+
+    result = []
+    for s in shares:
+        atts = by_share.get(s.id, [])
+        if not atts:
+            continue
+
+        attachments = []
+        for a in atts:
+            title = '—'
+            url = '#'
+            if a.target_type == 'article':
+                art = Article.query.get(a.target_id)
+                if art:
+                    title = art.title
+                    url = f'/article/{art.id}'
+            elif a.target_type == 'page':
+                p = Page.query.get(a.target_id)
+                if p:
+                    title = p.title
+                    url = f'/page/{p.id}'
+
+            attachments.append({
+                'target_type': a.target_type,
+                'target_id': a.target_id,
+                'title': title,
+                'url': url,
+                'date': a.created_at,
+            })
+
+        result.append({
+            'share': s,
+            'attachments': attachments,
+        })
+
+    return result
 
 def revoke_share(owner_id, share_id):
     """

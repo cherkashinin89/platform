@@ -40,6 +40,7 @@
 <li><a href="{{ site_settings.site_base_url if site_settings else '/' }}">Сайт</a></li>
 <li><a href="{{ url_for('index') }}">Мои файлы</a></li>
 <li><a href="{{ url_for('shares') }}">Ссылки</a></li>
+<li><a href="{{ url_for('attached') }}">Прикреплено</a></li>
 <li><a href="{{ url_for('trash') }}">Корзина</a></li>
 {% endblock %}
 
@@ -59,6 +60,12 @@
                 <a href="{{ url_for('shares') }}"
                     class="site-nav-link {% if request.endpoint == 'shares' %}is-active{% endif %}">
                     <i class="bi bi-link-45deg"></i> Ссылки
+                </a>
+            </li>
+            <li class="site-nav-item">
+                <a href="{{ url_for('attached') }}"
+                    class="site-nav-link {% if request.endpoint == 'attached' %}is-active{% endif %}">
+                    <i class="bi bi-paperclip"></i> Прикреплено
                 </a>
             </li>
             <li class="site-nav-item">
