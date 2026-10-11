@@ -152,56 +152,43 @@
         {# === РАБОЧАЯ ОБЛАСТЬ: таблица файлов === #}
         <div class="cloud-content">
             {% if items %}
-            <table class="items-table" id="itemsTable">
-                <thead>
-                    <tr>
-                        <th>Имя</th>
-                        <th style="width: 120px;">Размер</th>
-                        <th style="width: 180px;">Изменён</th>
-                        <th style="width: 120px;">Действия</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in items %}
-                    <tr data-id="{{ item.id }}" data-name="{{ item.name }}"
-                        data-isfolder="{{ 'true' if item.is_folder else 'false' }}">
-                        <td>
-                            <div class="item-name-cell">
-                                {% if item.is_folder %}
-                                <a href="{{ url_for('index', folder_id=item.id) }}" class="item-link"
-                                    onclick="event.stopPropagation();">
-                                    <span class="item-icon folder"><i class="bi bi-folder-fill"></i></span>
-                                </a>
-                                <a href="{{ url_for('index', folder_id=item.id) }}" class="item-link name"
-                                    onclick="event.stopPropagation();">{{ item.name }}</a>
-                                {% else %}
-                                {% set icon_class, icon_color = item.name | icon_for_file() %}
-                                <span class="item-icon file" style="color: {{ icon_color }};"><i
-                                        class="bi {{ icon_class }}"></i></span>
-                                <a href="{{ url_for('api_download', file_id=item.id) }}" class="item-link name"
-                                    title="Скачать файл" onclick="event.stopPropagation();">{{ item.name }}</a>
-                                {% endif %}
-                            </div>
-                        </td>
-                        <td>{{ item.size_human() }}</td>
-                        <td>{{ item.updated_at.strftime('%d.%m.%Y %H:%M') if item.updated_at else '—' }}</td>
-                        <td>
-                            <div class="row-actions">
-                                <button class="btn-icon-action btn-share"
-                                    onclick="event.stopPropagation(); openShareModal({{ item.id }}, '{{ item.name | e }}', {{ 'true' if item.is_folder else 'false' }})"
-                                    title="Поделиться ссылкой"><i class="bi bi-link-45deg"></i></button>
-                                <button class="btn-icon-action"
-                                    onclick="event.stopPropagation(); openRenameModal({{ item.id }}, '{{ item.name | e }}', {{ 'true' if item.is_folder else 'false' }})"
-                                    title="Переименовать"><i class="bi bi-pencil"></i></button>
-                                <button class="btn-icon-action btn-trash"
-                                    onclick="event.stopPropagation(); trashItem({{ item.id }}, '{{ item.name | e }}', {{ 'true' if item.is_folder else 'false' }})"
-                                    title="Удалить в корзину"><i class="bi bi-trash"></i></button>
-                            </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+            <div class="cloud-tiles" id="itemsGrid">
+                {% for item in items %}
+                <div class="fm-tile {% if item.is_folder %}is-folder{% endif %}"
+                     data-id="{{ item.id }}"
+                     data-name="{{ item.name }}"
+                     data-isfolder="{{ 'true' if item.is_folder else 'false' }}"
+                     data-row="1">
+                    <div class="fm-tile-checkbox" data-action="select"></div>
+
+                    <div class="fm-tile-preview">
+                        {% if item.is_folder %}
+                            <i class="bi bi-folder-fill"></i>
+                        {% elif item.mime_type and item.mime_type.startswith('image/') %}
+                            <img src="{{ url_for('api_download', file_id=item.id) }}" alt="{{ item.name }}" loading="lazy">
+                        {% else %}
+                            {% set icon_class, icon_color = item.name | icon_for_file() %}
+                            <i class="bi {{ icon_class }}" style="color: {{ icon_color }};"></i>
+                        {% endif %}
+                    </div>
+
+                    <div class="fm-tile-name">{{ item.name }}</div>
+                    <div class="fm-tile-size">{{ item.size_human() if not item.is_folder else '—' }}</div>
+
+                    <div class="fm-tile-actions">
+                        <button class="btn-icon-action btn-share"
+                                onclick="event.stopPropagation(); openShareModal({{ item.id }}, '{{ item.name | e }}', {{ 'true' if item.is_folder else 'false' }})"
+                                title="Поделиться"><i class="bi bi-link-45deg"></i></button>
+                        <button class="btn-icon-action"
+                                onclick="event.stopPropagation(); openRenameModal({{ item.id }}, '{{ item.name | e }}', {{ 'true' if item.is_folder else 'false' }})"
+                                title="Переименовать"><i class="bi bi-pencil"></i></button>
+                        <button class="btn-icon-action btn-trash"
+                                onclick="event.stopPropagation(); trashItem({{ item.id }}, '{{ item.name | e }}', {{ 'true' if item.is_folder else 'false' }})"
+                                title="В корзину"><i class="bi bi-trash"></i></button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
             {% else %}
             <div class="empty-state">
                 <i class="bi bi-folder2-open"></i>
@@ -601,8 +588,8 @@
     // Запуск
     loadTree();
 
-    // ============= ВЫДЕЛЕНИЕ СТРОК =============
-    const table = document.getElementById('itemsTable');
+    // ============= ВЫДЕЛЕНИЕ ПЛИТОК =============
+    const grid = document.getElementById('itemsGrid');
     const btnRename = document.getElementById('btnRename');
     const btnShare = document.getElementById('btnShare');
     const btnDownload = document.getElementById('btnDownload');
@@ -610,48 +597,93 @@
 
     let lastSelectedIndex = -1;
 
-    if (table) {
-        const rows = Array.from(table.querySelectorAll('tbody tr'));
+    if (grid) {
+        const tiles = Array.from(grid.querySelectorAll('.fm-tile'));
 
-        rows.forEach((row, idx) => {
-            row.addEventListener('click', function (e) {
-                // Если клик по ссылке/кнопке — не выделяем
-                if (e.target.closest('a') || e.target.closest('button')) return;
 
-                const isCtrl = e.ctrlKey || e.metaKey;
-                const isShift = e.shiftKey;
+        tiles.forEach((tile, idx) => {
+            // Обработка клика с задержкой (для отличия от двойного)
+            let clickTimer = null;
 
-                if (isShift && lastSelectedIndex !== -1) {
-                    const start = Math.min(lastSelectedIndex, idx);
-                    const end = Math.max(lastSelectedIndex, idx);
-                    for (let i = start; i <= end; i++) {
-                        rows[i].classList.add('is-selected');
-                    }
-                } else if (isCtrl) {
-                    row.classList.toggle('is-selected');
-                    lastSelectedIndex = idx;
-                } else {
-                    rows.forEach(r => r.classList.remove('is-selected'));
-                    row.classList.add('is-selected');
-                    lastSelectedIndex = idx;
+            // Клик по чекбоксу — toggle
+            const checkbox = tile.querySelector('.fm-tile-checkbox');
+            if (checkbox) {
+                checkbox.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    tile.classList.toggle('is-selected');
+                    updateSelectionButtons();
+                });
+            }
+
+            // Одинарный клик — выделение (с задержкой 250 мс)
+            tile.addEventListener('click', function (e) {
+                if (e.target.closest('.fm-tile-actions')) return;
+                if (e.target.closest('.fm-tile-checkbox')) return;
+
+                if (clickTimer) {
+                    // Это был двойной — не выделяем
+                    clearTimeout(clickTimer);
+                    clickTimer = null;
+                    return;
                 }
 
-                updateSelectionButtons();
+                clickTimer = setTimeout(() => {
+                    clickTimer = null;
+
+                    const isCtrl = e.ctrlKey || e.metaKey;
+                    const isShift = e.shiftKey;
+
+                    if (isShift && lastSelectedIndex !== -1) {
+                        const start = Math.min(lastSelectedIndex, idx);
+                        const end = Math.max(lastSelectedIndex, idx);
+                        for (let i = start; i <= end; i++) {
+                            tiles[i].classList.add('is-selected');
+                        }
+                    } else if (isCtrl) {
+                        tile.classList.toggle('is-selected');
+                        lastSelectedIndex = idx;
+                    } else {
+                        tiles.forEach(t => t.classList.remove('is-selected'));
+                        tile.classList.add('is-selected');
+                        lastSelectedIndex = idx;
+                    }
+
+                    updateSelectionButtons();
+                }, 250);
+            });
+
+            // Двойной клик — открыть (папка — войти, файл — скачать)
+            tile.addEventListener('dblclick', function (e) {
+                if (e.target.closest('.fm-tile-actions')) return;
+                if (e.target.closest('.fm-tile-checkbox')) return;
+
+                if (clickTimer) {
+                    clearTimeout(clickTimer);
+                    clickTimer = null;
+                }
+
+                const isFolder = tile.dataset.isfolder === 'true';
+                const id = tile.dataset.id;
+
+                if (isFolder) {
+                    window.location.href = '/folder/' + id;
+                } else {
+                    window.location.href = '/api/download/' + id;
+                }
             });
         });
 
-        // Клик по пустому месту = снять выделение
-        table.addEventListener('click', function (e) {
-            if (e.target === table || e.target.tagName === 'THEAD' || e.target.closest('thead')) {
-                rows.forEach(r => r.classList.remove('is-selected'));
+        // Клик по пустому месту — снять выделение
+        grid.addEventListener('click', function (e) {
+            if (e.target === grid) {
+                tiles.forEach(t => t.classList.remove('is-selected'));
                 updateSelectionButtons();
             }
         });
     }
 
     function getSelectedRows() {
-        if (!table) return [];
-        return Array.from(table.querySelectorAll('tbody tr.is-selected'));
+        return Array.from(document.querySelectorAll('.fm-tile.is-selected'));
     }
 
     function updateSelectionButtons() {
@@ -685,14 +717,14 @@
 
     let draggedItemIds = null;
 
-    // Навешиваем draggable на строки таблицы
-    if (table) {
-        const rows = table.querySelectorAll('tbody tr');
-        rows.forEach(row => {
-            row.setAttribute('draggable', 'true');
+    // Навешиваем draggable на плитки
+    if (grid) {
+        const tiles = grid.querySelectorAll('.fm-tile');
+        tiles.forEach(tile => {
+            tile.setAttribute('draggable', 'true');
 
-            row.addEventListener('dragstart', function (e) {
-                // Не даём тащить, если тащат за кнопку или ссылку
+            tile.addEventListener('dragstart', function (e) {
+                // Не даём тащить, если тащат за кнопку
                 if (e.target.closest('button') || e.target.closest('a')) {
                     e.preventDefault();
                     return;
@@ -700,51 +732,50 @@
 
                 // Если выделено несколько — тащим все
                 const selected = getSelectedRows();
-                if (selected.length > 1 && selected.includes(row)) {
-                    draggedItemIds = selected.map(r => parseInt(r.dataset.id, 10));
+                if (selected.length > 1 && selected.includes(tile)) {
+                    draggedItemIds = selected.map(t => parseInt(t.dataset.id, 10));
                 } else {
-                    draggedItemIds = [parseInt(row.dataset.id, 10)];
+                    draggedItemIds = [parseInt(tile.dataset.id, 10)];
                 }
 
-                row.classList.add('is-dragging');
+                tile.classList.add('is-dragging');
                 e.dataTransfer.effectAllowed = 'move';
                 e.dataTransfer.setData('text/plain', JSON.stringify(draggedItemIds));
             });
 
-            row.addEventListener('dragend', function () {
-                row.classList.remove('is-dragging');
+            tile.addEventListener('dragend', function () {
+                tile.classList.remove('is-dragging');
                 draggedItemIds = null;
                 clearDropTargets();
             });
         });
 
-        // === Drop-зоны: строки-папки ===
-        rows.forEach(row => {
-            const isFolder = row.dataset.isfolder === 'true';
+        // === Drop-зоны: плитки-папки ===
+        tiles.forEach(tile => {
+            const isFolder = tile.dataset.isfolder === 'true';
             if (!isFolder) return;
 
-            row.addEventListener('dragover', function (e) {
+            tile.addEventListener('dragover', function (e) {
                 if (!draggedItemIds) return;
-                const targetId = parseInt(row.dataset.id, 10);
-                // Не подсвечиваем, если тащим на саму себя
+                const targetId = parseInt(tile.dataset.id, 10);
                 if (draggedItemIds.includes(targetId)) return;
 
                 e.preventDefault();
                 e.dataTransfer.dropEffect = 'move';
-                row.classList.add('drop-target');
+                tile.classList.add('drop-target');
             });
 
-            row.addEventListener('dragleave', function () {
-                row.classList.remove('drop-target');
+            tile.addEventListener('dragleave', function () {
+                tile.classList.remove('drop-target');
             });
 
-            row.addEventListener('drop', async function (e) {
+            tile.addEventListener('drop', async function (e) {
                 e.preventDefault();
-                row.classList.remove('drop-target');
+                tile.classList.remove('drop-target');
 
                 if (!draggedItemIds) return;
 
-                const targetId = parseInt(row.dataset.id, 10);
+                const targetId = parseInt(tile.dataset.id, 10);
                 if (draggedItemIds.includes(targetId)) return;
 
                 await performMove(draggedItemIds, targetId);
@@ -1071,44 +1102,111 @@
 
     async function uploadFiles(files) {
         if (!files.length) return;
+
         uploadProgress.classList.add('is-open');
+
+        // Создаём строки для всех файлов
         uploadFilesList.innerHTML = files
-            .map(f => `<div class="file-item" data-name="${escapeHtml(f.name)}">⏳ ${escapeHtml(f.name)} (${formatSize(f.size)})</div>`)
+            .map((f, i) => `
+                <div class="file-item" data-name="${escapeHtml(f.name)}" data-idx="${i}">
+                    <div class="file-item-row">
+                        <span class="file-item-status">⏳</span>
+                        <span class="file-item-name">${escapeHtml(f.name)}</span>
+                        <span class="file-item-size">${formatSize(f.size)}</span>
+                        <span class="file-item-percent">0%</span>
+                    </div>
+                    <div class="file-item-bar-wrap">
+                        <div class="file-item-bar"></div>
+                    </div>
+                </div>
+            `)
             .join('');
 
-        const fd = new FormData();
-        for (const f of files) fd.append('files', f);
-        if (currentFolderId !== null) fd.append('parent_id', currentFolderId);
+        let uploadedCount = 0;
+        let errorCount = 0;
 
-        try {
-            const resp = await fetch('/api/upload', {
-                method: 'POST', headers: {'X-CSRFToken': csrfToken}, body: fd,
-            });
-            const data = await resp.json();
+        // Отправляем по одному файлу (чтобы видеть прогресс по каждому)
+        for (let i = 0; i < files.length; i++) {
+            const f = files[i];
+            const el = uploadFilesList.querySelector(`[data-idx="${i}"]`);
 
-            if (data.uploaded) {
-                for (const up of data.uploaded) {
-                    const el = uploadFilesList.querySelector(`[data-name="${cssEscape(up.name)}"]`);
-                    if (el) {el.className = 'file-item done'; el.innerHTML = `✅ ${escapeHtml(up.name)} (${up.size_human})`;}
-                }
-            }
-            if (data.errors) {
-                for (const err of data.errors) {
-                    const el = uploadFilesList.querySelector(`[data-name="${cssEscape(err.name)}"]`);
-                    if (el) {el.className = 'file-item error'; el.innerHTML = `❌ ${escapeHtml(err.name)}: ${escapeHtml(err.error)}`;}
-                }
-            }
+            const barEl = el.querySelector('.file-item-bar');
+            const percentEl = el.querySelector('.file-item-percent');
+            const statusEl = el.querySelector('.file-item-status');
 
-            if (resp.ok && data.uploaded && data.uploaded.length > 0) {
-                setTimeout(() => window.location.reload(), 800);
-            } else {
-                setTimeout(() => uploadProgress.classList.remove('is-open'), 3000);
+            statusEl.textContent = '📤';
+
+            try {
+                await new Promise((resolve) => {
+                    const fd = new FormData();
+                    fd.append('files', f);
+                    if (currentFolderId !== null) fd.append('parent_id', currentFolderId);
+
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('POST', '/api/upload');
+                    xhr.setRequestHeader('X-CSRFToken', csrfToken);
+
+                    xhr.upload.addEventListener('progress', function (e) {
+                        if (e.lengthComputable) {
+                            const pct = Math.round((e.loaded / e.total) * 100);
+                            barEl.style.width = pct + '%';
+                            percentEl.textContent = pct + '%';
+                        }
+                    });
+
+                    xhr.addEventListener('load', function () {
+                        let data = null;
+                        try { data = JSON.parse(xhr.responseText); } catch (e) {}
+
+                        if (xhr.status === 200 && data && data.uploaded && data.uploaded.length > 0) {
+                            const up = data.uploaded[0];
+                            el.classList.add('done');
+                            statusEl.textContent = '✅';
+                            percentEl.textContent = up.size_human || '100%';
+                            barEl.style.width = '100%';
+                            uploadedCount++;
+                        } else {
+                            // Ошибка
+                            el.classList.add('error');
+                            statusEl.textContent = '❌';
+                            let errMsg = 'Ошибка';
+                            if (data && data.errors && data.errors.length > 0) {
+                                errMsg = data.errors[0].error;
+                            } else if (data && data.error) {
+                                errMsg = data.error;
+                            }
+                            percentEl.textContent = errMsg;
+                            errorCount++;
+                        }
+                        resolve();
+                    });
+
+                    xhr.addEventListener('error', function () {
+                        el.classList.add('error');
+                        statusEl.textContent = '❌';
+                        percentEl.textContent = 'Сеть';
+                        errorCount++;
+                        resolve();
+                    });
+
+                    xhr.send(fd);
+                });
+            } catch (e) {
+                el.classList.add('error');
+                statusEl.textContent = '❌';
+                percentEl.textContent = e.message;
+                errorCount++;
             }
-            fileInput.value = '';
-        } catch (e) {
-            uploadFilesList.innerHTML = `<div class="file-item error">❌ Ошибка сети: ${escapeHtml(e.message)}</div>`;
-            setTimeout(() => uploadProgress.classList.remove('is-open'), 3000);
         }
+
+        // После завершения всех — перезагрузить, если были успешные
+        if (uploadedCount > 0) {
+            setTimeout(() => window.location.reload(), 1200);
+        } else {
+            setTimeout(() => uploadProgress.classList.remove('is-open'), 4000);
+        }
+
+        fileInput.value = '';
     }
 
     // ============= ШАРИНГ =============

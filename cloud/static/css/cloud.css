@@ -873,3 +873,68 @@
     white-space: nowrap;
 }
 
+
+/* W37: прогресс-бар загрузки файлов */
+
+.upload-files-list .file-item {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--color-border, #dee2e6);
+}
+
+.upload-files-list .file-item-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+}
+
+.upload-files-list .file-item-status {
+    flex-shrink: 0;
+    width: 24px;
+    text-align: center;
+}
+
+.upload-files-list .file-item-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.upload-files-list .file-item-size {
+    flex-shrink: 0;
+    color: var(--color-text-muted, #6c757d);
+    font-size: 0.85rem;
+}
+
+.upload-files-list .file-item-percent {
+    flex-shrink: 0;
+    min-width: 60px;
+    text-align: right;
+    font-size: 0.85rem;
+    color: var(--color-text-muted, #6c757d);
+}
+
+.upload-files-list .file-item-bar-wrap {
+    margin-top: 6px;
+    height: 4px;
+    background: var(--color-border, #dee2e6);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.upload-files-list .file-item-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--color-primary, #fd7e14);
+    transition: width 0.2s ease;
+}
+
+.upload-files-list .file-item.done .file-item-bar {
+    background: var(--color-success, #198754);
+}
+
+.upload-files-list .file-item.error .file-item-bar {
+    background: var(--color-danger, #dc3545);
+}
