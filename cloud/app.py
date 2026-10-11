@@ -824,6 +824,51 @@ def create_app(config_class=Config):
             },
         })
 
+    @app.route('/api/check-attachments/<int:file_id>')
+    @login_required
+    def api_check_attachments(file_id):
+        """
+        W39: проверяет, привязан ли файл к статьям/страницам.
+        Возвращает список привязок для предупреждения при удалении.
+
+        Используется модалкой удаления в корзину.
+        """
+        from core.models import ShareAttach, CloudShare, Article, Page
+
+        # Все шары на этот файл
+        shares = CloudShare.query.filter_by(file_id=file_id).all()
+        if not shares:
+            return jsonify({'ok': True, 'attachments': []})
+
+        share_ids = [s.id for s in shares]
+
+        attaches = ShareAttach.query.filter(ShareAttach.share_id.in_(share_ids)).all()
+
+        attachments = []
+        for a in attaches:
+            title = '—'
+            url = '#'
+            if a.target_type == 'article':
+                art = Article.query.get(a.target_id)
+                if art:
+                    title = art.title
+                    url = f'/article/{art.id}'
+            elif a.target_type == 'page':
+                p = Page.query.get(a.target_id)
+                if p:
+                    title = p.title
+                    url = f'/page/{p.id}'
+
+            attachments.append({
+                'share_id': a.share_id,
+                'target_type': a.target_type,
+                'target_id': a.target_id,
+                'target_title': title,
+                'target_url': url,
+            })
+
+        return jsonify({'ok': True, 'attachments': attachments})
+
     return app
 
 

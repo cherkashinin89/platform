@@ -862,35 +862,69 @@
         window.location.href = '/api/download/' + id;
     };
 
-    window.trashSelected = function () {
+    window.trashSelected = async function () {
         const selected = getSelectedRows();
         if (selected.length < 1) return;
         const names = selected.map(r => r.dataset.name);
         const folders = selected.filter(r => r.dataset.isfolder === 'true').length;
 
+        // 1. Проверяем привязки шары к статьям/страницам
+        const allAttachments = [];
+        for (const row of selected) {
+            const id = parseInt(row.dataset.id, 10);
+            const isFolder = row.dataset.isfolder === 'true';
+            if (isFolder) continue; // папки не проверяем (у них нет шар)
+            try {
+                const resp = await fetch('/api/check-attachments/' + id, {
+                    credentials: 'same-origin',
+                });
+                if (!resp.ok) continue;
+                const data = await resp.json();
+                if (data.ok && data.attachments && data.attachments.length > 0) {
+                    for (const a of data.attachments) {
+                        a.file_name = row.dataset.name;
+                        allAttachments.push(a);
+                    }
+                }
+            } catch (e) {
+                console.error('check-attachments error id=' + id, e);
+            }
+        }
+
+        // 2. Формируем сообщение
         let msg = selected.length === 1
             ? `Переместить «${names[0]}» в корзину?`
             : `Переместить ${selected.length} элементов в корзину?`;
         if (folders > 0) {
             msg += '\n\nВложенные файлы и папки тоже попадут в корзину.';
         }
-        if (!window.confirm(msg)) return;
 
-        // Отправляем по одному
-        (async () => {
-            for (const row of selected) {
-                const id = parseInt(row.dataset.id, 10);
-                try {
-                    await fetch('/api/trash/' + id, {
-                        method: 'POST',
-                        headers: {'X-CSRFToken': csrfToken},
-                    });
-                } catch (e) {
-                    console.error('trash error id=' + id, e);
-                }
+        // 3. Если есть привязки — отдельное предупреждение
+        if (allAttachments.length > 0) {
+            const lines = allAttachments.map(a =>
+                `• ${a.file_name} → ${a.target_type === 'article' ? 'Статья' : 'Страница'}: «${a.target_title}»`
+            );
+            const warn = `⚠️ Файлы привязаны к статьям/страницам:\n\n` +
+                lines.join('\n') +
+                `\n\nПри удалении связи оборвутся. Продолжить?`;
+            if (!window.confirm(warn)) return;
+        } else {
+            if (!window.confirm(msg)) return;
+        }
+
+        // 4. Удаляем
+        for (const row of selected) {
+            const id = parseInt(row.dataset.id, 10);
+            try {
+                await fetch('/api/trash/' + id, {
+                    method: 'POST',
+                    headers: {'X-CSRFToken': csrfToken},
+                });
+            } catch (e) {
+                console.error('trash error id=' + id, e);
             }
-            window.location.reload();
-        })();
+        }
+        window.location.reload();
     };
 
     // ============= СОЗДАНИЕ ПАПКИ =============

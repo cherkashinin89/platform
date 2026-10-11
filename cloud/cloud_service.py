@@ -359,13 +359,10 @@ def trash_item(owner_id, item_id):
         node.is_trashed = True
         node.trashed_at = now
 
-    # 4. Удаляем связанные CloudShare
-    #    (запрос по file_id для всех descendants)
-    descendant_ids = [d.id for d in descendants]
-    if descendant_ids:
-        CloudShare.query.filter(
-            CloudShare.file_id.in_(descendant_ids)
-        ).delete(synchronize_session=False)
+    # W38: НЕ удаляем CloudShare при мягком удалении.
+    # Шары остаются в БД, но файлы помечены is_trashed=True.
+    # Публичный доступ (/s/<token>) будет закрыт в get_share_by_token.
+    # Полное удаление шар — только в delete_item_permanently.
 
     # 5. Сохраняем
     db.session.commit()

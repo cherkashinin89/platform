@@ -146,7 +146,11 @@ def get_share_by_token(token):
     """
     Находит CloudShare по токену.
     Возвращает CloudShare или None.
-    Проверяет срок действия / лимит скачиваний.
+
+    Проверяет:
+    - существование;
+    - срок действия / лимит скачиваний;
+    - W38: файл не в корзине (is_trashed=False).
     """
     from core.models import CloudShare
 
@@ -158,6 +162,10 @@ def get_share_by_token(token):
         return None
 
     if share.is_expired():
+        return None
+
+    # W38: если файл в корзине — шара недоступна
+    if share.file and share.file.is_trashed:
         return None
 
     return share
