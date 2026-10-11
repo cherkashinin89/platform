@@ -37,7 +37,7 @@
     }
 
     // ============ ОТКРЫТИЕ / ЗАКРЫТИЕ ============
-    window.fmOpen = function () {
+    window.fmOpen = async function () {
         if (!el.overlay) {
             console.error('fmOpen: overlay не найден (партиал не подключён?)');
             return;
@@ -51,9 +51,10 @@
         el.overlay.classList.add('is-open');
         el.overlay.setAttribute('aria-hidden', 'false');
 
-        // Загружаем дерево и корень
-        loadTree();
-        loadFolder(null);
+        // Сначала загружаем дерево (нужно для папок в корне),
+        // потом — содержимое корня
+        await loadTree();
+        await loadFolder(null);
     };
 
     function closeModal() {
@@ -266,14 +267,14 @@
         div.dataset.fileId = file.id;
 
         const isImage = file.type === 'image' && file.thumbnail_url;
-        const iconClass = getIconClass(file.type);
+        const [iconClass, iconColor] = getIconClassForExt((file.name.split('.').pop() || '').toLowerCase());
         const sizeText = file.size || '';
 
         let previewHtml;
         if (isImage) {
             previewHtml = `<img src="${file.thumbnail_url}" alt="${escapeAttr(file.name)}" loading="lazy">`;
         } else {
-            previewHtml = `<i class="bi ${iconClass}"></i>`;
+            previewHtml = `<i class="bi ${iconClass}" style="color: ${iconColor};"></i>`;
         }
 
         div.innerHTML = `
@@ -421,12 +422,12 @@
 
         const ext = (item.name.split('.').pop() || '').toLowerCase();
         const isImage = ['jpg','jpeg','png','gif','webp','bmp','svg'].includes(ext);
-        const iconClass = getIconClassForExt(ext);
+        const [iconClass, iconColor] = getIconClassForExt(ext);
 
         if (isImage) {
             return `<a class="attached-file attached-file-image is-temp" data-file-id="${item.file_id}"><img src="/media/${item.file_id}" alt="${escapeAttr(item.name)}"></a>`;
         }
-        return `<a class="attached-file is-temp" data-file-id="${item.file_id}"><i class="bi ${iconClass}"></i> <span class="attached-file-name">${escapeHtml(item.name)}</span></a>`;
+        return `<a class="attached-file is-temp" data-file-id="${item.file_id}"><i class="bi ${iconClass}" style="color: ${iconColor};"></i> <span class="attached-file-name">${escapeHtml(item.name)}</span></a>`;
     }
 
     function makeAttachedHtml(att) {
@@ -442,17 +443,22 @@
         if (isImage) {
             return `<a class="attached-file attached-file-image" href="${path}" data-share-token="${escapeAttr(att.token)}"><img src="/media/${att.file_id}" alt="${escapeAttr(name)}"></a>`;
         }
-        return `<a class="attached-file" href="${path}" data-share-token="${escapeAttr(att.token)}"><i class="bi ${getIconClassForExt(ext)}"></i> <span class="attached-file-name">${escapeHtml(name)}</span></a>`;
+        const [ic, icColor] = getIconClassForExt(ext);
+        return `<a class="attached-file" href="${path}" data-share-token="${escapeAttr(att.token)}"><i class="bi ${ic}" style="color: ${icColor};"></i> <span class="attached-file-name">${escapeHtml(name)}</span></a>`;
     }
 
     function getIconClassForExt(ext) {
-        if (['pdf'].includes(ext)) return 'bi-file-earmark-pdf';
-        if (['doc','docx','rtf','odt'].includes(ext)) return 'bi-file-earmark-word';
-        if (['xls','xlsx','csv','ods'].includes(ext)) return 'bi-file-earmark-excel';
-        if (['ppt','pptx','odp'].includes(ext)) return 'bi-file-earmark-ppt';
-        if (['zip','rar','7z','tar','gz','bz2'].includes(ext)) return 'bi-file-earmark-zip';
-        if (['txt','md'].includes(ext)) return 'bi-file-earmark-text';
-        return 'bi-file-earmark';
+        // Возвращает [класс иконки, цвет]
+        if (['pdf'].includes(ext)) return ['bi-file-earmark-pdf', '#dc3545'];
+        if (['doc','docx','rtf','odt'].includes(ext)) return ['bi-file-earmark-word', '#0d6efd'];
+        if (['xls','xlsx','csv','ods'].includes(ext)) return ['bi-file-earmark-excel', '#198754'];
+        if (['ppt','pptx','odp'].includes(ext)) return ['bi-file-earmark-ppt', '#fd7e14'];
+        if (['zip','rar','7z','tar','gz','bz2'].includes(ext)) return ['bi-file-earmark-zip', '#6f42c1'];
+        if (['txt','md'].includes(ext)) return ['bi-file-earmark-text', '#6c757d'];
+        if (['jpg','jpeg','png','gif','webp','bmp','svg'].includes(ext)) return ['bi-file-earmark-image', '#0dcaf0'];
+        if (['mp4','mov','avi','mkv','webm'].includes(ext)) return ['bi-file-earmark-play', '#dc3545'];
+        if (['mp3','wav','ogg','flac'].includes(ext)) return ['bi-file-earmark-music', '#6f42c1'];
+        return ['bi-file-earmark', '#6c757d'];
     }
 
     // ============ УТИЛИТЫ ============
