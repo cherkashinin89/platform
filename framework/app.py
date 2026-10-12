@@ -446,6 +446,64 @@ def _mark_unavailable_shares(content_html):
 
     return new_html
 
+def _collect_user_assets(user_id):
+    """
+    W34: собирает активы пользователя для делегирования.
+
+    Возвращает dict:
+        {
+            'files': [CloudFile],           # не в корзине, не папки — только файлы? нет, все
+            'files_trashed': [CloudFile],   # в корзине (тоже передаём)
+            'shares': [CloudShare],
+            'attachments': [ShareAttach],
+            'articles_authored': [Article],
+            'pages_authored': [Page],
+            'uploaded_files': [UploadedFile],
+            'total_size': int,              # байты (только файлы, не папки)
+            'count_files': int,
+            'count_folders': int,
+            'count_shares': int,
+            'count_articles': int,
+            'count_pages': int,
+        }
+    """
+    from core.models import (
+        CloudFile, CloudShare, ShareAttach,
+        Article, Page, UploadedFile,
+    )
+
+    files = CloudFile.query.filter_by(owner_id=user_id).all()
+    files_active = [f for f in files if not f.is_trashed]
+    files_trashed = [f for f in files if f.is_trashed]
+
+    shares = CloudShare.query.filter_by(created_by_id=user_id).all()
+    share_ids = [s.id for s in shares]
+    attachments = ShareAttach.query.filter(ShareAttach.share_id.in_(share_ids)).all() if share_ids else []
+
+    articles = Article.query.filter(Article.authors.any(id=user_id)).all()
+    pages = Page.query.filter_by(created_by_id=user_id).all() if hasattr(Page, 'created_by_id') else []
+    uploaded = UploadedFile.query.filter_by(uploaded_by_id=user_id).all()
+
+    total_size = sum((f.size or 0) for f in files_active if not f.is_folder)
+    count_files = sum(1 for f in files_active if not f.is_folder)
+    count_folders = sum(1 for f in files_active if f.is_folder)
+
+    return {
+        'files': files_active,
+        'files_trashed': files_trashed,
+        'shares': shares,
+        'attachments': attachments,
+        'articles_authored': articles,
+        'pages_authored': pages,
+        'uploaded_files': uploaded,
+        'total_size': total_size,
+        'count_files': count_files,
+        'count_folders': count_folders,
+        'count_shares': len(shares),
+        'count_articles': len(articles),
+        'count_pages': len(pages),
+    }
+
 def create_app(config_class=Config):
     """Создаёт и настраивает экземпляр Flask"""
     app = Flask(__name__)
@@ -1213,23 +1271,252 @@ def create_app(config_class=Config):
             user=user
         )
 
-    @app.route('/admin/users/<int:id>/delete', methods=['POST'])
+    @app.route('/admin/users/<int:id>/delete', methods=['GET', 'POST'])
     @login_required
     @admin_required
     def admin_user_delete(id):
-        """Удаление пользователя"""
+        """
+        W34: удаление пользователя.
+
+        GET  — показывает модалку подтверждения с активами (если есть).
+        POST — выполняет удаление (если активов нет — напрямую;
+               если есть — редирект на reassign с параметром).
+        """
         user = User.query.get_or_404(id)
 
         if user.id == current_user.id:
             flash('Нельзя удалить собственную учётную запись!', 'danger')
             return redirect(url_for('admin_users'))
 
+        # Проверка: нельзя удалить последнего админа
+        if user.role == 'admin':
+            admin_count = User.query.filter_by(role='admin').count()
+            if admin_count <= 1:
+                flash('Нельзя удалить последнего администратора!', 'danger')
+                return redirect(url_for('admin_users'))
+
+        assets = _collect_user_assets(user.id)
+
+        has_assets = (
+            assets['count_files'] > 0
+            or assets['count_folders'] > 0
+            or assets['count_shares'] > 0
+            or assets['count_articles'] > 0
+            or assets['count_pages'] > 0
+            or len(assets['files_trashed']) > 0
+        )
+
+        # GET — показать модалку с активами (если есть)
+        if request.method == 'GET':
+            if has_assets:
+                other_users = User.query.filter(User.id != user.id).order_by(User.username).all()
+                return render_template(
+                    'admin/user_delete_modal.html',
+                    user=user,
+                    assets=assets,
+                    other_users=other_users,
+                )
+            else:
+                # Активов нет — просто подтверждение
+                return render_template(
+                    'admin/user_delete_modal.html',
+                    user=user,
+                    assets=assets,
+                    other_users=[],
+                )
+
+        # POST — само удаление
+        # Если есть активы, но не передан new_owner_id — значит, вызвали
+        # напрямую, без reassign. Тогда запрещаем удаление.
+        if has_assets:
+            flash(
+                f'У пользователя «{user.username}» есть активы. '
+                f'Используйте передачу файлов, чтобы удалить корректно.',
+                'warning'
+            )
+            return redirect(url_for('admin_user_delete', id=user.id))
+
+        # Активов нет — удаляем напрямую
         username = user.username
         db.session.delete(user)
         db.session.commit()
 
         flash(f'Пользователь «{username}» удалён.', 'info')
         return redirect(url_for('admin_users'))
+
+    @app.route('/admin/users/<int:id>/reassign', methods=['POST'])
+    @login_required
+    @admin_required
+    def admin_user_reassign(id):
+        """
+        W34: передача активов пользователя другому + удаление.
+
+        Принимает new_owner_id из формы.
+        Переносит файлы, шары, статьи, страницы.
+        Создаёт папку «Унаследовано от <username> <дата>» у получателя.
+        """
+        import os
+        import shutil
+        from datetime import date
+        from flask import current_app
+        from core.models import CloudFile, CloudShare, Article, Page, AuditLog
+        from core.cloud_utils import cloud_data_root
+
+        user = User.query.get_or_404(id)
+
+        if user.id == current_user.id:
+            flash('Нельзя удалить собственную учётную запись!', 'danger')
+            return redirect(url_for('admin_users'))
+
+        # Проверка последнего админа
+        if user.role == 'admin':
+            admin_count = User.query.filter_by(role='admin').count()
+            if admin_count <= 1:
+                flash('Нельзя удалить последнего администратора!', 'danger')
+                return redirect(url_for('admin_users'))
+
+        # Получатель
+        new_owner_id = request.form.get('new_owner_id', type=int)
+        if not new_owner_id:
+            flash('Не выбран получатель.', 'danger')
+            return redirect(url_for('admin_user_delete', id=user.id))
+
+        new_owner = User.query.get(new_owner_id)
+        if not new_owner:
+            flash('Получатель не найден.', 'danger')
+            return redirect(url_for('admin_user_delete', id=user.id))
+
+        if new_owner.id == user.id:
+            flash('Нельзя передать активы самому удаляемому пользователю.', 'danger')
+            return redirect(url_for('admin_user_delete', id=user.id))
+
+        # Собираем активы
+        assets = _collect_user_assets(user.id)
+
+        old_username = user.username
+        old_uid = user.id
+        new_uid = new_owner.id
+
+        # Имя папки
+        folder_name = f'Унаследовано от {old_username} {date.today().isoformat()}'
+
+        # Каталоги
+        root = cloud_data_root()
+        old_dir = os.path.join(root, str(old_uid))
+        new_dir = os.path.join(root, str(new_uid))
+        # Файлы складываем ПЛОСКО в new_dir — не создаём подпапку,
+        # потому что get_cloud_path() ищет их в cloud_data/<owner_id>/<stored_name>
+
+        moved_files = 0
+        moved_shares = 0
+        reassigned_articles = 0
+        reassigned_pages = 0
+
+        try:
+            # 1. Создать папку у нового владельца в БД
+            #    (если уже есть — используем)
+            inherited_folder = CloudFile.query.filter_by(
+                owner_id=new_uid,
+                name=folder_name,
+                is_folder=True,
+                is_trashed=False,
+            ).first()
+
+            if not inherited_folder:
+                inherited_folder = CloudFile(
+                    owner_id=new_uid,
+                    parent_id=None,
+                    name=folder_name,
+                    is_folder=True,
+                )
+                db.session.add(inherited_folder)
+                db.session.flush()
+
+            # 2. Перенести файлы пользователя.
+            #    Физически — плоско в cloud_data/<new_uid>/ (не в подпапку!),
+            #    потому что get_cloud_path() = CLOUD_DATA_ROOT/<owner_id>/<stored_name>.
+            #    Логически — в папку inherited_folder (parent_id).
+
+            # Создаём каталог нового владельца, если его нет
+            os.makedirs(new_dir, exist_ok=True)
+
+            # Карта: старый CloudFile.id -> новый parent_id (для сохранения иерархии)
+            # Пока делаем плоско: все файлы и папки корневого уровня юзера → inherited_folder
+            # Подпапки юзера → оставляем в его иерархии, но корень меняется на inherited_folder.
+
+            # Определяем корневые элементы (parent_id=None)
+            all_files = CloudFile.query.filter_by(owner_id=old_uid).all()
+            root_items = [f for f in all_files if f.parent_id is None]
+
+            for item in root_items:
+                # Физический перенос (только для файлов)
+                if not item.is_folder and item.stored_name:
+                    src = os.path.join(old_dir, item.stored_name)
+                    dst = os.path.join(new_dir, item.stored_name)
+                    if os.path.exists(src):
+                        try:
+                            shutil.move(src, dst)
+                        except Exception as e:
+                            current_app.logger.warning(
+                                f'W34: не удалось перенести файл {src}: {e}'
+                            )
+                # Обновляем запись
+                item.owner_id = new_uid
+                item.parent_id = inherited_folder.id
+                moved_files += 1
+
+            db.session.flush()
+
+            # 3. Шары — меняем created_by_id
+            for share in assets['shares']:
+                share.created_by_id = new_uid
+                moved_shares += 1
+
+            # 4. Статьи — заменяем автора
+            for article in assets['articles_authored']:
+                article.authors = [a for a in article.authors if a.id != old_uid]
+                if new_owner not in article.authors:
+                    article.authors.append(new_owner)
+                reassigned_articles += 1
+
+            # 5. Страницы (если есть created_by_id)
+            for page in assets['pages_authored']:
+                if hasattr(page, 'created_by_id'):
+                    page.created_by_id = new_uid
+                    reassigned_pages += 1
+
+            # 6. AuditLog
+            log = AuditLog(
+                user_id=current_user.id,
+                action='user_delete_reassign',
+                target_type='user',
+                target_id=old_uid,
+                details=(
+                    f'Transferred to {new_owner.username}: '
+                    f'{moved_files} files, {moved_shares} shares, '
+                    f'{reassigned_articles} articles, {reassigned_pages} pages'
+                ),
+            )
+            db.session.add(log)
+
+            # 7. Удаляем пользователя
+            db.session.delete(user)
+            db.session.commit()
+
+            flash(
+                f'Пользователь «{old_username}» удалён. '
+                f'Активы переданы «{new_owner.username}» '
+                f'({moved_files} файлов, {moved_shares} шар, '
+                f'{reassigned_articles} статей).',
+                'success'
+            )
+            return redirect(url_for('admin_users'))
+
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.exception('W34: reassign failed')
+            flash(f'Ошибка передачи активов: {e}', 'danger')
+            return redirect(url_for('admin_user_delete', id=user.id))
 
     # --- Управление статьями ---
 

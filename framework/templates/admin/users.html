@@ -89,13 +89,10 @@
                     </a>
                     <!-- Кнопку удаления скрываем для текущего пользователя -->
                     {% if user.id != current_user.id %}
-                    <form method="POST" action="{{ url_for('admin_user_delete', id=user.id) }}" class="d-inline"
-                        onsubmit="return confirm('Удалить пользователя «{{ user.username }}»? Это действие необратимо.');">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <button type="submit" class="btn btn-sm btn-outline-danger">
-                            Удалить
-                        </button>
-                    </form>
+                    <a href="{{ url_for('admin_user_delete', id=user.id) }}"
+                       class="btn btn-sm btn-outline-danger">
+                        Удалить
+                    </a>
                     {% else %}
                     <button type="button" class="btn btn-sm btn-outline-secondary" disabled
                         title="Нельзя удалить самого себя">
