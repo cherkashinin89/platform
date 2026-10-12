@@ -54,6 +54,13 @@ class User(UserMixin, db.Model):
         default=1024 * 1024 * 1024,   # 1 ГБ
     )
 
+    # Квота почты (байты) — дефолт для новых ящиков пользователя
+    mail_quota_bytes = db.Column(
+        db.BigInteger,
+        nullable=False,
+        default=1024 * 1024 * 1024,   # 1 ГБ
+    )
+
     # Связь со статьями (M2M)
     articles = db.relationship('Article', secondary=article_authors,
                                backref='authors', lazy='dynamic')
@@ -476,6 +483,87 @@ class ShareAttach(db.Model):
 
     def __repr__(self):
         return f'<ShareAttach share={self.share_id} {self.target_type}={self.target_id}>'
+
+    
+# ============================================================
+# Почта: MailDomain, Mailbox
+# ============================================================
+
+class MailDomain(db.Model):
+    """Почтовый домен, обслуживаемый сервером."""
+    __tablename__ = 'mail_domain'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<MailDomain {self.name}{"" if self.is_active else " (inactive)"}>'
+
+
+class Mailbox(db.Model):
+    """Почтовый ящик."""
+    __tablename__ = 'mailbox'
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # Владелец ящика (обязателен — ролевых ящиков нет)
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey('user.id', ondelete='CASCADE'),
+        nullable=False,
+        index=True,
+    )
+
+    # Домен ящика (обязателен)
+    domain_id = db.Column(
+        db.Integer,
+        db.ForeignKey('mail_domain.id', ondelete='CASCADE'),
+        nullable=False,
+        index=True,
+    )
+
+    # Часть адреса до @
+    local_part = db.Column(db.String(255), nullable=False)
+
+    # Пароль в формате Dovecot: {SHA512-CRYPT}$6$...
+    password_hash = db.Column(db.String(255), nullable=False)
+
+    # Отображаемое имя (display name)
+    name = db.Column(db.String(255), nullable=True)
+
+    # Квота в байтах
+    quota_bytes = db.Column(
+        db.BigInteger,
+        nullable=False,
+        default=1024 * 1024 * 1024,   # 1 ГБ
+    )
+
+    # Активность ящика
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+
+    # Аудит
+    last_login = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Связи
+    user = db.relationship('User', backref=db.backref('mailboxes', lazy='dynamic'))
+    domain = db.relationship('MailDomain', backref=db.backref('mailboxes', lazy='dynamic'))
+
+    __table_args__ = (
+        db.UniqueConstraint('domain_id', 'local_part', name='uq_mailbox_domain_local'),
+    )
+
+    @property
+    def email(self):
+        """Полный email: local_part@domain.name."""
+        return f'{self.local_part}@{self.domain.name}'
+
+    def __repr__(self):
+        return f'<Mailbox {self.local_part}@{self.domain.name if self.domain else "?"}>'
 
 # ============================================================
 # W3: реестр использования и аудит

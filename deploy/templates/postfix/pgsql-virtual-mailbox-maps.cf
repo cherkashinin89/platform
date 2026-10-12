@@ -1,0 +1,5 @@
+user = __MAIL_DB_USER__
+password = __MAIL_DB_PASSWORD__
+dbname = __MAIL_DB_NAME__
+hosts = 127.0.0.1
+query = SELECT 1 FROM mailbox WHERE local_part = split_part('%s', '@', 1) AND domain_id = (SELECT id FROM mail_domain WHERE name = split_part('%s', '@', 2)) AND is_active = true

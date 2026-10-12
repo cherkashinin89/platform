@@ -1,0 +1,42 @@
+# ============================================================
+# Dovecot 2.4: SQL-аутентификация (PostgreSQL)
+# ============================================================
+
+# --- Подключение к PostgreSQL (синтаксис Dovecot 2.4) ---
+pgsql 127.0.0.1 {
+  parameters {
+    user = __MAIL_DB_USER__
+    password = __MAIL_DB_PASSWORD__
+    dbname = __MAIL_DB_NAME__
+  }
+}
+
+# --- PassDB: проверка пароля ---
+passdb sql {
+  sql_driver = pgsql
+  query = SELECT m.password_hash AS password \
+    FROM mailbox m \
+    JOIN mail_domain d ON d.id = m.domain_id \
+    WHERE m.local_part = '%{user | username}' \
+      AND d.name = '%{user | domain}' \
+      AND m.is_active = true \
+      AND d.is_active = true
+}
+
+# --- UserDB: home, uid, gid, квота ---
+userdb sql {
+  sql_driver = pgsql
+  query = SELECT '/var/vmail/%{user | domain}/%{user | username}' AS home, \
+    5000 AS uid, \
+    5000 AS gid, \
+    m.quota_bytes AS quota_rule \
+    FROM mailbox m \
+    JOIN mail_domain d ON d.id = m.domain_id \
+    WHERE m.local_part = '%{user | username}' \
+      AND d.name = '%{user | domain}' \
+      AND m.is_active = true \
+      AND d.is_active = true
+}
+
+
+
