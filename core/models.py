@@ -6,10 +6,13 @@
 # Импорт: from core.models import User, Article, CloudFile, ...
 from datetime import datetime
 from flask_login import UserMixin
-from werkzeug.security import generate_password_hash, check_password_hash
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError, VerificationError, InvalidHashError
 
 from core.extensions import db
 
+# === Единый хэшер паролей (Argon2id) для всех сервисов ===
+_password_hasher = PasswordHasher()
 
 # ============================================================
 # Промежуточные таблицы
@@ -40,7 +43,7 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     full_name = db.Column(db.String(200), nullable=True)
-    email = db.Column(db.String(120), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=True)
     password_hash = db.Column(db.String(256), nullable=False)
 
     # viewer | user | editor | admin
@@ -102,10 +105,26 @@ class User(UserMixin, db.Model):
         return self.role
 
     def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
+        """Хэширует пароль через Argon2id с префиксом {ARGON2ID} (для Dovecot)."""
+        self.password_hash = '{ARGON2ID}' + _password_hasher.hash(password)
 
     def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
+        """
+        Проверяет пароль через Argon2id.
+        Убирает префикс {ARGON2ID} перед проверкой (argon2-cffi его не понимает).
+        """
+        if not self.password_hash:
+            return False
+
+        hash_to_check = self.password_hash
+        if hash_to_check.startswith('{ARGON2ID}'):
+            hash_to_check = hash_to_check[len('{ARGON2ID}'):]
+
+        try:
+            _password_hasher.verify(hash_to_check, password)
+            return True
+        except (VerifyMismatchError, VerificationError, InvalidHashError):
+            return False
 
     def __repr__(self):
         return f'<User {self.username} ({self.role})>'
@@ -550,8 +569,14 @@ class Mailbox(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Связи
-    user = db.relationship('User', backref=db.backref('mailboxes', lazy='dynamic'))
-    domain = db.relationship('MailDomain', backref=db.backref('mailboxes', lazy='dynamic'))
+    user = db.relationship(
+        'User',
+        backref=db.backref('mailboxes', lazy='dynamic', passive_deletes=True),
+    )
+    domain = db.relationship(
+        'MailDomain',
+        backref=db.backref('mailboxes', lazy='dynamic', passive_deletes=True),
+    )
 
     __table_args__ = (
         db.UniqueConstraint('domain_id', 'local_part', name='uq_mailbox_domain_local'),

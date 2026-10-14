@@ -1,0 +1,23 @@
+[Unit]
+Description=Platform Mail (почта)
+After=network.target postgresql.service
+
+[Service]
+Type=notify
+User=deploy
+Group=deploy
+WorkingDirectory=/home/deploy/apps/platform/mail
+Environment="PATH=/home/deploy/apps/platform/mail/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/home/deploy/apps/platform/mail/venv/bin/gunicorn \
+    --workers 2 \
+    --bind 127.0.0.1:5004 \
+    --access-logfile - \
+    --error-logfile - \
+    --timeout 120 \
+    wsgi:app
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

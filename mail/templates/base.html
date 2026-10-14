@@ -1,0 +1,30 @@
+{% extends "core_base.html" %}
+
+{# === Параметры шапки для mail === #}
+{% block header_vars %}
+{% set header_current = 'mail' %}
+{% set header_site_url = site_settings.site_base_url if site_settings else '' %}
+{% set header_cloud_url = site_settings.cloud_base_url if site_settings else '' %}
+{% set header_mail_url = site_settings.mail_base_url if site_settings else '' %}
+{% set header_login_url = site_settings.site_base_url ~ '/login' if site_settings else '/login' %}
+{% set header_logout_url = site_settings.site_base_url ~ '/logout' if site_settings else '/logout' %}
+{% set header_admin_url = site_settings.site_base_url ~ '/admin/' if site_settings else '' %}
+{% set header_admin_editor_url = site_settings.site_base_url ~ '/admin/' if site_settings else '' %}
+{% include 'partials/header.html' %}
+{% endblock %}
+
+{% block title %}Почта — {{ site_settings.site_title if site_settings else 'Платформа' }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    {% block mail_content %}{% endblock %}
+</div>
+{% endblock %}

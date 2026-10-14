@@ -1,0 +1,12 @@
+__SERVICE_USER__ ALL=(root) NOPASSWD: \
+    /usr/bin/systemctl restart mail, \
+    /usr/bin/systemctl reload mail, \
+    /usr/bin/systemctl status mail, \
+    /usr/bin/doveadm quota get *, \
+    /usr/bin/systemctl reload postfix, \
+    /usr/bin/systemctl reload dovecot, \
+    /usr/bin/systemctl reload rspamd, \
+    /bin/ls -d /var/vmail/*, \
+    /bin/tar -czf /tmp/* -C /var/vmail/* *, \
+    /bin/chown deploy\:deploy /tmp/*
+    

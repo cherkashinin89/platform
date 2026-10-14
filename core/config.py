@@ -43,3 +43,6 @@ class CoreConfig:
     ARTICLES_PER_PAGE = 10
     USERS_PER_PAGE = 20
     FILES_PER_PAGE = 20
+    
+    # === Сервисы почты ===
+    MAIL_INTERNAL_URL = os.environ.get('MAIL_INTERNAL_URL') or 'http://127.0.0.1:5004'

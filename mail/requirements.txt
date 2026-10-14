@@ -5,3 +5,4 @@ Flask-Migrate==4.0.7
 psycopg[binary]==3.3.6
 python-dotenv==1.0.1
 gunicorn==21.2.0
+argon2-cffi

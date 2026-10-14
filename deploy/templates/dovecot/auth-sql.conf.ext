@@ -11,11 +11,12 @@ pgsql 127.0.0.1 {
   }
 }
 
-# --- PassDB: проверка пароля ---
+# --- PassDB: проверка пароля (из User.password_hash, Argon2id) ---
 passdb sql {
   sql_driver = pgsql
-  query = SELECT m.password_hash AS password \
-    FROM mailbox m \
+  passdb_sql_query = SELECT u.password_hash AS password \
+    FROM "user" u \
+    JOIN mailbox m ON m.user_id = u.id \
     JOIN mail_domain d ON d.id = m.domain_id \
     WHERE m.local_part = '%{user | username}' \
       AND d.name = '%{user | domain}' \
@@ -26,10 +27,10 @@ passdb sql {
 # --- UserDB: home, uid, gid, квота ---
 userdb sql {
   sql_driver = pgsql
-  query = SELECT '/var/vmail/%{user | domain}/%{user | username}' AS home, \
+  userdb_sql_query = SELECT '/var/vmail/%{user | domain}/%{user | username}' AS home, \
     5000 AS uid, \
     5000 AS gid, \
-    m.quota_bytes AS quota_rule \
+    (m.quota_bytes || 'B') AS quota_storage_size \
     FROM mailbox m \
     JOIN mail_domain d ON d.id = m.domain_id \
     WHERE m.local_part = '%{user | username}' \
