@@ -1,0 +1,42 @@
+{% extends "admin/base_admin.html" %}
+
+{% block title %}{{ 'Редактирование' if domain else 'Новый' }} домен{% endblock %}
+
+{% block content %}
+<h1>
+    <i class="bi bi-envelope-at"></i>
+    {{ 'Редактирование домена' if domain else 'Новый почтовый домен' }}
+</h1>
+
+<form method="post" class="mt-4" style="max-width: 600px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="mb-3">
+        <label for="name" class="form-label">Имя домена</label>
+        <input type="text" name="name" id="name"
+               class="form-control"
+               value="{{ domain.name if domain else '' }}"
+               placeholder="example.com"
+               required>
+        <small class="text-muted">Полное доменное имя, например <code>мойсайт.рф</code></small>
+    </div>
+
+    {% if domain %}
+    <div class="mb-3 form-check">
+        <input type="checkbox" name="is_active" id="is_active"
+               class="form-check-input"
+               {% if domain.is_active %}checked{% endif %}>
+        <label for="is_active" class="form-check-label">Активен</label>
+    </div>
+    {% endif %}
+
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-lg"></i> Сохранить
+        </button>
+        <a href="{{ url_for('admin_mail_domains') }}" class="btn btn-outline-secondary">
+            Отмена
+        </a>
+    </div>
+</form>
+{% endblock %}

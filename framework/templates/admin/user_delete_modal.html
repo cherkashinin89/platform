@@ -36,11 +36,22 @@
 </div>
 
 {# === АКТИВЫ === #}
-{% if assets.count_files > 0 or assets.count_folders > 0 or assets.count_shares > 0 or assets.count_articles > 0 or assets.count_pages > 0 or assets.files_trashed %}
+{% if assets.count_files > 0 or assets.count_folders > 0 or assets.count_shares > 0 or assets.count_articles > 0 or assets.count_pages > 0 or assets.files_trashed or assets.count_mailboxes > 0 %}
 
 <div class="alert alert-warning">
     <h5 class="alert-heading"><i class="bi bi-exclamation-triangle-fill"></i> У пользователя есть активы</h5>
-    <p class="mb-0">При удалении активы <strong>не потеряются</strong> — их можно передать другому пользователю.</p>
+    <p class="mb-0">
+        Облачные активы (файлы, шары, статьи, страницы) <strong>не потеряются</strong> — их можно передать другому пользователю.
+    </p>
+    {% if assets.count_mailboxes and assets.count_mailboxes > 0 %}
+    <hr>
+    <p class="mb-0">
+        <i class="bi bi-envelope-at"></i>
+        <strong>Почта</strong> ({{ assets.count_mailboxes }} ящик(ов)) будет
+        <strong>заархивирована</strong> и попадёт в <strong>ваше облако</strong> — папка
+        <code>_mail_archive</code>. Ящики не передаются получателю.
+    </p>
+    {% endif %}
 </div>
 
 <div class="row mb-4">
@@ -87,6 +98,18 @@
                 <i class="bi bi-file-text" style="font-size: 2rem; color: var(--color-primary);"></i>
                 <div class="fw-bold mt-2">{{ assets.count_articles }}</div>
                 <div class="text-muted small">статей (автор)</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if assets.count_mailboxes and assets.count_mailboxes > 0 %}
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="bi bi-envelope-at" style="font-size: 2rem; color: var(--color-primary);"></i>
+                <div class="fw-bold mt-2">{{ assets.count_mailboxes }}</div>
+                <div class="text-muted small">почтовых ящик(ов)</div>
             </div>
         </div>
     </div>

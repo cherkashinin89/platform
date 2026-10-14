@@ -3,10 +3,11 @@ from flask_wtf import FlaskForm
 from wtforms import (
     StringField, PasswordField, TextAreaField, BooleanField,
     SelectField, IntegerField, DateField, SubmitField,
-    SelectMultipleField
+    SelectMultipleField, DecimalField, FileField,
 )
 from wtforms.validators import (
-    DataRequired, Email, Length, EqualTo, Optional, Regexp, NumberRange
+    DataRequired, Email, Length, EqualTo, Optional, Regexp, NumberRange,
+    Regexp, ValidationError,
 )
 from flask_wtf.file import FileField, FileRequired, FileAllowed
 from datetime import date
@@ -31,35 +32,66 @@ class LoginForm(FlaskForm):
 # === ПОЛЬЗОВАТЕЛИ ===
 
 class UserForm(FlaskForm):
-    """Форма создания/редактирования пользователя.
+    """Форма создания/редактирования пользователя."""
+    username = StringField('Имя пользователя', validators=[
+        DataRequired(message='Введите имя пользователя'),
+        Length(min=3, max=80, message='От 3 до 80 символов'),
+        Regexp(r'^[a-zA-Z0-9_]+$', message='Только латиница, цифры, подчёркивание'),
+    ])
+    full_name = StringField('ФИО', validators=[
+        Optional(),
+        Length(max=200),
+    ], description='Отображается в статьях, облаке, почте.')
+    email = StringField('Email', validators=[
+        Optional(),
+        Email(message='Некорректный email'),
+        Length(max=120),
+    ])
+    password = PasswordField('Пароль', validators=[
+        Optional(),
+        Length(min=6, max=128, message='Минимум 6 символов'),
+    ])
+    confirm_password = PasswordField('Подтвердите пароль', validators=[
+        Optional(),
+        EqualTo('password', message='Пароли не совпадают'),
+    ])
+    role = SelectField('Роль', choices=User.ROLE_CHOICES, validators=[
+        DataRequired(),
+    ])
 
-    При создании пароль обязателен. При редактировании — необязателен
-    (если пусто, пароль не меняется).
-    """
-    username = StringField(
-        'Имя пользователя',
-        validators=[DataRequired(), Length(min=3, max=80)]
-    )
-    full_name = StringField(
-        'ФИО',
-        validators=[Optional(), Length(max=200)],
-        description='Отображается в статьях, облаке, почте.',
-    )
-    email = StringField(
-        'Email',
-        validators=[DataRequired(), Email()]
-    )
-    password = PasswordField('Пароль')
-    confirm_password = PasswordField(
-        'Подтвердите пароль',
-        validators=[Optional(), EqualTo('password',
-                                        message='Пароли должны совпадать')]
-    )
-    role = SelectField(
-        'Роль',
-        choices=User.ROLE_CHOICES,
-        validators=[DataRequired()],
-    )
+    # === Почта ===
+    create_mailbox = BooleanField('Создать почтовый ящик', default=True)
+    mail_domain_id = SelectField('Домен', coerce=int, validators=[Optional()])
+    mail_local_part = StringField('Адрес (до @)', validators=[
+        Optional(),
+        Length(max=255),
+        Regexp(r'^[a-z0-9._-]*$', message='Только строчные буквы, цифры, точки, дефисы, подчёркивания'),
+    ], description='Оставьте пустым — использовать имя пользователя.')
+    mail_quota_gb = DecimalField('Квота, GB', places=2, validators=[
+        Optional(),
+        NumberRange(min=0.1, max=1000, message='От 0.1 до 1000 GB'),
+    ], default=1.0)
+    mail_use_user_password = BooleanField('Использовать пароль входа', default=True)
+    mail_password = PasswordField('Свой пароль для почты', validators=[
+        Optional(),
+        Length(min=6, max=128, message='Минимум 6 символов'),
+    ])
+
+    def __init__(self, *args, **kwargs):
+        """Динамически заполняем choices для доменов."""
+        super().__init__(*args, **kwargs)
+        from core.models import MailDomain
+        domains = MailDomain.query.filter_by(is_active=True).order_by(MailDomain.name).all()
+        self.mail_domain_id.choices = [(0, '— выберите домен —')] + [
+            (d.id, d.name) for d in domains
+        ]
+
+    def validate_mail_local_part(self, field):
+        """Валидация local_part, если создаётся ящик."""
+        if self.create_mailbox.data and field.data:
+            # Простая проверка — начинается с буквы/цифры
+            if not field.data[0].isalnum():
+                raise ValidationError('Адрес должен начинаться с буквы или цифры')
 
 
 # === КОНТЕНТ ===

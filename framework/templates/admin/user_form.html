@@ -96,6 +96,71 @@
                 </div>
             </div>
 
+            <!-- === Почтовый ящик === -->
+            <hr class="my-4">
+            <h5 class="mb-3">
+                <i class="bi bi-envelope-at"></i> Почтовый ящик
+            </h5>
+
+            <div class="mb-3 form-check">
+                {{ form.create_mailbox(class="form-check-input") }}
+                {{ form.create_mailbox.label(class="form-check-label") }}
+                <small class="d-block text-muted">
+                    Если снять галочку, ящик будет удалён из БД (письма на диске останутся).
+                </small>
+            </div>
+
+            <div id="mail-fields">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        {{ form.mail_domain_id.label(class="form-label") }}
+                        {{ form.mail_domain_id(class="form-select" + (" is-invalid" if form.mail_domain_id.errors else "")) }}
+                        {% for e in form.mail_domain_id.errors %}
+                        <div class="invalid-feedback">{{ e }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        {{ form.mail_local_part.label(class="form-label") }}
+                        <div class="input-group">
+                            {{ form.mail_local_part(class="form-control" + (" is-invalid" if form.mail_local_part.errors else ""), placeholder="ivanov") }}
+                            <span class="input-group-text">@<span id="domain-suffix">домен</span></span>
+                        </div>
+                        {% for e in form.mail_local_part.errors %}
+                        <div class="invalid-feedback">{{ e }}</div>
+                        {% endfor %}
+                        <small class="text-muted">{{ form.mail_local_part.description }}</small>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        {{ form.mail_quota_gb.label(class="form-label") }}
+                        {{ form.mail_quota_gb(class="form-control" + (" is-invalid" if form.mail_quota_gb.errors else ""), step="0.1", min="0.1") }}
+                        {% for e in form.mail_quota_gb.errors %}
+                        <div class="invalid-feedback">{{ e }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="mb-3 form-check">
+                    {{ form.mail_use_user_password(class="form-check-input") }}
+                    {{ form.mail_use_user_password.label(class="form-check-label") }}
+                    <small class="d-block text-muted">
+                        Если отмечено — пароль почты = пароль входа в систему.
+                    </small>
+                </div>
+
+                <div class="mb-3" id="mail-password-field">
+                    {{ form.mail_password.label(class="form-label") }}
+                    {{ form.mail_password(class="form-control" + (" is-invalid" if form.mail_password.errors else "")) }}
+                    {% for e in form.mail_password.errors %}
+                    <div class="invalid-feedback">{{ e }}</div>
+                    {% endfor %}
+                    <small class="text-muted">Только если НЕ используете пароль входа.</small>
+                </div>
+            </div>
+
             <!-- Кнопки -->
             <div class="d-flex gap-2">
                 <button type="submit" class="btn btn-primary">Сохранить</button>
@@ -104,4 +169,35 @@
         </form>
     </div>
 </div>
+<script>
+(function () {
+    const createCheckbox = document.getElementById('create_mailbox');
+    const mailFields = document.getElementById('mail-fields');
+    const useUserPassword = document.getElementById('mail_use_user_password');
+    const mailPasswordField = document.getElementById('mail-password-field');
+    const domainSelect = document.getElementById('mail_domain_id');
+    const domainSuffix = document.getElementById('domain-suffix');
+
+    function toggleMailFields() {
+        mailFields.style.display = createCheckbox.checked ? 'block' : 'none';
+    }
+
+    function togglePasswordField() {
+        mailPasswordField.style.display = useUserPassword.checked ? 'none' : 'block';
+    }
+
+    function updateDomainSuffix() {
+        const opt = domainSelect.options[domainSelect.selectedIndex];
+        domainSuffix.textContent = opt ? opt.text.replace('— ', '').replace(' —', '') : 'домен';
+    }
+
+    createCheckbox.addEventListener('change', toggleMailFields);
+    useUserPassword.addEventListener('change', togglePasswordField);
+    domainSelect.addEventListener('change', updateDomainSuffix);
+
+    toggleMailFields();
+    togglePasswordField();
+    updateDomainSuffix();
+})();
+</script>
 {% endblock %}

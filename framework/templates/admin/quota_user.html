@@ -8,7 +8,7 @@
 <nav aria-label="breadcrumb" class="mb-3">
     <ol class="breadcrumb">
         <li class="breadcrumb-item">
-            <a href="{{ url_for('admin_cloud_users') }}">Облако</a>
+            <a href="{{ url_for('admin_quotas') }}">Квоты</a>
         </li>
         <li class="breadcrumb-item active">{{ user.username }}</li>
     </ol>
@@ -21,7 +21,7 @@
         {{ user.username }}
         <small class="text-muted fs-6">{{ user.email }}</small>
     </h2>
-    <a href="{{ url_for('admin_cloud_users') }}" class="btn btn-outline-secondary btn-sm">
+    <a href="{{ url_for('admin_quotas') }}" class="btn btn-outline-secondary btn-sm">
         <i class="bi bi-arrow-left"></i> К списку
     </a>
 </div>
@@ -96,7 +96,7 @@
     </div>
     <div class="card-body">
         <form method="POST"
-              action="{{ url_for('admin_cloud_user_quota', user_id=user.id) }}"
+              action="{{ url_for('admin_quota_user_quota', user_id=user.id) }}"
               class="row g-2 align-items-center">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
@@ -127,6 +127,81 @@
         </form>
     </div>
 </div>
+<!-- === Почта === -->
+{% if mailboxes %}
+<div class="card mb-4">
+    <div class="card-header">
+        <strong><i class="bi bi-envelope-at"></i> Почтовые ящики</strong>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Адрес</th>
+                    <th style="width: 120px;">Квота</th>
+                    <th style="width: 120px;">Занято</th>
+                    <th style="width: 160px;">Использование</th>
+                    <th style="width: 200px;">Изменить квоту</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for mb in mailboxes %}
+                <tr>
+                    <td><strong>{{ mb.email }}</strong></td>
+                    <td>{{ mb.quota_bytes | human_size_bytes }}</td>
+                    <td>
+                        {% if mb.used_error %}
+                            <span class="text-danger" title="{{ mb.used_error }}">
+                                <i class="bi bi-exclamation-triangle"></i>
+                            </span>
+                        {% else %}
+                            <strong>{{ mb.used_bytes | human_size_bytes }}</strong>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if not mb.used_error %}
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar
+                                        {% if mb.percent > 90 %}bg-danger
+                                        {% elif mb.percent > 70 %}bg-warning
+                                        {% else %}bg-success{% endif %}"
+                                 style="width: {{ mb.percent }}%;">
+                                {{ mb.percent }}%
+                            </div>
+                        </div>
+                        {% else %}
+                            <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <form method="POST"
+                              action="{{ url_for('admin_quota_user_mail_quota', user_id=user.id, mailbox_id=mb.id) }}"
+                              class="d-flex gap-2">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="number"
+                                   name="quota_mb"
+                                   class="form-control form-control-sm"
+                                   value="{{ (mb.quota_bytes / 1024 / 1024) | round(0) | int }}"
+                                   min="1"
+                                   step="100"
+                                   style="width: 110px;">
+                            <button type="submit" class="btn btn-sm btn-primary">
+                                <i class="bi bi-check-lg"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-secondary mb-4">
+    <i class="bi bi-envelope-slash"></i>
+    У пользователя нет почтовых ящиков.
+</div>
+{% endif %}
 
 <!-- Очистка корзины -->
 {% if trashed > 0 %}
@@ -136,7 +211,7 @@
         В корзине пользователя <strong>{{ trashed | human_size_bytes }}</strong>.
     </div>
     <form method="POST"
-          action="{{ url_for('admin_cloud_user_trash', user_id=user.id) }}"
+          action="{{ url_for('admin_quota_user_trash', user_id=user.id) }}"
           onsubmit="return confirm('Удалить всё из корзины пользователя?\n\nЭто действие нельзя отменить.');">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn btn-danger btn-sm">
@@ -202,7 +277,7 @@
                         </td>
                         <td>
                             {% if not item.is_folder %}
-                            <a href="{{ url_for('admin_cloud_user_download', user_id=user.id, file_id=item.id) }}"
+                            <a href="{{ url_for('admin_quota_user_download', user_id=user.id, file_id=item.id) }}"
                                class="btn btn-sm btn-outline-primary"
                                title="Скачать">
                                 <i class="bi bi-download"></i>

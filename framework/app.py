@@ -26,7 +26,7 @@ from core.extensions import db, login_manager, csrf, migrate
 from core.models import (
     User, Article, Page, MenuItem, UploadedFile,
     Album, Photo, SiteSettings, CloudFile, CloudShare,
-    FileUsage, AuditLog,
+    FileUsage, AuditLog, MailDomain, Mailbox,
 )
 from core.file_utils import (
     get_file_type, guess_mime, make_stored_name,
@@ -51,6 +51,11 @@ from core.content_service import (
     register_album_photos, check_file_usage, find_unused_files,
 )
 from core.files_icons import format_bytes, icon_for_file, icon_for_folder
+
+from mail_utils import hash_password as mail_hash_password
+from mail_utils import get_quota as mail_get_quota
+from mail_utils import reload_service as mail_reload_service
+from mail_utils import archive_mailbox as mail_archive_mailbox
 
 # === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
 
@@ -469,7 +474,7 @@ def _collect_user_assets(user_id):
     """
     from core.models import (
         CloudFile, CloudShare, ShareAttach,
-        Article, Page, UploadedFile,
+        Article, Page, UploadedFile, Mailbox,
     )
 
     files = CloudFile.query.filter_by(owner_id=user_id).all()
@@ -484,6 +489,9 @@ def _collect_user_assets(user_id):
     pages = Page.query.filter_by(created_by_id=user_id).all() if hasattr(Page, 'created_by_id') else []
     uploaded = UploadedFile.query.filter_by(uploaded_by_id=user_id).all()
 
+    # Почта
+    mailboxes = Mailbox.query.filter_by(user_id=user_id).all()
+
     total_size = sum((f.size or 0) for f in files_active if not f.is_folder)
     count_files = sum(1 for f in files_active if not f.is_folder)
     count_folders = sum(1 for f in files_active if f.is_folder)
@@ -496,13 +504,102 @@ def _collect_user_assets(user_id):
         'articles_authored': articles,
         'pages_authored': pages,
         'uploaded_files': uploaded,
+        'mailboxes': mailboxes,
         'total_size': total_size,
         'count_files': count_files,
         'count_folders': count_folders,
         'count_shares': len(shares),
         'count_articles': len(articles),
         'count_pages': len(pages),
+        'count_mailboxes': len(mailboxes),
     }
+
+def _archive_user_mailboxes_to_admin(user, admin_user):
+    """
+    Архивирует все почтовые ящики пользователя в облако админа.
+    Создаёт папку "_mail_archive" у админа (если нет) и кладёт туда архивы.
+
+    Возвращает (ok, list_archived, error).
+    list_archived — список словарей: {'email': ..., 'cloud_name': ...}
+    """
+    import shutil
+    from core.file_utils import make_stored_name
+    from core.cloud_utils import cloud_data_root
+
+    mailboxes = Mailbox.query.filter_by(user_id=user.id).all()
+    if not mailboxes:
+        return True, [], None
+
+    admin_uid = admin_user.id
+    admin_cloud_dir = os.path.join(cloud_data_root(), str(admin_uid))
+
+    # Создать папку облака админа (если нет)
+    os.makedirs(admin_cloud_dir, exist_ok=True)
+
+    # Найти/создать папку "_mail_archive" у админа в БД
+    archive_folder = CloudFile.query.filter_by(
+        owner_id=admin_uid,
+        name='_mail_archive',
+        is_folder=True,
+        parent_id=None,
+    ).first()
+
+    if not archive_folder:
+        archive_folder = CloudFile(
+            owner_id=admin_uid,
+            parent_id=None,
+            name='_mail_archive',
+            is_folder=True,
+            is_trashed=False,
+        )
+        db.session.add(archive_folder)
+        db.session.flush()  # получить id
+
+    archived = []
+
+    for mb in mailboxes:
+        # 1. Архивируем в /tmp через mail
+        ok, result = mail_archive_mailbox(mb.email)
+        if not ok:
+            return False, archived, f'{mb.email}: {result}'
+        if not result:
+            # Пустой ящик — нечего архивировать
+            continue
+
+        # result — /tmp/<email>_<timestamp>.tar.gz
+        src_path = result
+        filename = os.path.basename(src_path)
+
+        # 2. Уникальное stored_name
+        stored_name = make_stored_name(filename)
+        dst_path = os.path.join(admin_cloud_dir, stored_name)
+
+        # 3. Перемещаем
+        try:
+            shutil.move(src_path, dst_path)
+        except Exception as e:
+            return False, archived, f'Не удалось переместить {filename}: {e}'
+
+        size = os.path.getsize(dst_path)
+
+        # 4. Создаём CloudFile
+        cf = CloudFile(
+            owner_id=admin_uid,
+            parent_id=archive_folder.id,
+            name=filename,
+            is_folder=False,
+            stored_name=stored_name,
+            size=size,
+            mime_type='application/gzip',
+        )
+        db.session.add(cf)
+
+        archived.append({
+            'email': mb.email,
+            'cloud_name': filename,
+        })
+
+    return True, archived, None
 
 def create_app(config_class=Config):
     """Создаёт и настраивает экземпляр Flask"""
@@ -911,19 +1008,27 @@ def create_app(config_class=Config):
             .paginate(page=page, per_page=per_page, error_out=False)
         )
 
+        # Почтовые ящики — сгруппируем по user_id
+        user_ids = [u.id for u in pagination.items]
+        mailboxes = Mailbox.query.filter(Mailbox.user_id.in_(user_ids)).all() if user_ids else []
+        mailboxes_by_user = {}
+        for mb in mailboxes:
+            mailboxes_by_user.setdefault(mb.user_id, []).append(mb)
+
         return render_template(
             'admin/users.html',
             pagination=pagination,
-            users=pagination.items
+            users=pagination.items,
+            mailboxes_by_user=mailboxes_by_user,
         )
 
         # === УПРАВЛЕНИЕ ОБЛАКОМ ===
 
-    @app.route('/admin/cloud/')
+    @app.route('/admin/quotas/')
     @login_required
     @admin_required
-    def admin_cloud_users():
-        """Список всех пользователей с их квотами и занятым местом в облаке."""
+    def admin_quotas():
+        """Список всех пользователей с квотами облака и почты."""
         # Все пользователи
         users = User.query.order_by(User.username.asc()).all()
         # Занятое место по каждому (только файлы, без папок)
@@ -947,6 +1052,12 @@ def create_app(config_class=Config):
         )
         trashed_by_user = {uid: int(total or 0) for uid, total in trashed_rows}
 
+        # Почтовые квоты: соберём все ящики пользователей
+        mailboxes = Mailbox.query.all()
+        mailboxes_by_user = {}
+        for mb in mailboxes:
+            mailboxes_by_user.setdefault(mb.user_id, []).append(mb)
+
         # Собираем данные для шаблона
         users_data = []
         for u in users:
@@ -956,6 +1067,22 @@ def create_app(config_class=Config):
             quota = u.quota_bytes or 0
             percent = round(used / quota * 100, 1) if quota > 0 else 0
 
+            # Почта
+            user_mailboxes = mailboxes_by_user.get(u.id, [])
+            mail_quota = sum((mb.quota_bytes or 0) for mb in user_mailboxes)
+            mail_used = 0
+            mail_used_error = None
+
+            if user_mailboxes:
+                # Суммируем использование по всем ящикам пользователя
+                for mb in user_mailboxes:
+                    ok, q = mail_get_quota(mb.email)
+                    if ok:
+                        mail_used += q.get('used_bytes', 0)
+                    else:
+                        mail_used_error = q
+            mail_percent = round(mail_used / mail_quota * 100, 1) if mail_quota > 0 else 0
+
             users_data.append({
                 'user': u,
                 'used': used,
@@ -964,22 +1091,28 @@ def create_app(config_class=Config):
                 'quota': quota,
                 'free': max(0, quota - used),
                 'percent': percent,
+                # Почта
+                'mailboxes': user_mailboxes,
+                'mail_quota': mail_quota,
+                'mail_used': mail_used,
+                'mail_percent': mail_percent,
+                'mail_used_error': mail_used_error,
             })
 
         # Сортировка по занятому месту (убывание)
         users_data.sort(key=lambda x: x['used'], reverse=True)
 
         return render_template(
-            'admin/cloud_users.html',
+            'admin/quotas.html',
             users_data=users_data,
         )
 
     #Детали пользователя — список файлов + форма квоты#
-    @app.route('/admin/cloud/user/<int:user_id>')
+    @app.route('/admin/quotas/user/<int:user_id>')
     @login_required
     @admin_required
-    def admin_cloud_user_detail(user_id):
-        """Детали пользователя: файлы, квота, действия."""
+    def admin_quota_user_detail(user_id):
+        """Детали пользователя: файлы, квоты облака и почты, действия."""
         user = User.query.get_or_404(user_id)
 
         # === Файлы пользователя (только корневые, чтобы не показывать вложенные) ===
@@ -1014,8 +1147,32 @@ def create_app(config_class=Config):
             .all()
         )
 
+        # Почтовые ящики пользователя + использование
+        mailboxes_data = []
+        user_mailboxes = Mailbox.query.filter_by(user_id=user.id).all()
+        for mb in user_mailboxes:
+            used_bytes = 0
+            used_error = None
+            ok, q = mail_get_quota(mb.email)
+            if ok:
+                used_bytes = q.get('used_bytes', 0)
+            else:
+                used_error = q
+
+            quota_bytes = mb.quota_bytes or 0
+            percent_mb = round(used_bytes / quota_bytes * 100, 1) if quota_bytes > 0 else 0
+
+            mailboxes_data.append({
+                'id': mb.id,
+                'email': mb.email,
+                'quota_bytes': quota_bytes,
+                'used_bytes': used_bytes,
+                'used_error': used_error,
+                'percent': percent_mb,
+            })
+
         return render_template(
-            'admin/cloud_user.html',
+            'admin/quota_user.html',
             user=user,
             items=all_items,
             shares=shares,
@@ -1025,14 +1182,333 @@ def create_app(config_class=Config):
             quota=quota,
             free=free,
             percent=percent,
+            mailboxes=mailboxes_data,
         )
+
+        # === АДМИНКА ПОЧТЫ: ДОМЕНЫ ===
+
+    @app.route('/admin/mail/')
+    @login_required
+    @admin_required
+    def admin_mail_domains():
+        """Список почтовых доменов."""
+        domains = MailDomain.query.order_by(MailDomain.name).all()
+
+        # Статистика по каждому домену
+        domains_data = []
+        for d in domains:
+            mailboxes_count = Mailbox.query.filter_by(domain_id=d.id).count()
+            domains_data.append({
+                'domain': d,
+                'mailboxes_count': mailboxes_count,
+            })
+
+        return render_template('admin/mail/domains.html', domains_data=domains_data)
+
+    @app.route('/admin/mail/domains/new', methods=['GET', 'POST'])
+    @login_required
+    @admin_required
+    def admin_mail_domain_new():
+        """Создание почтового домена."""
+        if request.method == 'POST':
+            name = (request.form.get('name') or '').strip().lower()
+            if not name or '.' not in name:
+                flash('Некорректное имя домена', 'danger')
+                return redirect(url_for('admin_mail_domain_new'))
+
+            existing = MailDomain.query.filter_by(name=name).first()
+            if existing:
+                flash(f'Домен {name} уже существует', 'warning')
+                return redirect(url_for('admin_mail_domains'))
+
+            domain = MailDomain(name=name, is_active=True)
+            db.session.add(domain)
+            db.session.commit()
+
+            # Перезагружаем Postfix (чтобы он увидел новый домен)
+            ok, err = mail_reload_service('postfix')
+            if not ok:
+                flash(f'Домен создан, но Postfix не перезагрузился: {err}', 'warning')
+            else:
+                flash(f'Домен {name} создан', 'success')
+
+            return redirect(url_for('admin_mail_domains'))
+
+        return render_template('admin/mail/domain_form.html', domain=None)
+
+    @app.route('/admin/mail/domains/<int:domain_id>/edit', methods=['GET', 'POST'])
+    @login_required
+    @admin_required
+    def admin_mail_domain_edit(domain_id):
+        """Редактирование почтового домена."""
+        domain = MailDomain.query.get_or_404(domain_id)
+
+        if request.method == 'POST':
+            name = (request.form.get('name') or '').strip().lower()
+            is_active = request.form.get('is_active') == 'on'
+
+            if not name or '.' not in name:
+                flash('Некорректное имя домена', 'danger')
+                return redirect(url_for('admin_mail_domain_edit', domain_id=domain_id))
+
+            # Проверка уникальности
+            existing = MailDomain.query.filter(
+                MailDomain.name == name,
+                MailDomain.id != domain_id,
+            ).first()
+            if existing:
+                flash(f'Домен {name} уже существует', 'warning')
+                return redirect(url_for('admin_mail_domain_edit', domain_id=domain_id))
+
+            domain.name = name
+            domain.is_active = is_active
+            db.session.commit()
+
+            ok, err = mail_reload_service('postfix')
+            if not ok:
+                flash(f'Домен обновлён, но Postfix не перезагрузился: {err}', 'warning')
+            else:
+                flash('Домен обновлён', 'success')
+
+            return redirect(url_for('admin_mail_domains'))
+
+        return render_template('admin/mail/domain_form.html', domain=domain)
+
+    @app.route('/admin/mail/domains/<int:domain_id>/delete', methods=['POST'])
+    @login_required
+    @admin_required
+    def admin_mail_domain_delete(domain_id):
+        """Удаление почтового домена."""
+        domain = MailDomain.query.get_or_404(domain_id)
+
+        # Защита: если есть ящики — не удаляем (кроме принудительного удаления с подтверждением)
+        mailboxes_count = Mailbox.query.filter_by(domain_id=domain_id).count()
+        force = request.form.get('force') == 'yes'
+
+        if mailboxes_count > 0 and not force:
+            flash(
+                f'В домене {domain.name} {mailboxes_count} ящиков. '
+                f'Для удаления введите имя домена в поле подтверждения.',
+                'danger'
+            )
+            return redirect(url_for('admin_mail_domains'))
+
+        # TODO: архивация писем и DKIM (см. W2, Шаг 2.4.2) — отдельная задача.
+        # Пока — просто удаляем из БД (CASCADE удалит Mailbox).
+
+        domain_name = domain.name
+        db.session.delete(domain)
+        db.session.commit()
+
+        ok, err = mail_reload_service('postfix')
+        if not ok:
+            flash(f'Домен {domain_name} удалён, но Postfix не перезагрузился: {err}', 'warning')
+        else:
+            flash(f'Домен {domain_name} удалён', 'success')
+
+        return redirect(url_for('admin_mail_domains'))
+
+        # === АДМИНКА ПОЧТЫ: ЯЩИКИ ===
+
+    @app.route('/admin/mail/domains/<int:domain_id>/mailboxes/')
+    @login_required
+    @admin_required
+    def admin_mail_mailboxes(domain_id):
+        """Список ящиков в домене."""
+        domain = MailDomain.query.get_or_404(domain_id)
+        mailboxes = Mailbox.query.filter_by(domain_id=domain_id).order_by(Mailbox.local_part).all()
+
+        return render_template(
+            'admin/mail/mailboxes.html',
+            domain=domain,
+            mailboxes=mailboxes,
+        )
+
+    @app.route('/admin/mail/domains/<int:domain_id>/mailboxes/new', methods=['GET', 'POST'])
+    @login_required
+    @admin_required
+    def admin_mail_mailbox_new(domain_id):
+        """Создание ящика в домене."""
+        domain = MailDomain.query.get_or_404(domain_id)
+
+        if request.method == 'POST':
+            local_part = (request.form.get('local_part') or '').strip().lower()
+            password = request.form.get('password') or ''
+            name = (request.form.get('name') or '').strip() or None
+            user_id_raw = request.form.get('user_id') or ''
+            quota_gb = request.form.get('quota_gb') or '1'
+
+            # Валидация
+            if not local_part or not password:
+                flash('Заполните local_part и пароль', 'danger')
+                return redirect(url_for('admin_mail_mailbox_new', domain_id=domain_id))
+
+            # Проверка уникальности
+            existing = Mailbox.query.filter_by(domain_id=domain_id, local_part=local_part).first()
+            if existing:
+                flash(f'Ящик {local_part}@{domain.name} уже существует', 'warning')
+                return redirect(url_for('admin_mail_mailboxes', domain_id=domain_id))
+
+            # Владелец
+            user_id = None
+            if user_id_raw:
+                try:
+                    user_id = int(user_id_raw)
+                    if not User.query.get(user_id):
+                        flash('Пользователь не найден', 'danger')
+                        return redirect(url_for('admin_mail_mailbox_new', domain_id=domain_id))
+                except (ValueError, TypeError):
+                    flash('Неверный ID пользователя', 'danger')
+                    return redirect(url_for('admin_mail_mailbox_new', domain_id=domain_id))
+
+            # Квота в байтах
+            try:
+                quota_bytes = int(float(quota_gb) * 1024 * 1024 * 1024)
+            except (ValueError, TypeError):
+                quota_bytes = 1024 * 1024 * 1024
+
+            # Получаем хэш пароля из mail
+            ok, result = mail_hash_password(password)
+            if not ok:
+                flash(f'Не удалось создать пароль: {result}', 'danger')
+                return redirect(url_for('admin_mail_mailbox_new', domain_id=domain_id))
+
+            # Создаём
+            mailbox = Mailbox(
+                user_id=user_id,
+                domain_id=domain_id,
+                local_part=local_part,
+                password_hash=result,
+                name=name,
+                quota_bytes=quota_bytes,
+                is_active=True,
+            )
+            db.session.add(mailbox)
+            db.session.commit()
+
+            # Reload dovecot (чтобы он увидел новый ящик)
+            ok, err = mail_reload_service('dovecot')
+            if not ok:
+                flash(f'Ящик создан, но Dovecot не перезагрузился: {err}', 'warning')
+            else:
+                flash(f'Ящик {local_part}@{domain.name} создан', 'success')
+
+            return redirect(url_for('admin_mail_mailboxes', domain_id=domain_id))
+
+        # GET — форма
+        users = User.query.order_by(User.username).all()
+        return render_template(
+            'admin/mail/mailbox_form.html',
+            domain=domain,
+            mailbox=None,
+            users=users,
+        )
+
+    @app.route('/admin/mail/mailboxes/<int:mailbox_id>/edit', methods=['GET', 'POST'])
+    @login_required
+    @admin_required
+    def admin_mail_mailbox_edit(mailbox_id):
+        """Редактирование ящика."""
+        mailbox = Mailbox.query.get_or_404(mailbox_id)
+        domain = mailbox.domain
+
+        if request.method == 'POST':
+            local_part = (request.form.get('local_part') or '').strip().lower()
+            password = request.form.get('password') or ''
+            name = (request.form.get('name') or '').strip() or None
+            user_id_raw = request.form.get('user_id') or ''
+            quota_gb = request.form.get('quota_gb') or '1'
+            is_active = request.form.get('is_active') == 'on'
+
+            if not local_part:
+                flash('local_part не может быть пустым', 'danger')
+                return redirect(url_for('admin_mail_mailbox_edit', mailbox_id=mailbox_id))
+
+            # Проверка уникальности
+            existing = Mailbox.query.filter(
+                Mailbox.domain_id == mailbox.domain_id,
+                Mailbox.local_part == local_part,
+                Mailbox.id != mailbox_id,
+            ).first()
+            if existing:
+                flash(f'Ящик {local_part}@{domain.name} уже существует', 'warning')
+                return redirect(url_for('admin_mail_mailbox_edit', mailbox_id=mailbox_id))
+
+            # Владелец
+            user_id = None
+            if user_id_raw:
+                try:
+                    user_id = int(user_id_raw)
+                except (ValueError, TypeError):
+                    pass
+
+            # Квота
+            try:
+                quota_bytes = int(float(quota_gb) * 1024 * 1024 * 1024)
+            except (ValueError, TypeError):
+                quota_bytes = mailbox.quota_bytes
+
+            # Пароль: если введён — меняем, иначе оставляем
+            if password:
+                ok, result = mail_hash_password(password)
+                if not ok:
+                    flash(f'Не удалось создать пароль: {result}', 'danger')
+                    return redirect(url_for('admin_mail_mailbox_edit', mailbox_id=mailbox_id))
+                mailbox.password_hash = result
+
+            mailbox.local_part = local_part
+            mailbox.name = name
+            mailbox.user_id = user_id
+            mailbox.quota_bytes = quota_bytes
+            mailbox.is_active = is_active
+            db.session.commit()
+
+            ok, err = mail_reload_service('dovecot')
+            if not ok:
+                flash(f'Ящик обновлён, но Dovecot не перезагрузился: {err}', 'warning')
+            else:
+                flash('Ящик обновлён', 'success')
+
+            return redirect(url_for('admin_mail_mailboxes', domain_id=domain.id))
+
+        # GET
+        users = User.query.order_by(User.username).all()
+        return render_template(
+            'admin/mail/mailbox_form.html',
+            domain=domain,
+            mailbox=mailbox,
+            users=users,
+        )
+
+    @app.route('/admin/mail/mailboxes/<int:mailbox_id>/delete', methods=['POST'])
+    @login_required
+    @admin_required
+    def admin_mail_mailbox_delete(mailbox_id):
+        """Удаление ящика."""
+        mailbox = Mailbox.query.get_or_404(mailbox_id)
+        domain_id = mailbox.domain_id
+        email = mailbox.email
+
+        # TODO: архивация Maildir (см. Шаг 2.4.1) — отдельная задача.
+        # Пока — просто удаляем из БД.
+
+        db.session.delete(mailbox)
+        db.session.commit()
+
+        ok, err = mail_reload_service('dovecot')
+        if not ok:
+            flash(f'Ящик {email} удалён, но Dovecot не перезагрузился: {err}', 'warning')
+        else:
+            flash(f'Ящик {email} удалён', 'success')
+
+        return redirect(url_for('admin_mail_mailboxes', domain_id=domain_id))
 
     # === СКАЧИВАНИЕ ФАЙЛА ПОЛЬЗОВАТЕЛЯ ===
 
-    @app.route('/admin/cloud/user/<int:user_id>/download/<int:file_id>')
+    @app.route('/admin/quotas/user/<int:user_id>/download/<int:file_id>')
     @login_required
     @admin_required
-    def admin_cloud_user_download(user_id, file_id):
+    def admin_quota_user_download(user_id, file_id):
         """Скачивание файла пользователя (только admin)."""
         from flask import abort, send_file
 
@@ -1072,10 +1548,10 @@ def create_app(config_class=Config):
 
     # === ИЗМЕНЕНИЕ КВОТЫ ===
 
-    @app.route('/admin/cloud/user/<int:user_id>/quota', methods=['POST'])
+    @app.route('/admin/quotas/user/<int:user_id>/quota')
     @login_required
     @admin_required
-    def admin_cloud_user_quota(user_id):
+    def admin_quota_user_quota(user_id):
         """Изменение квоты пользователя."""
         user = User.query.get_or_404(user_id)
 
@@ -1083,7 +1559,7 @@ def create_app(config_class=Config):
         quota_mb = request.form.get('quota_mb', type=float)
         if quota_mb is None or quota_mb < 0:
             flash('Неверное значение квоты', 'danger')
-            return redirect(url_for('admin_cloud_user_detail', user_id=user_id))
+            return redirect(url_for('admin_quota_user_detail', user_id=user_id))
 
         # Переводим МБ в байты
         quota_bytes = int(quota_mb * 1024 * 1024)
@@ -1095,14 +1571,38 @@ def create_app(config_class=Config):
             f'Квота для «{user.username}» установлена: {quota_mb:.0f} МБ',
             'success'
         )
-        return redirect(url_for('admin_cloud_user_detail', user_id=user_id))
+        return redirect(url_for('admin_quota_user_detail', user_id=user_id))
+
+    @app.route('/admin/quotas/user/<int:user_id>/mail-quota/<int:mailbox_id>', methods=['POST'])
+    @login_required
+    @admin_required
+    def admin_quota_user_mail_quota(user_id, mailbox_id):
+        """Обновление квоты почтового ящика."""
+        user = User.query.get_or_404(user_id)
+        mb = Mailbox.query.filter_by(id=mailbox_id, user_id=user.id).first_or_404()
+
+        try:
+            quota_mb = int(request.form.get('quota_mb', 0))
+        except (ValueError, TypeError):
+            flash('Неверное значение квоты', 'danger')
+            return redirect(url_for('admin_quota_user_detail', user_id=user_id))
+
+        if quota_mb < 1:
+            flash('Квота должна быть минимум 1 МБ', 'danger')
+            return redirect(url_for('admin_quota_user_detail', user_id=user_id))
+
+        mb.quota_bytes = quota_mb * 1024 * 1024
+        db.session.commit()
+
+        flash(f'Квота ящика {mb.email} обновлена: {quota_mb} МБ', 'success')
+        return redirect(url_for('admin_quota_user_detail', user_id=user_id))
 
     # === ОЧИСТКА КОРЗИНЫ ===
 
-    @app.route('/admin/cloud/user/<int:user_id>/trash', methods=['POST'])
+    @app.route('/admin/quotas/user/<int:user_id>/trash')
     @login_required
     @admin_required
-    def admin_cloud_user_trash(user_id):
+    def admin_quota_user_trash(user_id):
         """Полная очистка корзины пользователя."""
         user = User.query.get_or_404(user_id)
 
@@ -1114,7 +1614,7 @@ def create_app(config_class=Config):
 
         if not trashed:
             flash('Корзина уже пуста', 'info')
-            return redirect(url_for('admin_cloud_user_detail', user_id=user_id))
+            return redirect(url_for('admin_quota_user_detail', user_id=user_id))
 
         user_dir = os.path.join(
             current_app.config.get('CLOUD_DATA_DIR') or
@@ -1155,69 +1655,141 @@ def create_app(config_class=Config):
             f'({human_size(total_size)})',
             'success'
         )
-        return redirect(url_for('admin_cloud_user_detail', user_id=user_id))
+        return redirect(url_for('admin_quota_user_detail', user_id=user_id))
 
     @app.route('/admin/users/create', methods=['GET', 'POST'])
     @login_required
     @admin_required
     def admin_user_create():
-        """Создание нового пользователя"""
+        """Создание нового пользователя (+ опционально почтового ящика)"""
         form = UserForm()
 
         if form.validate_on_submit():
+            # === Проверки ===
             if User.query.filter_by(username=form.username.data).first():
                 flash('Пользователь с таким именем уже существует!', 'danger')
-                return render_template(
-                    'admin/user_form.html',
-                    form=form,
-                    title='Создание пользователя'
-                )
+                return render_template('admin/user_form.html', form=form, title='Создание пользователя')
 
-            if User.query.filter_by(email=form.email.data).first():
+            if form.email.data and User.query.filter_by(email=form.email.data).first():
                 flash('Пользователь с таким email уже существует!', 'danger')
-                return render_template(
-                    'admin/user_form.html',
-                    form=form,
-                    title='Создание пользователя'
-                )
+                return render_template('admin/user_form.html', form=form, title='Создание пользователя')
 
             if not form.password.data or len(form.password.data) < 6:
                 flash('Пароль должен содержать минимум 6 символов!', 'danger')
-                return render_template(
-                    'admin/user_form.html',
-                    form=form,
-                    title='Создание пользователя'
-                )
+                return render_template('admin/user_form.html', form=form, title='Создание пользователя')
+
+            # === Почта: валидация до создания User ===
+            mail_domain = None
+            mail_local_part = None
+            mail_password = None
+            if form.create_mailbox.data:
+                if not form.mail_domain_id.data or form.mail_domain_id.data == 0:
+                    flash('Выберите домен для почтового ящика', 'danger')
+                    return render_template('admin/user_form.html', form=form, title='Создание пользователя')
+
+                mail_domain = MailDomain.query.get(form.mail_domain_id.data)
+                if not mail_domain or not mail_domain.is_active:
+                    flash('Домен не найден или неактивен', 'danger')
+                    return render_template('admin/user_form.html', form=form, title='Создание пользователя')
+
+                # local_part: из формы или = username
+                mail_local_part = (form.mail_local_part.data or '').strip().lower() or form.username.data.lower()
+
+                # Проверка уникальности
+                existing_mb = Mailbox.query.filter_by(
+                    domain_id=mail_domain.id,
+                    local_part=mail_local_part,
+                ).first()
+                if existing_mb:
+                    flash(f'Ящик {mail_local_part}@{mail_domain.name} уже существует', 'danger')
+                    return render_template('admin/user_form.html', form=form, title='Создание пользователя')
+
+                # Пароль для ящика
+                if form.mail_use_user_password.data:
+                    mail_password = form.password.data
+                else:
+                    mail_password = form.mail_password.data
+                    if not mail_password or len(mail_password) < 6:
+                        flash('Пароль почты должен содержать минимум 6 символов', 'danger')
+                        return render_template('admin/user_form.html', form=form, title='Создание пользователя')
+
+                # Хэш пароля Dovecot
+                ok, mail_hash = mail_hash_password(mail_password)
+                if not ok:
+                    flash(f'Не удалось создать пароль почты: {mail_hash}', 'danger')
+                    return render_template('admin/user_form.html', form=form, title='Создание пользователя')
+
+            # === Создаём User ===
+            # Определяем email
+            user_email = (form.email.data or '').strip() or None
+
+            # Если email не задан, но создаётся почта — используем адрес ящика
+            if not user_email and form.create_mailbox.data:
+                user_email = f'{mail_local_part}@{mail_domain.name}'
 
             user = User(
                 username=form.username.data,
                 full_name=(form.full_name.data or '').strip() or None,
-                email=form.email.data,
+                email=user_email,
                 role=form.role.data,
             )
             user.set_password(form.password.data)
-
             db.session.add(user)
+            db.session.flush()  # получаем user.id
+
+            # === Создаём Mailbox (если нужно) ===
+            if form.create_mailbox.data:
+                quota_bytes = int(float(form.mail_quota_gb.data or 1) * 1024 * 1024 * 1024)
+
+                mailbox = Mailbox(
+                    user_id=user.id,
+                    domain_id=mail_domain.id,
+                    local_part=mail_local_part,
+                    password_hash=mail_hash,
+                    name=user.full_name,
+                    quota_bytes=quota_bytes,
+                    is_active=True,
+                )
+                db.session.add(mailbox)
+
             db.session.commit()
 
-            flash(f'Пользователь {user.username} создан!', 'success')
+            # === Reload Dovecot ===
+            if form.create_mailbox.data:
+                ok, err = mail_reload_service('dovecot')
+                if not ok:
+                    flash(f'Пользователь создан, но Dovecot не перезагрузился: {err}', 'warning')
+                else:
+                    flash(
+                        f'Пользователь {user.username} создан. '
+                        f'Почтовый ящик: {mail_local_part}@{mail_domain.name}',
+                        'success'
+                    )
+            else:
+                flash(f'Пользователь {user.username} создан!', 'success')
+
             return redirect(url_for('admin_users'))
 
-        return render_template(
-            'admin/user_form.html',
-            form=form,
-            title='Создание пользователя'
-        )
+        return render_template('admin/user_form.html', form=form, title='Создание пользователя')
 
     @app.route('/admin/users/<int:id>/edit', methods=['GET', 'POST'])
     @login_required
     @admin_required
     def admin_user_edit(id):
-        """Редактирование пользователя"""
+        """Редактирование пользователя + синхронизация почтового ящика"""
         user = User.query.get_or_404(id)
         form = UserForm(obj=user)
 
+        # Предзаполняем поля почты (если ящик есть)
+        existing_mailbox = Mailbox.query.filter_by(user_id=user.id).first()
+        if request.method == 'GET' and existing_mailbox:
+            form.create_mailbox.data = True
+            form.mail_domain_id.data = existing_mailbox.domain_id
+            form.mail_local_part.data = existing_mailbox.local_part
+            form.mail_quota_gb.data = round(existing_mailbox.quota_bytes / 1024 / 1024 / 1024, 2)
+
         if form.validate_on_submit():
+            # === Проверки ===
             existing_username = User.query.filter(
                 User.username == form.username.data,
                 User.id != user.id
@@ -1228,7 +1800,8 @@ def create_app(config_class=Config):
                     'admin/user_form.html',
                     form=form,
                     title=f'Редактирование: {user.username}',
-                    user=user
+                    user=user,
+                    mailbox=existing_mailbox,
                 )
 
             existing_email = User.query.filter(
@@ -1241,14 +1814,105 @@ def create_app(config_class=Config):
                     'admin/user_form.html',
                     form=form,
                     title=f'Редактирование: {user.username}',
-                    user=user
+                    user=user,
+                    mailbox=existing_mailbox,
                 )
+
+            # === Почта: валидация до сохранения ===
+            mail_domain = None
+            mail_local_part = None
+            mail_hash = None
+            if form.create_mailbox.data:
+                if not form.mail_domain_id.data or form.mail_domain_id.data == 0:
+                    flash('Выберите домен для почтового ящика', 'danger')
+                    return render_template(
+                        'admin/user_form.html',
+                        form=form,
+                        title=f'Редактирование: {user.username}',
+                        user=user,
+                        mailbox=existing_mailbox,
+                    )
+
+                mail_domain = MailDomain.query.get(form.mail_domain_id.data)
+                if not mail_domain or not mail_domain.is_active:
+                    flash('Домен не найден или неактивен', 'danger')
+                    return render_template(
+                        'admin/user_form.html',
+                        form=form,
+                        title=f'Редактирование: {user.username}',
+                        user=user,
+                        mailbox=existing_mailbox,
+                    )
+
+                mail_local_part = (form.mail_local_part.data or '').strip().lower() or form.username.data.lower()
+
+                # Проверка уникальности (кроме себя)
+                conflict = Mailbox.query.filter(
+                    Mailbox.domain_id == mail_domain.id,
+                    Mailbox.local_part == mail_local_part,
+                    Mailbox.user_id != user.id,
+                ).first()
+                if conflict:
+                    flash(f'Ящик {mail_local_part}@{mail_domain.name} уже существует', 'danger')
+                    return render_template(
+                        'admin/user_form.html',
+                        form=form,
+                        title=f'Редактирование: {user.username}',
+                        user=user,
+                        mailbox=existing_mailbox,
+                    )
+
+                # Пароль: если сменили пароль входа и стоит "использовать пароль входа" — используем его.
+                # Если "свой пароль" — используем mail_password.
+                # Если пароль пользователя не менялся и ящик уже есть — не трогаем password_hash.
+                if form.mail_use_user_password.data:
+                    if form.password.data:
+                        ok, mail_hash = mail_hash_password(form.password.data)
+                        if not ok:
+                            flash(f'Не удалось создать пароль почты: {mail_hash}', 'danger')
+                            return render_template(
+                                'admin/user_form.html',
+                                form=form,
+                                title=f'Редактирование: {user.username}',
+                                user=user,
+                                mailbox=existing_mailbox,
+                            )
+                else:
+                    mail_password = form.mail_password.data
+                    if mail_password:
+                        if len(mail_password) < 6:
+                            flash('Пароль почты должен содержать минимум 6 символов', 'danger')
+                            return render_template(
+                                'admin/user_form.html',
+                                form=form,
+                                title=f'Редактирование: {user.username}',
+                                user=user,
+                                mailbox=existing_mailbox,
+                            )
+                        ok, mail_hash = mail_hash_password(mail_password)
+                        if not ok:
+                            flash(f'Не удалось создать пароль почты: {mail_hash}', 'danger')
+                            return render_template(
+                                'admin/user_form.html',
+                                form=form,
+                                title=f'Редактирование: {user.username}',
+                                user=user,
+                                mailbox=existing_mailbox,
+                            )
+
+            # === Сохраняем User ===
+            # Определяем email
+            user_email = (form.email.data or '').strip() or None
+
+            # Если email не задан, но есть/создаётся почта — используем адрес ящика
+            if not user_email and form.create_mailbox.data and mail_domain and mail_local_part:
+                user_email = f'{mail_local_part}@{mail_domain.name}'
 
             user.username = form.username.data
             user.full_name = (form.full_name.data or '').strip() or None
-            user.email = form.email.data
+            user.email = user_email
             user.role = form.role.data
-
+            
             if form.password.data:
                 if len(form.password.data) < 6:
                     flash('Пароль должен содержать минимум 6 символов!', 'danger')
@@ -1256,19 +1920,89 @@ def create_app(config_class=Config):
                         'admin/user_form.html',
                         form=form,
                         title=f'Редактирование: {user.username}',
-                        user=user
+                        user=user,
+                        mailbox=existing_mailbox,
                     )
                 user.set_password(form.password.data)
 
+            # === Почта: создание/обновление/удаление ящика ===
+            mail_action = None  # для flash
+
+            if form.create_mailbox.data:
+                quota_bytes = int(float(form.mail_quota_gb.data or 1) * 1024 * 1024 * 1024)
+
+                if existing_mailbox:
+                    # Обновляем
+                    existing_mailbox.domain_id = mail_domain.id
+                    existing_mailbox.local_part = mail_local_part
+                    existing_mailbox.name = user.full_name
+                    existing_mailbox.quota_bytes = quota_bytes
+                    if mail_hash:
+                        existing_mailbox.password_hash = mail_hash
+                    mail_action = 'updated'
+                else:
+                    # Создаём
+                    if not mail_hash:
+                        # Ящик новый, но пароль не задан (пароль входа не менялся — его нет).
+                        # Требуем пароль.
+                        if form.mail_use_user_password.data and form.password.data:
+                            ok, mail_hash = mail_hash_password(form.password.data)
+                            if not ok:
+                                flash(f'Не удалось создать пароль почты: {mail_hash}', 'danger')
+                                return render_template(
+                                    'admin/user_form.html',
+                                    form=form,
+                                    title=f'Редактирование: {user.username}',
+                                    user=user,
+                                    mailbox=None,
+                                )
+                        else:
+                            flash('Для нового ящика задайте пароль', 'danger')
+                            return render_template(
+                                'admin/user_form.html',
+                                form=form,
+                                title=f'Редактирование: {user.username}',
+                                user=user,
+                                mailbox=None,
+                            )
+
+                    new_mb = Mailbox(
+                        user_id=user.id,
+                        domain_id=mail_domain.id,
+                        local_part=mail_local_part,
+                        password_hash=mail_hash,
+                        name=user.full_name,
+                        quota_bytes=quota_bytes,
+                        is_active=True,
+                    )
+                    db.session.add(new_mb)
+                    mail_action = 'created'
+            else:
+                # Галочка снята — удаляем ящик
+                if existing_mailbox:
+                    db.session.delete(existing_mailbox)
+                    mail_action = 'deleted'
+
             db.session.commit()
-            flash(f'Пользователь «{user.username}» обновлён!', 'success')
+
+            # === Reload Dovecot, если были изменения в почте ===
+            if mail_action:
+                ok, err = mail_reload_service('dovecot')
+                if not ok:
+                    flash(f'Пользователь обновлён, но Dovecot не перезагрузился: {err}', 'warning')
+                else:
+                    flash(f'Пользователь «{user.username}» обновлён (почта: {mail_action})', 'success')
+            else:
+                flash(f'Пользователь «{user.username}» обновлён!', 'success')
+
             return redirect(url_for('admin_users'))
 
         return render_template(
             'admin/user_form.html',
             form=form,
             title=f'Редактирование: {user.username}',
-            user=user
+            user=user,
+            mailbox=existing_mailbox,
         )
 
     @app.route('/admin/users/<int:id>/delete', methods=['GET', 'POST'])
@@ -1304,6 +2038,7 @@ def create_app(config_class=Config):
             or assets['count_articles'] > 0
             or assets['count_pages'] > 0
             or len(assets['files_trashed']) > 0
+            or assets.get('count_mailboxes', 0) > 0
         )
 
         # GET — показать модалку с активами (если есть)
@@ -1336,12 +2071,26 @@ def create_app(config_class=Config):
             )
             return redirect(url_for('admin_user_delete', id=user.id))
 
+        # === Архивация почты в облако админа ===
+        ok, archived, err = _archive_user_mailboxes_to_admin(user, current_user)
+        if not ok:
+            flash(f'Не удалось заархивировать почту: {err}. Пользователь не удалён.', 'danger')
+            return redirect(url_for('admin_user_delete', id=user.id))
+
         # Активов нет — удаляем напрямую
         username = user.username
         db.session.delete(user)
         db.session.commit()
 
-        flash(f'Пользователь «{username}» удалён.', 'info')
+        if archived:
+            flash(
+                f'Пользователь «{username}» удалён. '
+                f'Архивы почты ({len(archived)} шт.) — в вашем облаке, папка «_mail_archive».',
+                'info'
+            )
+        else:
+            flash(f'Пользователь «{username}» удалён.', 'info')
+
         return redirect(url_for('admin_users'))
 
     @app.route('/admin/users/<int:id>/reassign', methods=['POST'])
@@ -1485,7 +2234,12 @@ def create_app(config_class=Config):
                     page.created_by_id = new_uid
                     reassigned_pages += 1
 
-            # 6. AuditLog
+             # 6. Архивация почты в облако админа
+            ok, archived_mail, err = _archive_user_mailboxes_to_admin(user, current_user)
+            if not ok:
+                raise Exception(f'Не удалось заархивировать почту: {err}')
+
+            # 7. AuditLog
             log = AuditLog(
                 user_id=current_user.id,
                 action='user_delete_reassign',
@@ -1494,20 +2248,25 @@ def create_app(config_class=Config):
                 details=(
                     f'Transferred to {new_owner.username}: '
                     f'{moved_files} files, {moved_shares} shares, '
-                    f'{reassigned_articles} articles, {reassigned_pages} pages'
+                    f'{reassigned_articles} articles, {reassigned_pages} pages, '
+                    f'{len(archived_mail)} mailboxes archived'
                 ),
             )
             db.session.add(log)
 
-            # 7. Удаляем пользователя
+            # 8. Удаляем пользователя
             db.session.delete(user)
             db.session.commit()
 
+            mail_note = ''
+            if archived_mail:
+                mail_note = f' Почта заархивирована: {len(archived_mail)} ящик(ов).'
+                
             flash(
                 f'Пользователь «{old_username}» удалён. '
                 f'Активы переданы «{new_owner.username}» '
                 f'({moved_files} файлов, {moved_shares} шар, '
-                f'{reassigned_articles} статей).',
+                f'{reassigned_articles} статей).{mail_note}',
                 'success'
             )
             return redirect(url_for('admin_users'))
@@ -2089,6 +2848,7 @@ def create_app(config_class=Config):
 
     @app.route('/admin/files/')
     @login_required
+    @admin_required
     def admin_files():
         """Список файлов с пагинацией, сортировкой, фильтром и поиском (Python-фильтрация)"""
         page = get_page()
@@ -2190,6 +2950,7 @@ def create_app(config_class=Config):
         )
     @app.route('/admin/files/upload', methods=['POST'])
     @login_required
+    @admin_required
     def admin_file_upload():
         """Массовая загрузка файлов из формы"""
         # getlist вернёт список всех файлов из поля name="files"
@@ -2273,6 +3034,7 @@ def create_app(config_class=Config):
 
     @app.route('/admin/files/<int:id>/download')
     @login_required
+    @admin_required
     def admin_file_download(id):
         """Скачивание файла"""
         record = UploadedFile.query.get_or_404(id)
@@ -2285,6 +3047,7 @@ def create_app(config_class=Config):
 
     @app.route('/admin/files/<int:id>/delete', methods=['POST'])
     @login_required
+    @admin_required
     def admin_file_delete(id):
         """Удаление файла"""
         record = UploadedFile.query.get_or_404(id)
@@ -2302,6 +3065,7 @@ def create_app(config_class=Config):
 
     @app.route('/admin/files/archive', methods=['GET', 'POST'])
     @login_required
+    @admin_required
     def admin_files_archive():
         """Архивация файлов за указанный период"""
         form = ArchiveForm()
@@ -3384,13 +4148,24 @@ def create_app(config_class=Config):
             form.logo_file_id.data = settings.logo_file_id or 0
             form.favicon_file_id.data = settings.favicon_file_id or 0
 
+        # Почтовые домены
+        mail_domains = MailDomain.query.order_by(MailDomain.name).all()
+        mail_domains_data = []
+        for d in mail_domains:
+            mailboxes_count = Mailbox.query.filter_by(domain_id=d.id).count()
+            mail_domains_data.append({
+                'domain': d,
+                'mailboxes_count': mailboxes_count,
+            })
+
         return render_template('admin/settings.html',
                                external_path=external_path,
                                mounted=mounted,
                                disk_info=disk_info,
                                backups=backups,
                                form=form,
-                               settings=settings)
+                               settings=settings,
+                               mail_domains_data=mail_domains_data)
 
     def get_slider_photos(limit=10):
         """Возвращает список Photo с is_featured=True (свежие вперёд)"""

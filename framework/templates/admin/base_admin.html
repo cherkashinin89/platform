@@ -55,10 +55,7 @@
                             class="btn btn-sm {% if request.endpoint and request.endpoint.startswith('admin_page') %}btn-primary{% else %}btn-outline-light{% endif %}">
                             <i class="bi bi-file-earmark"></i> Страницы
                         </a>
-                        <a href="{{ url_for('admin_files') }}"
-                            class="btn btn-sm {% if request.endpoint and request.endpoint.startswith('admin_file') %}btn-primary{% else %}btn-outline-light{% endif %}">
-                            <i class="bi bi-folder2-open"></i> Файлы
-                        </a>
+                        
                         <a href="{{ url_for('admin_albums') }}"
                             class="btn btn-sm {% if request.endpoint and request.endpoint.startswith('admin_album') %}btn-primary{% else %}btn-outline-light{% endif %}">
                             <i class="bi bi-images"></i> Альбомы
@@ -66,13 +63,17 @@
 
                         {# === Только admin === #}
                         {% if current_user.is_admin %}
+                        <a href="{{ url_for('admin_files') }}"
+                            class="btn btn-sm {% if request.endpoint and request.endpoint.startswith('admin_file') %}btn-primary{% else %}btn-outline-light{% endif %}">
+                            <i class="bi bi-folder2-open"></i> Файлы
+                        </a>
                         <a href="{{ url_for('admin_menu') }}"
                             class="btn btn-sm {% if request.endpoint and request.endpoint.startswith('admin_menu') %}btn-primary{% else %}btn-outline-light{% endif %}">
                             <i class="bi bi-list"></i> Меню
                         </a>
-                        <a href="{{ url_for('admin_cloud_users') }}"
-                            class="btn btn-sm {% if request.endpoint and request.endpoint.startswith('admin_cloud') %}btn-primary{% else %}btn-outline-light{% endif %}">
-                            <i class="bi bi-cloud"></i> Облако
+                        <a href="{{ url_for('admin_quotas') }}"
+                            class="btn btn-sm {% if request.endpoint and request.endpoint.startswith('admin_quota') %}btn-primary{% else %}btn-outline-light{% endif %}">
+                            <i class="bi bi-sliders"></i> Квоты
                         </a>
                         <a href="{{ url_for('admin_settings') }}"
                             class="btn btn-sm {% if request.endpoint and request.endpoint.startswith('admin_settings') %}btn-primary{% else %}btn-outline-light{% endif %}">
@@ -503,6 +504,8 @@
             syncSelection();
         });
     </script>
+    {# W31: toast-уведомления #}
+    <script src="/static/shared/js/toast.js"></script>
 
 </body>
 

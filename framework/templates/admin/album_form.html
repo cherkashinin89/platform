@@ -152,7 +152,7 @@
                     <p class="text-muted mb-0">
                         В облаке нет изображений.
                         {% if current_user.is_admin %}
-                            <a href="{{ url_for('admin_cloud_users') }}">Перейти в облако</a>.
+                            <a href="{{ url_for('admin_quotas') }}">Перейти в раздел «Квоты»</a>.
                         {% else %}
                             Загрузите файлы через
                             <a href="http://{{ request.host.split(':')[0] }}:5001/" target="_blank">облако</a>.

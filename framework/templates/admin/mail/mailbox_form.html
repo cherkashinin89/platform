@@ -1,0 +1,94 @@
+{% extends "admin/base_admin.html" %}
+
+{% block title %}{{ 'Редактирование' if mailbox else 'Новый' }} ящик{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('admin_mail_domains') }}">Домены</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('admin_mail_mailboxes', domain_id=domain.id) }}">{{ domain.name }}</a></li>
+        <li class="breadcrumb-item active">{{ 'Редактирование' if mailbox else 'Новый ящик' }}</li>
+    </ol>
+</nav>
+
+<h1>
+    <i class="bi bi-inbox"></i>
+    {{ 'Редактирование ящика' if mailbox else 'Новый ящик в ' ~ domain.name }}
+</h1>
+
+<form method="post" class="mt-4" style="max-width: 600px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="mb-3">
+        <label for="local_part" class="form-label">Локальная часть (до @)</label>
+        <div class="input-group">
+            <input type="text" name="local_part" id="local_part"
+                   class="form-control"
+                   value="{{ mailbox.local_part if mailbox else '' }}"
+                   placeholder="ivanov"
+                   required>
+            <span class="input-group-text">@{{ domain.name }}</span>
+        </div>
+        <small class="text-muted">Только строчные буквы, цифры, точки, дефисы и подчёркивания</small>
+    </div>
+
+    <div class="mb-3">
+        <label for="name" class="form-label">Отображаемое имя</label>
+        <input type="text" name="name" id="name"
+               class="form-control"
+               value="{{ mailbox.name or '' if mailbox else '' }}"
+               placeholder="Иван Иванов">
+        <small class="text-muted">Необязательно. Используется в заголовке From</small>
+    </div>
+
+    <div class="mb-3">
+        <label for="password" class="form-label">
+            Пароль
+            {% if mailbox %}<small class="text-muted">(оставьте пустым, чтобы не менять)</small>{% endif %}
+        </label>
+        <input type="password" name="password" id="password"
+               class="form-control"
+               {% if not mailbox %}required{% endif %}>
+    </div>
+
+    <div class="mb-3">
+        <label for="user_id" class="form-label">Владелец (пользователь платформы)</label>
+        <select name="user_id" id="user_id" class="form-select">
+            <option value="">— без владельца —</option>
+            {% for u in users %}
+            <option value="{{ u.id }}"
+                    {% if mailbox and mailbox.user_id == u.id %}selected{% endif %}>
+                {{ u.username }} ({{ u.email }})
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label for="quota_gb" class="form-label">Квота (GB)</label>
+        <input type="number" name="quota_gb" id="quota_gb"
+               class="form-control"
+               step="0.1" min="0.1"
+               value="{{ (mailbox.quota_bytes / 1024 / 1024 / 1024)|round(2) if mailbox else 1 }}">
+    </div>
+
+    {% if mailbox %}
+    <div class="mb-3 form-check">
+        <input type="checkbox" name="is_active" id="is_active"
+               class="form-check-input"
+               {% if mailbox.is_active %}checked{% endif %}>
+        <label for="is_active" class="form-check-label">Активен</label>
+    </div>
+    {% endif %}
+
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-lg"></i> Сохранить
+        </button>
+        <a href="{{ url_for('admin_mail_mailboxes', domain_id=domain.id) }}"
+           class="btn btn-outline-secondary">
+            Отмена
+        </a>
+    </div>
+</form>
+{% endblock %}

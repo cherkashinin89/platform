@@ -251,6 +251,60 @@
                         {% endfor %}
                         <small class="text-muted">{{ form.mail_base_url.description }}</small>
                     </div>
+
+                    <!-- === Почтовые домены === -->
+                    <div class="mt-4">
+                        <label class="form-label d-flex justify-content-between align-items-center">
+                            <span>Почтовые домены</span>
+                            <a href="{{ url_for('admin_mail_domain_new') }}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-plus-circle"></i> Добавить домен
+                            </a>
+                        </label>
+
+                        {% if mail_domains_data %}
+                        <div class="list-group">
+                            {% for item in mail_domains_data %}
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>{{ item.domain.name }}</strong>
+                                    {% if item.domain.is_active %}
+                                    <span class="badge bg-success ms-2">Активен</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary ms-2">Выключен</span>
+                                    {% endif %}
+                                    <br>
+                                    <small class="text-muted">
+                                        <a href="{{ url_for('admin_mail_mailboxes', domain_id=item.domain.id) }}">
+                                            {{ item.mailboxes_count }} ящик(ов)
+                                        </a>
+                                    </small>
+                                </div>
+                                <div>
+                                    <a href="{{ url_for('admin_mail_domain_edit', domain_id=item.domain.id) }}"
+                                       class="btn btn-sm btn-outline-primary" title="Редактировать">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <form method="post"
+                                          action="{{ url_for('admin_mail_domain_delete', domain_id=item.domain.id) }}"
+                                          class="d-inline"
+                                          onsubmit="return confirm('Удалить домен {{ item.domain.name }}?');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Удалить">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="alert alert-info mb-0">
+                            <i class="bi bi-info-circle"></i>
+                            Почтовых доменов пока нет.
+                            <a href="{{ url_for('admin_mail_domain_new') }}">Добавить первый</a>.
+                        </div>
+                        {% endif %}
+                    </div>
                 </div>
 
                 <!-- ПРАВАЯ КОЛОНКА: интерфейс и оформление -->
