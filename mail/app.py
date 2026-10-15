@@ -10,8 +10,11 @@ from jinja2 import ChoiceLoader, FileSystemLoader
 from config import Config
 
 # === Общий пакет core ===
-from core.extensions import db, login_manager, csrf, migrate
-from core.models import User, MailDomain, Mailbox, SiteSettings
+from core.extensions import db, login_manager, csrf, migrate, cache, limiter
+from core.models import (
+    User, MailDomain, Mailbox, SiteSettings,
+    MailUiState, MailSettings,
+)
 from mail_service import hash_password, get_quota, reload_service, archive_mailbox
 
 
@@ -39,6 +42,8 @@ def create_app(config_class=Config):
     login_manager.init_app(app)
     csrf.init_app(app)
     migrate.init_app(app, db)
+    cache.init_app(app)
+    limiter.init_app(app)
 
     # Загрузчик пользователя
     @login_manager.user_loader
@@ -67,41 +72,113 @@ def create_app(config_class=Config):
             app.logger.warning(f'inject_site_settings: {e}')
             return {'site_settings': None}
 
-    # === МАРШРУТЫ ===
+    # === W47: главная — INBOX ===
 
     @app.route('/')
     @login_required
     def index():
-        """Главная страница mail-сервиса: информация о ящике пользователя."""
-        # Находим ящик текущего пользователя (у нас 1:1)
+        """Главная: редирект на INBOX."""
+        return redirect(url_for('inbox'))
+
+    def _get_mailbox_info():
+        """Собирает информацию о ящике текущего пользователя."""
         mailbox = Mailbox.query.filter_by(user_id=current_user.id).first()
+        if not mailbox:
+            return None, None
 
-        mailbox_info = None
-        if mailbox:
-            quota_used = 0
-            quota_error = None
-            ok, q = get_quota(mailbox.email)
-            if ok:
-                quota_used = q.get('used_bytes', 0)
-            else:
-                quota_error = q
+        quota_used = 0
+        quota_error = None
+        ok, q = get_quota(mailbox.email)
+        if ok:
+            quota_used = q.get('used_bytes', 0)
+        else:
+            quota_error = q
 
-            quota_total = mailbox.quota_bytes or 0
-            percent = round(quota_used / quota_total * 100, 1) if quota_total > 0 else 0
+        quota_total = mailbox.quota_bytes or 0
+        percent = round(quota_used / quota_total * 100, 1) if quota_total > 0 else 0
 
-            mailbox_info = {
-                'email': mailbox.email,
-                'name': mailbox.name,
-                'is_active': mailbox.is_active,
-                'quota_total': quota_total,
-                'quota_used': quota_used,
-                'quota_free': max(0, quota_total - quota_used),
-                'quota_percent': percent,
-                'quota_error': quota_error,
-                'last_login': mailbox.last_login,
-            }
+        info = {
+            'email': mailbox.email,
+            'name': mailbox.name,
+            'is_active': mailbox.is_active,
+            'quota_total': quota_total,
+            'quota_used': quota_used,
+            'quota_free': max(0, quota_total - quota_used),
+            'quota_percent': percent,
+            'quota_error': quota_error,
+            'last_login': mailbox.last_login,
+        }
+        return mailbox, info
 
-        return render_template('index.html', mailbox=mailbox, mailbox_info=mailbox_info)
+    @app.route('/inbox')
+    @login_required
+    def inbox():
+        """INBOX — трёхпанельный layout. Этап 1: заглушка."""
+        folder_current = 'INBOX'
+        folder_title = 'Входящие'
+        return render_template(
+            'index.html',
+            folder_current=folder_current,
+            folder_title=folder_title,
+            messages=[],
+            message=None,
+        )
+
+    @app.route('/folder/<path:name>')
+    @login_required
+    def folder(name):
+        """Открывает папку. Этап 1: заглушка (без IMAP)."""
+        # Человекочитаемое имя папки
+        titles = {
+            'INBOX': 'Входящие',
+            'Sent': 'Отправленные',
+            'Drafts': 'Черновики',
+            'Junk': 'Спам',
+            'Trash': 'Корзина',
+        }
+        folder_title = titles.get(name, name)
+        return render_template(
+            'index.html',
+            folder_current=name,
+            folder_title=folder_title,
+            messages=[],
+            message=None,
+        )
+
+    @app.route('/message/<uid>')
+    @login_required
+    def message(uid):
+        """Просмотр письма. Этап 1: заглушка."""
+        return render_template(
+            'index.html',
+            folder_current='INBOX',
+            folder_title='Входящие',
+            messages=[],
+            message=None,
+        )
+
+    @app.route('/compose')
+    @login_required
+    def compose():
+        """Форма отправки. Этап 1: заглушка."""
+        return render_template(
+            'index.html',
+            folder_current='INBOX',
+            folder_title='Входящие',
+            messages=[],
+            message=None,
+        )
+
+    @app.route('/settings')
+    @login_required
+    def settings():
+        """Настройки почты. Этап 1: карточка ящика + IMAP."""
+        mailbox, mailbox_info = _get_mailbox_info()
+        return render_template(
+            'settings.html',
+            mailbox=mailbox,
+            mailbox_info=mailbox_info,
+        )
 
     @app.route('/change-password', methods=['GET', 'POST'])
     @login_required
