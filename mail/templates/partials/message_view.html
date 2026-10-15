@@ -1,0 +1,66 @@
+{# ============================================================
+   W47: просмотр письма (панель 3)
+   Этап 1 — заглушка («Выберите письмо»).
+   Этап 3 — реальный рендер письма (bleach, CSP).
+   ============================================================ #}
+
+{# Ожидает в контексте:
+   message  (obj|None) — письмо (этап 3)
+#}
+{% set message = message|default(None) %}
+
+{% if message %}
+
+{# Этап 3: реальный просмотр #}
+<div class="mail-view-header">
+    <div class="mail-view-subject">{{ message.subject or '(без темы)' }}</div>
+    <div class="mail-view-meta">
+        <div>
+            <strong>От:</strong>
+            {{ message.from_name or '' }}
+            {% if message.from_email %}
+            &lt;{{ message.from_email }}&gt;
+            {% endif %}
+        </div>
+        <div><strong>Кому:</strong> {{ message.to or '' }}</div>
+        {% if message.cc %}
+        <div><strong>Копия:</strong> {{ message.cc }}</div>
+        {% endif %}
+        <div class="mt-2">
+            <i class="bi bi-clock"></i>
+            {{ message.date_human or '' }}
+        </div>
+    </div>
+    <div class="mail-view-actions mt-3">
+        <button type="button" class="btn btn-sm btn-primary">
+            <i class="bi bi-reply"></i> Ответить
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-reply-all"></i> Ответить всем
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-forward"></i> Переслать
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-danger">
+            <i class="bi bi-trash"></i> Удалить
+        </button>
+    </div>
+</div>
+
+<div class="mail-view-body">
+    {# Этап 3: body_html прогоняется через bleach #}
+    {{ message.body_html|safe if message.body_html else message.body_text }}
+</div>
+
+{% else %}
+
+{# Этап 1: пустое состояние #}
+<div class="mail-empty">
+    <i class="bi bi-envelope-open"></i>
+    <div>Выберите письмо</div>
+    <small class="text-muted mt-2">
+        Слева — папки, посередине — список писем.
+    </small>
+</div>
+
+{% endif %}

@@ -1,0 +1,79 @@
+{% extends "core_base.html" %}
+
+{# ============================================================
+   W47: базовый шаблон для «рабочих» страниц почты (INBOX, письмо, compose).
+   Наследует core_base.html, но переопределяет body_layout —
+   вместо container использует трёхпанельный layout на всю ширину.
+   ============================================================ #}
+
+{# === Параметры шапки для mail === #}
+{% block header_vars %}
+{% set header_current = 'mail' %}
+{% set header_site_url = site_settings.site_base_url if site_settings else '' %}
+{% set header_cloud_url = site_settings.cloud_base_url if site_settings else '' %}
+{% set header_mail_url = site_settings.mail_base_url if site_settings else '' %}
+{% set header_login_url = site_settings.site_base_url ~ '/login' if site_settings else '/login' %}
+{% set header_logout_url = site_settings.site_base_url ~ '/logout' if site_settings else '/logout' %}
+{% set header_admin_url = site_settings.site_base_url ~ '/admin/' if site_settings else '' %}
+{% set header_admin_editor_url = site_settings.site_base_url ~ '/admin/' if site_settings else '' %}
+{% set header_settings_url = url_for('settings') %}
+{% include 'partials/header.html' %}
+{% endblock %}
+
+{% block title %}{% block mail_title %}Почта{% endblock %} — {{ site_settings.site_title if site_settings else 'Платформа' }}{% endblock %}
+
+{# === Подключаем mail.css === #}
+{% block head_extra %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/mail.css') }}">
+{% block mail_head_extra %}{% endblock %}
+{% endblock %}
+
+{# === Трёхпанельный layout вместо container === #}
+{% block body_layout %}
+
+{# Flash-сообщения (если есть) — поверх layout, короткой полосой #}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="container-fluid mt-2">
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show mb-2" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Закрыть"></button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+
+<div class="mail-app">
+
+    {# === Панель 1: папки === #}
+    <aside class="mail-panel-folders">
+        {% block mail_folders %}
+            {% include 'partials/folder_list.html' %}
+        {% endblock %}
+    </aside>
+
+    {# === Панель 2: список писем === #}
+    <section class="mail-panel-list">
+        {% block mail_list %}
+            {% include 'partials/message_list.html' %}
+        {% endblock %}
+    </section>
+
+    {# === Панель 3: просмотр письма / контент === #}
+    <section class="mail-panel-view">
+        {% block mail_view %}
+            {% include 'partials/message_view.html' %}
+        {% endblock %}
+    </section>
+
+</div>
+
+{% endblock %}
+
+{# === Скрипты mail === #}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/mail.js') }}"></script>
+{% block mail_scripts %}{% endblock %}
+{% endblock %}

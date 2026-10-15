@@ -1,0 +1,68 @@
+{# ============================================================
+   W47: список писем (панель 2)
+   Этап 1 — заглушка (пустой список).
+   Этап 3 — реальный список из IMAP.
+   ============================================================ #}
+
+{# Ожидает в контексте:
+   folder_current  (str)   — активная папка
+   folder_title    (str)   — человекочитаемое имя папки (опц.)
+   messages        (list)  — список писем (этап 3)
+#}
+{% set folder_current = folder_current|default('INBOX') %}
+{% set folder_title = folder_title|default('Входящие') %}
+{% set messages = messages|default([]) %}
+
+{# === Шапка списка: имя папки + кнопки действий === #}
+<div class="mail-list-header d-flex align-items-center justify-content-between px-3 py-2 border-bottom">
+    <div class="d-flex align-items-center">
+        <strong class="me-2">{{ folder_title }}</strong>
+        <span class="badge bg-secondary">{{ messages|length }}</span>
+    </div>
+    <div class="mail-list-actions btn-group btn-group-sm" role="group">
+        <button type="button" class="btn btn-outline-secondary" title="Обновить" disabled>
+            <i class="bi bi-arrow-clockwise"></i>
+        </button>
+        <button type="button" class="btn btn-outline-secondary" title="Сортировка" disabled>
+            <i class="bi bi-sort-down"></i>
+        </button>
+    </div>
+</div>
+
+{# === Тело списка === #}
+<div class="mail-list-body flex-grow-1">
+
+{% if messages %}
+
+    {# Этап 3: цикл по письмам #}
+    {% for msg in messages %}
+    <div class="mail-list-item {% if not msg.is_read %}is-unread{% endif %}"
+         data-uid="{{ msg.uid }}">
+        <div class="mail-list-checkbox">
+            <input type="checkbox" class="form-check-input m-0">
+        </div>
+        <div class="mail-list-star">
+            <i class="bi {% if msg.is_flagged %}bi-star-fill{% else %}bi-star{% endif %}"></i>
+        </div>
+        <div class="mail-list-content">
+            <div class="mail-list-from">{{ msg.from_name or msg.from_email }}</div>
+            <div class="mail-list-subject">{{ msg.subject or '(без темы)' }}</div>
+        </div>
+        <div class="mail-list-date">{{ msg.date_human or '' }}</div>
+    </div>
+    {% endfor %}
+
+{% else %}
+
+    {# Этап 1: пустое состояние #}
+    <div class="mail-empty">
+        <i class="bi bi-inbox"></i>
+        <div>Писем нет</div>
+        <small class="text-muted mt-2">
+            Это заглушка. Реальные письма появятся после подключения IMAP (Этап 3).
+        </small>
+    </div>
+
+{% endif %}
+
+</div>
