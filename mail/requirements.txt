@@ -2,7 +2,13 @@ Flask==3.0.0
 Flask-SQLAlchemy==3.1.1
 Flask-Login==0.6.3
 Flask-Migrate==4.0.7
+Flask-WTF==1.2.1
+Flask-Caching==2.3.0
+Flask-Limiter==3.8.0
 psycopg[binary]==3.3.6
 python-dotenv==1.0.1
 gunicorn==21.2.0
 argon2-cffi
+imapclient==3.0.1
+bleach==6.1.0
+email-validator==2.1.1
