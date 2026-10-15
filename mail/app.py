@@ -17,6 +17,8 @@ from core.models import (
 )
 from mail_service import hash_password, get_quota, reload_service, archive_mailbox
 
+import imap_client
+
 
 def create_app(config_class=Config):
     """Создаёт и настраивает экземпляр Flask (mail)."""
@@ -86,6 +88,11 @@ def create_app(config_class=Config):
         if not mailbox:
             return None, None
 
+    def _current_email():
+        """Email ящика текущего пользователя (или None)."""
+        mailbox = Mailbox.query.filter_by(user_id=current_user.id).first()
+        return mailbox.email if mailbox else None
+
         quota_used = 0
         quota_error = None
         ok, q = get_quota(mailbox.email)
@@ -110,24 +117,45 @@ def create_app(config_class=Config):
         }
         return mailbox, info
 
-    @app.route('/inbox')
-    @login_required
-    def inbox():
-        """INBOX — трёхпанельный layout. Этап 1: заглушка."""
-        folder_current = 'INBOX'
-        folder_title = 'Входящие'
-        return render_template(
-            'index.html',
-            folder_current=folder_current,
-            folder_title=folder_title,
-            messages=[],
-            message=None,
-        )
+    # === W47 Этап 2: реальный IMAP ===
 
-    @app.route('/folder/<path:name>')
-    @login_required
-    def folder(name):
-        """Открывает папку. Этап 1: заглушка (без IMAP)."""
+    def _render_inbox(folder_name='INBOX'):
+        """Общий рендер трёхпанельного layout для папки."""
+        email = _current_email()
+        if not email:
+            flash('У вас нет почтового ящика', 'danger')
+            return redirect(url_for('settings'))
+
+        # === Папки (кэш 60 сек) ===
+        cache_key_folders = f'mail_folders_{email}'
+        folders = cache.get(cache_key_folders)
+        folders_error = None
+        if folders is None:
+            folders, folders_error = imap_client.list_folders(email)
+            if folders is not None:
+                cache.set(cache_key_folders, folders, timeout=60)
+
+        # === Список писем (кэш 30 сек) ===
+        cache_key_msgs = f'mail_msgs_{email}_{folder_name}'
+        messages = cache.get(cache_key_msgs)
+        messages_error = None
+        messages_total = 0
+        if messages is None:
+            messages, messages_total, messages_error = imap_client.list_messages(
+                email, folder=folder_name, limit=50, offset=0,
+            )
+            if messages is not None:
+                cache.set(cache_key_msgs, (messages, messages_total), timeout=30)
+        else:
+            # messages = (list, total) из кэша
+            messages, messages_total = messages
+
+        # Ошибки наверх
+        if folders_error:
+            flash(f'Папки: {folders_error}', 'warning')
+        if messages_error:
+            flash(f'Письма: {messages_error}', 'warning')
+
         # Человекочитаемое имя папки
         titles = {
             'INBOX': 'Входящие',
@@ -136,25 +164,90 @@ def create_app(config_class=Config):
             'Junk': 'Спам',
             'Trash': 'Корзина',
         }
-        folder_title = titles.get(name, name)
+        folder_title = titles.get(folder_name, folder_name)
+
         return render_template(
             'index.html',
-            folder_current=name,
+            folder_current=folder_name,
             folder_title=folder_title,
-            messages=[],
+            folders=folders or [],
+            messages=messages or [],
+            messages_total=messages_total,
             message=None,
         )
+
+    @app.route('/inbox')
+    @login_required
+    def inbox():
+        """INBOX — трёхпанельный layout."""
+        return _render_inbox('INBOX')
+
+    @app.route('/folder/<path:name>')
+    @login_required
+    def folder(name):
+        """Открывает папку."""
+        return _render_inbox(name)
 
     @app.route('/message/<uid>')
     @login_required
     def message(uid):
-        """Просмотр письма. Этап 1: заглушка."""
+        """Просмотр письма."""
+        email = _current_email()
+        if not email:
+            flash('У вас нет почтового ящика', 'danger')
+            return redirect(url_for('settings'))
+
+        folder_name = request.args.get('folder', 'INBOX')
+
+        try:
+            uid_int = int(uid)
+        except ValueError:
+            flash('Некорректный UID письма', 'danger')
+            return redirect(url_for('inbox'))
+
+        # === Само письмо (без кэша) ===
+        msg, msg_error = imap_client.get_message(email, folder_name, uid_int)
+        if msg_error:
+            flash(msg_error, 'danger')
+
+        # === Папки (кэш) ===
+        cache_key_folders = f'mail_folders_{email}'
+        folders = cache.get(cache_key_folders)
+        if folders is None:
+            folders, _ = imap_client.list_folders(email)
+            if folders is not None:
+                cache.set(cache_key_folders, folders, timeout=60)
+
+        # === Список писем (кэш) ===
+        cache_key_msgs = f'mail_msgs_{email}_{folder_name}'
+        messages = cache.get(cache_key_msgs)
+        messages_total = 0
+        if messages is None:
+            messages, messages_total, _ = imap_client.list_messages(
+                email, folder=folder_name, limit=50, offset=0,
+            )
+            if messages is not None:
+                cache.set(cache_key_msgs, (messages, messages_total), timeout=30)
+        else:
+            messages, messages_total = messages
+
+        titles = {
+            'INBOX': 'Входящие',
+            'Sent': 'Отправленные',
+            'Drafts': 'Черновики',
+            'Junk': 'Спам',
+            'Trash': 'Корзина',
+        }
+        folder_title = titles.get(folder_name, folder_name)
+
         return render_template(
             'index.html',
-            folder_current='INBOX',
-            folder_title='Входящие',
-            messages=[],
-            message=None,
+            folder_current=folder_name,
+            folder_title=folder_title,
+            folders=folders or [],
+            messages=messages or [],
+            messages_total=messages_total,
+            message=msg,
         )
 
     @app.route('/compose')
