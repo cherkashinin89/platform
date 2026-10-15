@@ -1,9 +1,9 @@
 markdown
 # SPEC — единый источник правды по проекту platform
 
-**Версия:** v1
-**Дата:** 2026-10-14
-**Статус:** W2 (почта) завершён, идёт подготовка к W40 (боевой)
+**Версия:** v2
+**Дата:** 2026-10-16
+**Статус:** W47 (UI почты) — в работе, Этапы 1–2 завершены. W2 завершён.
 
 ---
 
@@ -75,6 +75,9 @@ VMAIL_UID=5000
 VMAIL_GID=5000
 VMAIL_HOME=/var/vmail
 MAIL_INTERNAL_URL=http://127.0.0.1:5004
+
+# W47: master-user Dovecot (для IMAP-доступа mail-сервиса)
+MAIL_MASTER_PASSWORD=<секрет>
 
 text
 
@@ -608,8 +611,40 @@ Mailbox.password_hash — legacy-поле, не используется (см. 
 
 Коммиты: 3267db8, 073c19b.
 
+### 5.9. W47 — UI почты (🔄 Этапы 1–2)
+
+**Статус:** Этап 1 (каркас) и Этап 2 (IMAP) завершены. Идёт Этап 3.
+
+**Этап 1 — Каркас:**
+- Модели: `MailUiState`, `MailSettings`, `RecentRecipient`, `SieveRule` (в `core/models.py`).
+- Миграция `dfba0fd5ee24` (mail).
+- `core/extensions.py`: добавлены `cache` (Flask-Caching), `limiter` (Flask-Limiter).
+- `mail/config.py`: IMAP-настройки, master-user, `SENDMAIL`, rate limit, пагинация, кэш.
+- `mail/requirements.txt`: `imapclient`, `bleach`, `email-validator`, `Flask-WTF`, `Flask-Caching`, `Flask-Limiter`.
+- Шаблоны: `base_mail.html` (трёхпанельный layout), `index.html` (INBOX), `settings.html`, `partials/{folder_list,message_list,message_view}.html`.
+- Статика: `mail/static/css/mail.css`, `mail/static/js/mail.js`.
+- Роуты: `/inbox`, `/folder/<name>`, `/message/<uid>`, `/compose`, `/settings`.
+- `core/templates/partials/header.html`: переменная `header_settings_url` (иконка-шестерёнка).
+
+**Этап 2 — IMAP:**
+- Master-user Dovecot: `passdb passwd-file` в `auth-sql.conf.ext`, `auth_master_user_separator = *`, файл `/etc/dovecot/master-users`.
+- SQL passdb расширен `userdb_*` полями (prefetch).
+- `mail/imap_client.py` — обёртка над `imapclient` (master-user, список папок, список писем, чтение письма).
+- Интеграция IMAP в `app.py`: `_render_inbox()`, реальные данные в `inbox`/`folder`/`message`.
+- Кэш: список писем 30 сек, папки 60 сек (`SimpleCache`).
+- UI: кликабельные письма, просмотр письма, стили `mail.css`.
+
+**Ограничения:**
+- Вложения (скачивание) — ещё нет (Этап 3).
+- Отправка, ответы, пересылка — ещё нет (Этап 4).
+- Sieve-правила — ещё нет (Этап 5).
+- Обработка ошибок структурированная (`ErrorLog`) — Этап 8.
+- Dovecot 2.4 — специфичный синтаксис конфигов (см. БАГ-W47-DOVECOT-*).
+
+**Коммиты:** 5c90982, 690861c, 2298f7d, 085ded0, b987539, d09d700, 8ce48f2, 9640609, 15522c1, eab1bfb, 73bb77e, 5daa6d2.
+
 6. В РАБОТЕ
-(пусто)
+W47 — UI почты (Этап 3: полноценное чтение, вложения, ответы).
 
 7. ЗАПЛАНИРОВАНО
 7.1. W25 — Рефакторинг альбомов
@@ -752,9 +787,9 @@ Cron / systemd timer.
 
 Приоритет: средний (после W40).
 
-### 7.11. W47 — UI почты (полный, Gmail-like)
-
 **Цель:** полноценный веб-интерфейс для работы с почтой.
+
+**Статус:** 🔄 в работе. Этапы 1–2 завершены (каркас + IMAP-интеграция). См. раздел 5.9.
 
 **Что входит:**
 - Чтение, отправка, ответы, пересылка.
@@ -934,6 +969,44 @@ X2. Криптопровайдер (ЭЦП)
 favicon.ico — 404
 На некоторых страницах — 404. Приоритет: низкий.
 
+### БАГ-W47-DOVECOT-001 — Dovecot 2.4: master-user, порядок логина
+
+**Проблема:** в Dovecot 2.4 формат master-входа — **`loginuser*masteruser`**, а не `masteruser*loginuser`.
+**Симптом:** `doveadm auth test "master*user@domain"` падает с `passwd-file: unknown user`.
+**Решение:** использовать `user@domain*master`.
+**Файлы:** `deploy/templates/dovecot/auth-sql.conf.ext`, `deploy/templates/dovecot/dovecot.conf`, `mail/imap_client.py`.
+**Коммит:** 5daa6d2.
+
+### БАГ-W47-DOVECOT-002 — Dovecot 2.4: синтаксис passdb passwd-file
+
+**Проблема:** в Dovecot 2.4 переименованы настройки: `passwd_file` → `passwd_file_path`, `pass` → `result_success`, внутри секции — без префикса.
+**Симптом:** `doveconf: Fatal: Error ... Unknown setting`.
+**Решение:** использовать синтаксис 2.4:
+passdb passwd-file {
+passwd_file_path = /etc/dovecot/master-users
+master = yes
+result_success = continue
+}
+
+text
+**Файлы:** `deploy/templates/dovecot/auth-sql.conf.ext`.
+**Коммит:** 5daa6d2.
+
+### БАГ-W47-DOVECOT-003 — Dovecot 2.4: prefetch для master-user
+
+**Проблема:** при master-входе с `result_success = continue` Dovecot требует, чтобы SQL passdb возвращал `userdb_*` поля (prefetch).
+**Симптом:** `auth failed` (без явной ошибки) при верном master-пароле.
+**Решение:** в SQL passdb добавить `userdb_home`, `userdb_uid`, `userdb_gid`, `userdb_quota_storage_size`.
+**Файлы:** `deploy/templates/dovecot/auth-sql.conf.ext`.
+**Коммит:** 5daa6d2.
+
+### БАГ-W47-DOVECOT-004 — /etc/dovecot/master-users: права
+
+**Проблема:** файл `master-users` должен быть читаем пользователем `dovecot` (uid 105). Права `0600 root:root` дают `Permission denied`.
+**Решение:** `chown root:dovecot`, `chmod 0640`.
+**Файлы:** `deploy/setup-mail.sh`.
+**Коммит:** 5daa6d2.
+
 10. КОСМЕТИКА
 Перенос toast в правый нижний угол
 Проблема: toast перекрывает шапку админки.
@@ -1062,8 +1135,23 @@ W34	Делегирование активов при удалении польз
 W2	Модели почты, User.mail_quota_bytes, шаблоны, setup-mail.sh	388b195
 W2	Единый пароль (Argon2id), Dovecot SQL, mail-сервис, квоты	3267db8
 W2	Админка — /admin/quotas/, домены, почта в пользователях	073c19b
+W47	Этап 1.1: cache/limiter в core/extensions	5c90982
+W47	Этап 1.2: модели MailUiState, MailSettings, RecentRecipient, SieveRule	690861c
+W47	Этап 1.2-1.3: модели + конфиг mail	2298f7d
+W47	Этап 1.4: миграция mail_ui_state и др.	085ded0
+W47	Этап 1.5: requirements (imapclient, bleach и др.)	b987539
+W47	header: переменная header_settings_url	d09d700
+W47	Этап 1.6: шаблоны и статика mail	8ce48f2
+W47	Этап 1.7: роуты mail (inbox, folder, message, settings)	9640609
+W47	Этап 2.1: imap_client.py	15522c1
+W47	Этап 2.2: интеграция IMAP в app.py	eab1bfb
+W47	Этап 2.2: кэш, стили, message_view	73bb77e
+W47	Этап 2.0: инфраструктура Dovecot master-user	5daa6d2
 14. СЛЕДУЮЩИЙ ШАГ
-Рекомендации:
+
+**Текущая задача: W47 — UI почты.** Идёт Этап 3 (полноценное чтение, вложения, ответы).
+
+Рекомендации (после W47 или параллельно):
 
 W40 — подготовка к боевому (HTTPS, сессии, поддомены).
 
