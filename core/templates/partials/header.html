@@ -9,6 +9,8 @@
    - header_logo_url         : URL логотипа сайта (только для 'site')
    - header_login_url        : URL для входа
    - header_logout_url       : URL для выхода
+   - header_settings_url     : URL настроек сервиса (W47, mail: /settings).
+                               Если не задан — иконка-шестерёнка не показывается.
    - header_is_cloud         : (устар.) — можно не задавать
    - header_is_mail          : (устар.) — можно не задавать
    ================================================================ #}
@@ -19,6 +21,7 @@
 {% set header_mail_url = header_mail_url|default(site_settings.mail_base_url if site_settings else '') %}
 {% set header_site_url = header_site_url|default(site_settings.site_base_url if site_settings else '') %}
 {% set header_admin_url = header_admin_url|default('') %}
+{% set header_settings_url = header_settings_url|default('') %}
 
 {% if not site_settings or site_settings.show_header %}
 <header class="site-header">
@@ -167,6 +170,15 @@
                             </a>
                             {% endif %}
                         {% endif %}
+                    {% endif %}
+
+                    {# --- W47: настройки сервиса (шестерёнка) --- #}
+                    {% if header_settings_url %}
+                    <a href="{{ header_settings_url }}"
+                       class="btn btn-site-outline btn-sm"
+                       title="Настройки">
+                        <i class="bi bi-gear"></i>
+                    </a>
                     {% endif %}
 
                     {# --- Выход --- #}
