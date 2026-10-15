@@ -14,7 +14,11 @@ pgsql 127.0.0.1 {
 # --- PassDB: проверка пароля (из User.password_hash, Argon2id) ---
 passdb sql {
   sql_driver = pgsql
-  passdb_sql_query = SELECT u.password_hash AS password \
+  passdb_sql_query = SELECT u.password_hash AS password, \
+    '/var/vmail/%{user | domain}/%{user | username}' AS userdb_home, \
+    5000 AS userdb_uid, \
+    5000 AS userdb_gid, \
+    (m.quota_bytes || 'B') AS userdb_quota_storage_size \
     FROM "user" u \
     JOIN mailbox m ON m.user_id = u.id \
     JOIN mail_domain d ON d.id = m.domain_id \
@@ -39,5 +43,12 @@ userdb sql {
       AND d.is_active = true
 }
 
+# --- W47: Master-user для mail-сервиса (Dovecot 2.4) ---
+# Формат входа: loginuser*masteruser (например, test@testprod2.local*master)
+passdb passwd-file {
+  passwd_file_path = /etc/dovecot/master-users
+  master = yes
+  result_success = continue
+}
 
 

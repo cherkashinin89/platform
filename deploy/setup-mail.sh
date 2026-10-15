@@ -177,3 +177,17 @@ echo "=== Фиксация версий пакетов ==="
 apt-mark hold postfix postfix-pgsql postfix-mta-sts-resolver \
     dovecot-core dovecot-imapd dovecot-pop3d dovecot-lmtpd dovecot-pgsql dovecot-sieve \
     rspamd
+
+# Генерация master-user для внутреннего API (W47)
+MASTER_PASSWORD=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
+HASH=$(doveadm pw -s ARGON2ID -p "$MASTER_PASSWORD")
+echo "master:$HASH" > /etc/dovecot/master-users
+chown root:dovecot /etc/dovecot/master-users
+chmod 0640 /etc/dovecot/master-users
+
+# Записать в .env (если ещё нет)
+ENV_FILE=/home/deploy/apps/platform/.env
+if [ -f "$ENV_FILE" ] && ! grep -q "^MAIL_MASTER_PASSWORD=" "$ENV_FILE"; then
+    echo "MAIL_MASTER_PASSWORD=$MASTER_PASSWORD" >> "$ENV_FILE"
+    echo "MAIL_MASTER_PASSWORD добавлен в $ENV_FILE"
+fi
