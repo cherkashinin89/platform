@@ -590,6 +590,155 @@ class Mailbox(db.Model):
     def __repr__(self):
         return f'<Mailbox {self.local_part}@{self.domain.name if self.domain else "?"}>'
 
+
+# ============================================================
+# W47: UI почты — состояние, настройки, получатели, правила
+# ============================================================
+
+class MailUiState(db.Model):
+    """
+    Состояние UI почты пользователя (W47).
+
+    Хранит: сортировку, фильтры, per_page.
+    Не хранит: последнюю папку (всегда INBOX), номер страницы (всегда 1).
+    """
+    __tablename__ = 'mail_ui_state'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey('user.id', ondelete='CASCADE'),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    user = db.relationship(
+        'User',
+        backref=db.backref('mail_ui_state', uselist=False, passive_deletes=True),
+    )
+
+    sort = db.Column(db.String(20), default='date', nullable=False)
+    dir = db.Column(db.String(5), default='desc', nullable=False)
+    filters = db.Column(db.JSON, nullable=True)
+    per_page = db.Column(db.Integer, default=50, nullable=False)
+
+    updated_at = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+    def __repr__(self):
+        return f'<MailUiState user={self.user_id}>'
+
+
+class MailSettings(db.Model):
+    """
+    Настройки почты пользователя (W47): подпись.
+    """
+    __tablename__ = 'mail_settings'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey('user.id', ondelete='CASCADE'),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    user = db.relationship(
+        'User',
+        backref=db.backref('mail_settings', uselist=False, passive_deletes=True),
+    )
+
+    signature = db.Column(db.Text, nullable=True)
+    signature_html = db.Column(db.Text, nullable=True)
+
+    updated_at = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+    def __repr__(self):
+        return f'<MailSettings user={self.user_id}>'
+
+
+class RecentRecipient(db.Model):
+    """
+    Недавние получатели для автодополнения (W47).
+
+    Лимит 200 записей на пользователя (контролируется в коде, не в БД).
+    """
+    __tablename__ = 'recent_recipient'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey('user.id', ondelete='CASCADE'),
+        nullable=False,
+        index=True,
+    )
+    user = db.relationship(
+        'User',
+        backref=db.backref('recent_recipients', lazy='dynamic', passive_deletes=True),
+    )
+
+    email = db.Column(db.String(255), nullable=False)
+    name = db.Column(db.String(255), nullable=True)
+
+    last_used = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+    use_count = db.Column(db.Integer, default=1, nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'email', name='uq_recent_recipient_user_email'),
+    )
+
+    def __repr__(self):
+        return f'<RecentRecipient user={self.user_id} {self.email}>'
+
+
+class SieveRule(db.Model):
+    """
+    Sieve-правило пользователя (W47).
+
+    conditions/actions — JSON. Формат — см. docs/tasks/W47.md.
+    """
+    __tablename__ = 'sieve_rule'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey('user.id', ondelete='CASCADE'),
+        nullable=False,
+        index=True,
+    )
+    user = db.relationship(
+        'User',
+        backref=db.backref('sieve_rules', lazy='dynamic', passive_deletes=True),
+    )
+
+    name = db.Column(db.String(200), nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    priority = db.Column(db.Integer, default=0, nullable=False)
+
+    conditions = db.Column(db.JSON, nullable=False)
+    actions = db.Column(db.JSON, nullable=False)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+    def __repr__(self):
+        return f'<SieveRule user={self.user_id} {self.name!r}>'
+
 # ============================================================
 # W3: реестр использования и аудит
 # ============================================================
