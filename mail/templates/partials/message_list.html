@@ -11,7 +11,7 @@
 #}
 {% set folder_current = folder_current|default('INBOX') %}
 {% set folder_title = folder_title|default('Входящие') %}
-{% set messages = messages|default([]) %}
+{% set current_uid = message.uid if message else None %}
 
 {# === Шапка списка: имя папки + кнопки действий === #}
 <div class="mail-list-header d-flex align-items-center justify-content-between px-3 py-2 border-bottom">
@@ -36,8 +36,9 @@
 
     {# Этап 3: цикл по письмам #}
     {% for msg in messages %}
-    <div class="mail-list-item {% if not msg.is_read %}is-unread{% endif %}"
-         data-uid="{{ msg.uid }}">
+    <a href="{{ url_for('message', uid=msg.uid, folder=folder_current) }}"
+       class="mail-list-item {% if not msg.is_read %}is-unread{% endif %} {% if current_uid == msg.uid %}is-active{% endif %}"
+       data-uid="{{ msg.uid }}">
         <div class="mail-list-checkbox">
             <input type="checkbox" class="form-check-input m-0">
         </div>
@@ -49,7 +50,7 @@
             <div class="mail-list-subject">{{ msg.subject or '(без темы)' }}</div>
         </div>
         <div class="mail-list-date">{{ msg.date_human or '' }}</div>
-    </div>
+    </a>
     {% endfor %}
 
 {% else %}

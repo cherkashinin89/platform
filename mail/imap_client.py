@@ -54,9 +54,8 @@ def _human_date(dt):
     if delta.days == 1:
         return 'вчера'
     if delta.days < 7:
-        # День недели
         weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
-        return weekdays[dt.weekday()]
+        return f'{weekdays[dt.weekday()]} {dt.strftime("%H:%M")}'
     return dt.strftime('%d.%m.%Y')
 
 

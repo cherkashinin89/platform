@@ -15,20 +15,28 @@
 <div class="mail-view-header">
     <div class="mail-view-subject">{{ message.subject or '(без темы)' }}</div>
     <div class="mail-view-meta">
-        <div>
-            <strong>От:</strong>
-            {{ message.from_name or '' }}
-            {% if message.from_email %}
-            &lt;{{ message.from_email }}&gt;
-            {% endif %}
+        <div class="mail-view-meta-row">
+            <span class="mail-view-meta-label">От:</span>
+            <span class="mail-view-meta-value">
+                {% if message.from_name %}{{ message.from_name }} {% endif %}
+                {% if message.from_email %}&lt;{{ message.from_email }}&gt;{% endif %}
+            </span>
         </div>
-        <div><strong>Кому:</strong> {{ message.to or '' }}</div>
+        <div class="mail-view-meta-row">
+            <span class="mail-view-meta-label">Кому:</span>
+            <span class="mail-view-meta-value">{{ message.to or '' }}</span>
+        </div>
         {% if message.cc %}
-        <div><strong>Копия:</strong> {{ message.cc }}</div>
+        <div class="mail-view-meta-row">
+            <span class="mail-view-meta-label">Копия:</span>
+            <span class="mail-view-meta-value">{{ message.cc }}</span>
+        </div>
         {% endif %}
-        <div class="mt-2">
-            <i class="bi bi-clock"></i>
-            {{ message.date_human or '' }}
+        <div class="mail-view-meta-row">
+            <span class="mail-view-meta-label"></span>
+            <span class="mail-view-meta-value text-muted">
+                <i class="bi bi-clock"></i> {{ message.date_human or '' }}
+            </span>
         </div>
     </div>
     <div class="mail-view-actions mt-3">

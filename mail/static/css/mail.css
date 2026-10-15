@@ -103,21 +103,32 @@
 /* === Список писем === */
 .mail-list-item {
     display: grid;
-    grid-template-columns: 20px 20px 1fr auto;
+    grid-template-columns: 24px 24px 1fr auto;
+    align-items: center;
     gap: 8px;
     padding: 10px 12px;
     border-bottom: 1px solid var(--mail-panel-border);
     cursor: pointer;
     font-size: 13px;
     transition: background 0.15s;
+    text-decoration: none;
+    color: inherit;
 }
 
 .mail-list-item:hover {
     background: var(--mail-bg-hover);
+    text-decoration: none;
+    color: inherit;
 }
 
 .mail-list-item.is-selected {
     background: var(--mail-bg-selected);
+}
+
+.mail-list-item.is-active {
+    background: var(--mail-bg-selected);
+    border-left: 3px solid var(--mail-accent);
+    padding-left: 9px;
 }
 
 .mail-list-item.is-unread .mail-list-from,
@@ -126,8 +137,37 @@
     color: var(--mail-text-unread);
 }
 
-.mail-list-from,
+.mail-list-checkbox,
+.mail-list-star {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 24px;
+}
+
+.mail-list-star .bi-star-fill {
+    color: #f59e0b;
+}
+
+.mail-list-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.mail-list-from {
+    font-size: 13px;
+    color: #374151;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .mail-list-subject {
+    font-size: 12px;
+    color: var(--mail-text-muted);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -137,17 +177,8 @@
     font-size: 11px;
     color: var(--mail-text-muted);
     white-space: nowrap;
-}
-
-.mail-list-checkbox,
-.mail-list-star {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.mail-list-star .bi-star-fill {
-    color: #f59e0b;
+    align-self: start;
+    padding-top: 2px;
 }
 
 /* === Просмотр письма === */
@@ -229,4 +260,22 @@
     .mail-panel-view {
         display: none;
     }
+}
+
+/* === W47: мета письма в правой панели === */
+.mail-view-meta-row {
+    display: grid;
+    grid-template-columns: 60px 1fr;
+    gap: 8px;
+    margin-bottom: 4px;
+    font-size: 13px;
+}
+
+.mail-view-meta-label {
+    color: var(--mail-text-muted);
+}
+
+.mail-view-meta-value {
+    color: #374151;
+    word-break: break-word;
 }
