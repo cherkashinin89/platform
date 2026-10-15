@@ -32,8 +32,15 @@ def get_metadata():
 
 # === Белый список таблиц, которые мигрирует mail ===
 MAIL_TABLES = {
+    # W2: почта
     'mail_domain',
     'mailbox',
+    # W47: UI почты
+    'mail_ui_state',
+    'mail_settings',
+    'recent_recipient',
+    'sieve_rule',
+    # Служебное
     'alembic_version_mail',
     # НЕ включаем: user, article, page, cloud_file и т.д. — это другие сервисы
 }
