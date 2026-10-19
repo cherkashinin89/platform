@@ -14,6 +14,7 @@ from email.utils import parsedate_to_datetime
 from flask import current_app
 from imapclient import IMAPClient
 from imapclient.exceptions import IMAPClientError
+from core.extensions import cache
 
 logger = logging.getLogger(__name__)
 
@@ -400,3 +401,103 @@ def _extract_body(msg):
             body_text = text
 
     return body_html, body_text, attachments
+
+# ============================================================
+# W47: квота через IMAP GETQUOTAROOT
+# ============================================================
+
+def get_quota(email):
+    """
+    Возвращает использование и лимит квоты через IMAP GETQUOTAROOT.
+    Быстрее, чем `doveadm quota get` (нет sudo, нет повторного Argon2).
+
+    Возвращает (used_bytes, limit_bytes, error):
+        - (used, limit, None) — успех.
+        - (None, None, 'error message') — ошибка.
+    """
+    import imaplib
+
+    cfg = current_app.config
+    host = cfg.get('MAIL_IMAP_HOST', '127.0.0.1')
+    port = cfg.get('MAIL_IMAP_PORT', 143)
+    master_user = cfg.get('MAIL_IMAP_MASTER_USER', 'master')
+    master_password = cfg.get('MAIL_IMAP_MASTER_PASSWORD', '')
+
+    if not master_password:
+        return None, None, 'MAIL_MASTER_PASSWORD не задан'
+
+    login = f'{email}*{master_user}'
+    client = None
+
+    try:
+        client = imaplib.IMAP4(host, port)
+        client.login(login, master_password)
+        typ, data = client.getquotaroot('INBOX')
+
+        if typ != 'OK' or not data:
+            return None, None, f'GETQUOTAROOT вернул {typ}'
+
+        # Ответ может быть вложенным списком:
+        #   [[b'INBOX "User quota"'], [b'"User quota" (STORAGE 3 1048576)']]
+        # Рекурсивно разворачиваем до плоского списка строк/байтов.
+        import re
+
+        def _flatten(items):
+            for item in items:
+                if isinstance(item, (list, tuple)):
+                    yield from _flatten(item)
+                else:
+                    yield item
+
+        for item in _flatten(data):
+            if not item:
+                continue
+            if isinstance(item, bytes):
+                item = item.decode('utf-8', errors='replace')
+            if not isinstance(item, str):
+                continue
+            m = re.search(r'STORAGE\s+(\d+)\s+(\d+)', item)
+            if m:
+                usage_kb = int(m.group(1))
+                limit_kb = int(m.group(2))
+                return usage_kb * 1024, limit_kb * 1024, None
+
+        return None, None, 'STORAGE не найден в ответе'
+
+    except imaplib.IMAP4.error as e:
+        logger.warning(f'get_quota IMAP error for {email}: {e}')
+        return None, None, f'IMAP: {e}'
+    except Exception as e:
+        logger.exception(f'get_quota failed for {email}')
+        return None, None, f'Ошибка: {e}'
+    finally:
+        if client:
+            try:
+                client.logout()
+            except Exception:
+                pass
+
+# ============================================================
+# W47: кэшированное чтение письма
+# ============================================================
+
+def get_message_cached(email, folder, uid):
+    """
+    Обёртка над get_message с кэшем тел (TTL 30 мин).
+
+    Возвращает (message_dict, cached: bool, error).
+    При ошибке: (None, False, 'текст ошибки').
+    """
+    cache_key = f'mail_msg_{email}_{folder}_{uid}'
+
+    cached_msg = cache.get(cache_key)
+    if cached_msg is not None:
+        return cached_msg, True, None
+
+    msg, err = get_message(email, folder, uid)
+    if err:
+        return None, False, err
+
+    # Кэшируем на 30 мин
+    cache.set(cache_key, msg, timeout=1800)
+    return msg, False, None

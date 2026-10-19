@@ -88,18 +88,22 @@ def create_app(config_class=Config):
         if not mailbox:
             return None, None
 
-    def _current_email():
-        """Email ящика текущего пользователя (или None)."""
-        mailbox = Mailbox.query.filter_by(user_id=current_user.id).first()
-        return mailbox.email if mailbox else None
-
         quota_used = 0
         quota_error = None
-        ok, q = get_quota(mailbox.email)
-        if ok:
-            quota_used = q.get('used_bytes', 0)
+
+        # Кэш квоты (60 сек) — GETQUOTAROOT через IMAP вместо doveadm
+        cache_key_quota = f'mail_quota_{mailbox.email}'
+        cached = cache.get(cache_key_quota)
+
+        if cached is not None:
+            quota_used = cached
         else:
-            quota_error = q
+            used, limit, err = imap_client.get_quota(mailbox.email)
+            if err:
+                quota_error = err
+            else:
+                quota_used = used
+                cache.set(cache_key_quota, used, timeout=60)
 
         quota_total = mailbox.quota_bytes or 0
         percent = round(quota_used / quota_total * 100, 1) if quota_total > 0 else 0
@@ -116,6 +120,11 @@ def create_app(config_class=Config):
             'last_login': mailbox.last_login,
         }
         return mailbox, info
+
+    def _current_email():
+        """Email ящика текущего пользователя (или None)."""
+        mailbox = Mailbox.query.filter_by(user_id=current_user.id).first()
+        return mailbox.email if mailbox else None
 
     # === W47 Этап 2: реальный IMAP ===
 
@@ -249,6 +258,46 @@ def create_app(config_class=Config):
             messages_total=messages_total,
             message=msg,
         )
+
+    @app.route('/api/message/<uid>')
+    @login_required
+    def api_message(uid):
+        """AJAX: возвращает HTML-фрагмент письма (панель 3)."""
+        email = _current_email()
+        if not email:
+            return jsonify({'ok': False, 'error': 'Нет ящика'}), 400
+
+        folder_name = request.args.get('folder', 'INBOX')
+
+        try:
+            uid_int = int(uid)
+        except ValueError:
+            return jsonify({'ok': False, 'error': 'Некорректный UID'}), 400
+
+        # === Письмо (с кэшем тел) ===
+        msg, was_cached, msg_error = imap_client.get_message_cached(
+            email, folder_name, uid_int
+        )
+        if msg_error:
+            return jsonify({'ok': False, 'error': msg_error}), 500
+
+        # === Инвалидация кэша заголовков ===
+        # После открытия письмо помечается \Seen — заголовок в списке устарел.
+        cache_key_msgs = f'mail_msgs_{email}_{folder_name}'
+        cache.delete(cache_key_msgs)
+
+        # === Рендер partial'а message_view ===
+        html = render_template(
+            'partials/message_view.html',
+            message=msg,
+        )
+
+        return jsonify({
+            'ok': True,
+            'html': html,
+            'uid': uid_int,
+            'cached': was_cached,
+        })
 
     @app.route('/compose')
     @login_required

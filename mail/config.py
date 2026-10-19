@@ -43,8 +43,9 @@ class Config(CoreConfig):
     MAIL_PER_PAGE_MAX = 100
 
     # === W47: кэш ===
-    # SimpleCache — потокобезопасный in-memory кэш (одна машина).
-    CACHE_TYPE = 'SimpleCache'
+    # FileSystemCache — шарится между Gunicorn-воркерами (2 шт).
+    CACHE_TYPE = 'FileSystemCache'
+    CACHE_DIR = '/tmp/mail_cache'
     CACHE_DEFAULT_TIMEOUT = 30
 
     # === W47: rate limit ===
