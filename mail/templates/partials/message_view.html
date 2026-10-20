@@ -55,6 +55,16 @@
     </div>
 </div>
 
+<div class="mail-view-body">
+    {% if message.body_html %}
+        {{ message.body_html|safe }}
+    {% elif message.body_text %}
+        <pre style="white-space: pre-wrap;">{{ message.body_text }}</pre>
+    {% else %}
+        <em class="text-muted">(пустое письмо)</em>
+    {% endif %}
+</div>
+
 {% if message.attachments %}
 <div class="mail-view-attachments">
     <div class="mail-attachments-title">

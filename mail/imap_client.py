@@ -309,13 +309,17 @@ def get_message(email, folder, uid):
 
         subject = ''
         # Ищем строку "Subject: ..." в сырых байтах (до первой пустой строки)
-        header_block = raw.split(b'\r\n\r\n', 1)[0]
-        match = re.search(rb'Subject:\s*(.+)', header_block, re.IGNORECASE)
+        # Разделитель заголовков — \r\n\r\n или \n\n (универсально)
+        if b'\r\n\r\n' in raw:
+            header_block = raw.split(b'\r\n\r\n', 1)[0]
+        else:
+            header_block = raw.split(b'\n\n', 1)[0]
+        match = re.search(rb'^Subject:\s*(.+)$', header_block, re.IGNORECASE | re.MULTILINE)
         if match:
             raw_subject_bytes = match.group(1).strip()
             # Если MIME-encoded (=?utf-8?...?=)
             if b'=?' in raw_subject_bytes:
-                decoded_parts = email.header.decode_header(raw_subject_bytes)
+                decoded_parts = email.header.decode_header(raw_subject_bytes.decode('utf-8', errors='replace'))
                 for part, charset in decoded_parts:
                     if isinstance(part, bytes):
                         subject += part.decode(charset or 'utf-8', errors='replace')
@@ -420,7 +424,7 @@ def _extract_body(msg):
         for part in msg.walk():
             ctype = part.get_content_type()
             cdisp = str(part.get('Content-Disposition') or '')
-
+            cte = part.get('Content-Transfer-Encoding')
             # Вложение
             if 'attachment' in cdisp:
                 # Имя из Content-Disposition или Content-Type
@@ -446,11 +450,15 @@ def _extract_body(msg):
 
             # Тело
             if ctype == 'text/html' and not body_html:
-                payload = part.get_payload(decode=True) or b''
+                payload = part.get_payload(decode=True)
+                if payload is None:
+                    payload = part.get_payload().encode('utf-8')
                 charset = part.get_content_charset() or 'utf-8'
                 body_html = payload.decode(charset, errors='replace')
             elif ctype == 'text/plain' and not body_text:
-                payload = part.get_payload(decode=True) or b''
+                payload = part.get_payload(decode=True)
+                if payload is None:
+                    payload = part.get_payload().encode('utf-8')
                 charset = part.get_content_charset() or 'utf-8'
                 body_text = payload.decode(charset, errors='replace')
     else:

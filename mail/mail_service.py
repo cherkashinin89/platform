@@ -175,3 +175,56 @@ def create_maildir(email):
         return False, f'Не удалось сменить права: {err}'
 
     return True, None
+
+def send_mail(from_addr, to_addrs, subject, body_html, body_text=None,
+              cc_addrs=None, bcc_addrs=None):
+    """
+    Отправляет письмо через локальный sendmail (Postfix).
+    Возвращает (ok, error_message).
+    """
+    import email.message
+    import email.utils
+    import re
+
+    if not body_html:
+        body_html = '<p></p>'  # fallback, чтобы не было пустого тела
+
+    # Формируем MIME-письмо
+    msg = email.message.EmailMessage()
+    msg['From'] = from_addr
+    msg['To'] = ', '.join(to_addrs)
+    if cc_addrs:
+        msg['Cc'] = ', '.join(cc_addrs)
+    msg['Subject'] = subject
+    msg['Date'] = email.utils.formatdate(localtime=True)
+    msg['Message-ID'] = email.utils.make_msgid(domain=from_addr.split('@')[-1])
+
+    # Тело: text/plain + text/html
+    plain = body_text if body_text else re.sub(r'<[^>]+>', '', body_html)
+    msg.set_content(plain)
+    msg.add_alternative(body_html, subtype='html')
+
+    # Все получатели (To + Cc + Bcc) — для отправки
+    all_recipients = list(to_addrs)
+    if cc_addrs:
+        all_recipients.extend(cc_addrs)
+    if bcc_addrs:
+        all_recipients.extend(bcc_addrs)
+
+    # Отправляем через sendmail -f <from> -t
+    sendmail_path = current_app.config.get('SENDMAIL', '/usr/sbin/sendmail')
+    try:
+        result = subprocess.run(
+            [sendmail_path, '-f', from_addr, '-t'],
+            input=msg.as_bytes(),
+            capture_output=True,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            err = result.stderr.decode('utf-8', errors='replace')
+            logger.error(f'sendmail failed: {err}')
+            return False, f'sendmail: {err}'
+        return True, None
+    except Exception as e:
+        logger.exception('send_mail failed')
+        return False, f'Ошибка отправки: {e}'

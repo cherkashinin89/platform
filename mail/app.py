@@ -545,10 +545,63 @@ def create_app(config_class=Config):
 
     @app.route('/compose/send', methods=['POST'])
     @login_required
+    @limiter.limit("100/hour")
     def compose_send():
-        """Отправка письма (пока заглушка — 4.2)."""
-        flash('Отправка пока не реализована (Этап 4.2)', 'info')
-        return redirect(url_for('compose'))
+        """Отправка письма через sendmail."""
+        email = _current_email()
+        if not email:
+            flash('У вас нет почтового ящика', 'danger')
+            return redirect(url_for('settings'))
+
+        # --- Поля формы ---
+        to_raw = (request.form.get('to') or '').strip()
+        cc_raw = (request.form.get('cc') or '').strip()
+        bcc_raw = (request.form.get('bcc') or '').strip()
+        subject = (request.form.get('subject') or '').strip()
+        body_html = request.form.get('body') or ''
+
+        # --- Валидация ---
+        import re
+        email_re = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+
+        to_list = [e.strip() for e in to_raw.split(',') if e.strip()]
+        cc_list = [e.strip() for e in cc_raw.split(',') if e.strip()]
+        bcc_list = [e.strip() for e in bcc_raw.split(',') if e.strip()]
+
+        if not to_list:
+            flash('Укажите получателя (Кому)', 'danger')
+            return redirect(url_for('compose'))
+
+        for addr in to_list + cc_list + bcc_list:
+            if not email_re.match(addr):
+                flash(f'Некорректный email: {addr}', 'danger')
+                return redirect(url_for('compose'))
+
+        # --- Проверка From (только свои адреса) ---
+        # У пользователя один ящик, поэтому from = email
+        from_addr = email
+
+        # --- Отправка ---
+        from mail_service import send_mail
+        ok, err = send_mail(
+            from_addr=from_addr,
+            to_addrs=to_list,
+            subject=subject,
+            body_html=body_html,
+            cc_addrs=cc_list or None,
+            bcc_addrs=bcc_list or None,
+        )
+
+        if not ok:
+            flash(f'Ошибка отправки: {err}', 'danger')
+            return redirect(url_for('compose'))
+
+        # --- Копия в Sent (IMAP APPEND) ---
+        # Пока пропускаем — сделаем в 4.3
+        # imap_client.append_to_sent(email, ...)
+
+        flash('Письмо отправлено', 'success')
+        return redirect(url_for('inbox'))
 
     return app
 
