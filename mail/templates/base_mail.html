@@ -25,6 +25,7 @@
 {# === Подключаем mail.css === #}
 {% block head_extra %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/mail.css') }}">
+<script src="{{ url_for('static', filename='vendor/tinymce/tinymce.min.js') }}"></script>
 {% block mail_head_extra %}{% endblock %}
 {% endblock %}
 

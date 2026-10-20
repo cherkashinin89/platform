@@ -375,18 +375,6 @@ def create_app(config_class=Config):
             }
         )
 
-    @app.route('/compose')
-    @login_required
-    def compose():
-        """Форма отправки. Этап 1: заглушка."""
-        return render_template(
-            'index.html',
-            folder_current='INBOX',
-            folder_title='Входящие',
-            messages=[],
-            message=None,
-        )
-
     @app.route('/settings')
     @login_required
     def settings():
@@ -544,6 +532,23 @@ def create_app(config_class=Config):
             return jsonify({'ok': False, 'error': result}), 500
 
         return jsonify({'ok': True, 'path': result})
+
+    @app.route('/compose', methods=['GET'])
+    @login_required
+    def compose():
+        """Форма написания письма."""
+        email = _current_email()
+        if not email:
+            flash('У вас нет почтового ящика', 'danger')
+            return redirect(url_for('settings'))
+        return render_template('compose.html')
+
+    @app.route('/compose/send', methods=['POST'])
+    @login_required
+    def compose_send():
+        """Отправка письма (пока заглушка — 4.2)."""
+        flash('Отправка пока не реализована (Этап 4.2)', 'info')
+        return redirect(url_for('compose'))
 
     return app
 

@@ -1,0 +1,77 @@
+{% extends "base_mail.html" %}
+
+{% block mail_title %}Написать письмо{% endblock %}
+
+{% block mail_folders %}
+    {# В compose левая панель — тоже папки, но неактивные #}
+    {% include 'partials/folder_list.html' %}
+{% endblock %}
+
+{% block mail_list %}
+<div class="mail-compose-list">
+    <div class="p-3 text-muted">
+        <i class="bi bi-pencil-square"></i> Новое письмо
+    </div>
+</div>
+{% endblock %}
+
+{% block mail_view %}
+<div class="mail-compose">
+
+    <div class="mail-compose-header">
+        <h4><i class="bi bi-pencil-square"></i> Новое письмо</h4>
+    </div>
+
+    <form id="composeForm" method="POST" action="{{ url_for('compose_send') }}"
+          enctype="multipart/form-data">
+
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="mail-compose-field">
+            <label for="composeTo">Кому:</label>
+            <input type="text" id="composeTo" name="to" class="form-control"
+                   placeholder="email@example.com" required>
+        </div>
+
+        <div class="mail-compose-field">
+            <label for="composeCc">Копия:</label>
+            <input type="text" id="composeCc" name="cc" class="form-control"
+                   placeholder="(необязательно)">
+        </div>
+
+        <div class="mail-compose-field">
+            <label for="composeBcc">Скрытая копия:</label>
+            <input type="text" id="composeBcc" name="bcc" class="form-control"
+                   placeholder="(необязательно)">
+        </div>
+
+        <div class="mail-compose-field">
+            <label for="composeSubject">Тема:</label>
+            <input type="text" id="composeSubject" name="subject" class="form-control"
+                   placeholder="Тема письма">
+        </div>
+
+        <div class="mail-compose-body">
+            <textarea id="composeBody" name="body"></textarea>
+        </div>
+
+        <div class="mail-compose-actions">
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-send"></i> Отправить
+            </button>
+            <button type="button" class="btn btn-outline-secondary" id="composeDraft">
+                <i class="bi bi-file-earmark"></i> Сохранить черновик
+            </button>
+            <a href="{{ url_for('inbox') }}" class="btn btn-outline-danger">
+                <i class="bi bi-x-lg"></i> Отмена
+            </a>
+        </div>
+
+    </form>
+
+</div>
+{% endblock %}
+
+{% block mail_scripts %}
+<script src="{{ url_for('static', filename='js/compose.js') }}"></script>
+{% endblock %}

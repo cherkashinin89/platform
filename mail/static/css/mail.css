@@ -379,3 +379,62 @@
     color: var(--mail-text-muted);
     font-size: 11px;
 }
+
+/* === Compose (форма написания письма) === */
+.mail-compose {
+    padding: 20px;
+    height: 100%;
+    overflow-y: auto;
+}
+
+.mail-compose-header {
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--mail-panel-border);
+}
+
+.mail-compose-header h4 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.mail-compose-field {
+    display: grid;
+    grid-template-columns: 90px 1fr;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--mail-panel-border);
+}
+
+.mail-compose-field label {
+    color: var(--mail-text-muted);
+    font-size: 13px;
+    margin: 0;
+}
+
+.mail-compose-field .form-control {
+    border: none;
+    box-shadow: none;
+    padding: 4px 0;
+    font-size: 14px;
+}
+
+.mail-compose-field .form-control:focus {
+    box-shadow: none;
+    border-bottom: 1px solid var(--mail-accent);
+    outline: none;
+}
+
+.mail-compose-body {
+    margin: 12px 0;
+}
+
+.mail-compose-actions {
+    display: flex;
+    gap: 8px;
+    padding-top: 12px;
+    border-top: 1px solid var(--mail-panel-border);
+}
