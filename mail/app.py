@@ -47,6 +47,27 @@ def create_app(config_class=Config):
     cache.init_app(app)
     limiter.init_app(app)
 
+    # === W47: CSP для защиты от XSS ===
+    @app.after_request
+    def add_security_headers(response):
+        # Только для mail-сервиса — CSP, запрещающий inline-скрипты
+        csp = (
+            "default-src 'self'; "
+            "img-src 'self' data: https:; "
+            "style-src 'self' 'unsafe-inline'; "  # inline-стили разрешены (письма)
+            "script-src 'self'; "                  # скрипты только локальные
+            "font-src 'self'; "
+            "connect-src 'self'; "
+            "frame-ancestors 'self'; "
+            "base-uri 'self'; "
+            "form-action 'self'; "
+        )
+        response.headers['Content-Security-Policy'] = csp
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        return response
+
     # Загрузчик пользователя
     @login_manager.user_loader
     def load_user(user_id):
@@ -298,6 +319,61 @@ def create_app(config_class=Config):
             'uid': uid_int,
             'cached': was_cached,
         })
+
+    @app.route('/api/attachment/<uid>/<int:index>')
+    @login_required
+    def api_attachment(uid, index):
+        """Скачивание вложения из письма."""
+        import base64
+        from flask import Response
+
+        email = _current_email()
+        if not email:
+            return jsonify({'ok': False, 'error': 'Нет ящика'}), 400
+
+        folder_name = request.args.get('folder', 'INBOX')
+
+        try:
+            uid_int = int(uid)
+        except ValueError:
+            return jsonify({'ok': False, 'error': 'Некорректный UID'}), 400
+
+        msg, was_cached, msg_error = imap_client.get_message_cached(
+            email, folder_name, uid_int
+        )
+        if msg_error:
+            return jsonify({'ok': False, 'error': msg_error}), 500
+
+        attachments = msg.get('attachments', [])
+        if index < 0 or index >= len(attachments):
+            return jsonify({'ok': False, 'error': 'Вложение не найдено'}), 404
+
+        att = attachments[index]
+        data_b64 = att.get('data_b64')
+        if not data_b64:
+            return jsonify({'ok': False, 'error': 'Нет данных вложения'}), 500
+
+        # Декодируем base64 → байты
+        try:
+            data = base64.b64decode(data_b64)
+        except Exception as e:
+            return jsonify({'ok': False, 'error': f'Ошибка декодирования: {e}'}), 500
+
+        filename = att.get('filename', 'file')
+        content_type = att.get('content_type', 'application/octet-stream')
+
+        # Экранируем имя файла для заголовка
+        from urllib.parse import quote
+        filename_encoded = quote(filename)
+
+        return Response(
+            data,
+            mimetype=content_type,
+            headers={
+                'Content-Disposition': f"attachment; filename*=UTF-8''{filename_encoded}",
+                'Content-Length': str(len(data)),
+            }
+        )
 
     @app.route('/compose')
     @login_required

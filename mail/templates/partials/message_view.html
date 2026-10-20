@@ -55,10 +55,29 @@
     </div>
 </div>
 
-<div class="mail-view-body">
-    {# Этап 3: body_html прогоняется через bleach #}
-    {{ message.body_html|safe if message.body_html else message.body_text }}
+{% if message.attachments %}
+<div class="mail-view-attachments">
+    <div class="mail-attachments-title">
+        <i class="bi bi-paperclip"></i>
+        Вложения ({{ message.attachments|length }})
+    </div>
+    {% for att in message.attachments %}
+    <a href="{{ url_for('api_attachment', uid=message.uid, index=loop.index0, folder=request.args.get('folder', 'INBOX')) }}"
+       class="mail-attachment-item"
+       download="{{ att.filename }}">
+        <i class="bi bi-file-earmark-arrow-down"></i>
+        <span class="mail-attachment-name">{{ att.filename }}</span>
+        <span class="mail-attachment-size">
+            {% if att.size < 1024 %}
+                {{ att.size }} Б
+            {% else %}
+                {{ (att.size / 1024) | round(1) }} КБ
+            {% endif %}
+        </span>
+    </a>
+    {% endfor %}
 </div>
+{% endif %}
 
 {% else %}
 

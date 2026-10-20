@@ -62,11 +62,7 @@ class UserForm(FlaskForm):
     # === Почта ===
     create_mailbox = BooleanField('Создать почтовый ящик', default=True)
     mail_domain_id = SelectField('Домен', coerce=int, validators=[Optional()])
-    mail_local_part = StringField('Адрес (до @)', validators=[
-        Optional(),
-        Length(max=255),
-        Regexp(r'^[a-z0-9._-]*$', message='Только строчные буквы, цифры, точки, дефисы, подчёркивания'),
-    ], description='Оставьте пустым — использовать имя пользователя.')
+
     mail_quota_gb = DecimalField('Квота, GB', places=2, validators=[
         Optional(),
         NumberRange(min=0.1, max=1000, message='От 0.1 до 1000 GB'),
@@ -85,13 +81,6 @@ class UserForm(FlaskForm):
         self.mail_domain_id.choices = [(0, '— выберите домен —')] + [
             (d.id, d.name) for d in domains
         ]
-
-    def validate_mail_local_part(self, field):
-        """Валидация local_part, если создаётся ящик."""
-        if self.create_mailbox.data and field.data:
-            # Простая проверка — начинается с буквы/цифры
-            if not field.data[0].isalnum():
-                raise ValidationError('Адрес должен начинаться с буквы или цифры')
 
 
 # === КОНТЕНТ ===

@@ -1692,8 +1692,8 @@ def create_app(config_class=Config):
                     flash('Домен не найден или неактивен', 'danger')
                     return render_template('admin/user_form.html', form=form, title='Создание пользователя')
 
-                # local_part: из формы или = username
-                mail_local_part = (form.mail_local_part.data or '').strip().lower() or form.username.data.lower()
+                # W58: local_part = username (поле из формы убрано)
+                mail_local_part = form.username.data.strip().lower()
 
                 # Проверка уникальности
                 existing_mb = Mailbox.query.filter_by(
@@ -1785,7 +1785,6 @@ def create_app(config_class=Config):
         if request.method == 'GET' and existing_mailbox:
             form.create_mailbox.data = True
             form.mail_domain_id.data = existing_mailbox.domain_id
-            form.mail_local_part.data = existing_mailbox.local_part
             form.mail_quota_gb.data = round(existing_mailbox.quota_bytes / 1024 / 1024 / 1024, 2)
 
         if form.validate_on_submit():
@@ -1844,7 +1843,8 @@ def create_app(config_class=Config):
                         mailbox=existing_mailbox,
                     )
 
-                mail_local_part = (form.mail_local_part.data or '').strip().lower() or form.username.data.lower()
+                # W58: local_part = username (поле из формы убрано)
+                mail_local_part = form.username.data.strip().lower()
 
                 # Проверка уникальности (кроме себя)
                 conflict = Mailbox.query.filter(

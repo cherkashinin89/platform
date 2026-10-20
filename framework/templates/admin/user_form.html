@@ -119,18 +119,6 @@
                         <div class="invalid-feedback">{{ e }}</div>
                         {% endfor %}
                     </div>
-
-                    <div class="col-md-6 mb-3">
-                        {{ form.mail_local_part.label(class="form-label") }}
-                        <div class="input-group">
-                            {{ form.mail_local_part(class="form-control" + (" is-invalid" if form.mail_local_part.errors else ""), placeholder="ivanov") }}
-                            <span class="input-group-text">@<span id="domain-suffix">домен</span></span>
-                        </div>
-                        {% for e in form.mail_local_part.errors %}
-                        <div class="invalid-feedback">{{ e }}</div>
-                        {% endfor %}
-                        <small class="text-muted">{{ form.mail_local_part.description }}</small>
-                    </div>
                 </div>
 
                 <div class="row">

@@ -7,6 +7,8 @@
 #
 # Возвращаемые объекты — простые dict'ы, готовые для шаблонов.
 import logging
+import bleach
+import mimetypes
 from datetime import datetime
 from email.header import decode_header, make_header
 from email.utils import parsedate_to_datetime
@@ -24,13 +26,37 @@ logger = logging.getLogger(__name__)
 # ============================================================
 
 def _decode_mime_header(value):
-    """Декодирует MIME-заголовок (RFC 2047) в строку."""
     if not value:
         return ''
     try:
-        return str(make_header(decode_header(value)))
+        # decode_header возвращает список (bytes|str, charset)
+        parts = decode_header(value)
+        decoded = []
+        for part, charset in parts:
+            if isinstance(part, bytes):
+                decoded.append(part.decode(charset or 'utf-8', errors='replace'))
+            else:
+                decoded.append(part)
+        return ''.join(decoded)
     except Exception:
-        return value
+        return str(value) if value else ''
+
+def _decode_mime_header_safe(value):
+    """Декодирует MIME-заголовок с обходом суррогатных символов."""
+    if not value:
+        return ''
+    if isinstance(value, str):
+        try:
+            raw_bytes = value.encode('utf-8', errors='surrogateescape')
+            decoded = raw_bytes.decode('utf-8', errors='replace')
+        except Exception:
+            decoded = value
+    else:
+        decoded = value
+
+    if '=?' in decoded:
+        return _decode_mime_header(decoded)
+    return decoded
 
 
 def _parse_date(value):
@@ -277,20 +303,47 @@ def get_message(email, folder, uid):
         from email import message_from_bytes
         msg = message_from_bytes(raw)
 
-        # Парсим тело и вложения
-        body_html, body_text, attachments = _extract_body(msg)
+        # W47: извлекаем Subject из сырых байтов (до парсинга email)
+        import re
+        import email.header
+
+        subject = ''
+        # Ищем строку "Subject: ..." в сырых байтах (до первой пустой строки)
+        header_block = raw.split(b'\r\n\r\n', 1)[0]
+        match = re.search(rb'Subject:\s*(.+)', header_block, re.IGNORECASE)
+        if match:
+            raw_subject_bytes = match.group(1).strip()
+            # Если MIME-encoded (=?utf-8?...?=)
+            if b'=?' in raw_subject_bytes:
+                decoded_parts = email.header.decode_header(raw_subject_bytes)
+                for part, charset in decoded_parts:
+                    if isinstance(part, bytes):
+                        subject += part.decode(charset or 'utf-8', errors='replace')
+                    else:
+                        subject += part
+            else:
+                # Иначе — просто UTF-8
+                subject = raw_subject_bytes.decode('utf-8', errors='replace')
+        else:
+            # Fallback: через email.Message
+            subject = _decode_mime_header(msg.get('Subject', ''))
+
+        # W47: нормализация строки (убираем суррогаты перед кэшированием)
+        subject = subject.encode('utf-8', errors='ignore').decode('utf-8')
 
         from_name, from_email_addr = _parse_from(msg.get('From', ''))
-        subject = _decode_mime_header(msg.get('Subject', ''))
         dt = _parse_date(msg.get('Date', ''))
+
+        # Парсим тело и вложения
+        body_html, body_text, attachments = _extract_body(msg)
 
         result = {
             'uid': uid,
             'subject': subject or '(без темы)',
             'from_name': from_name,
             'from_email': from_email_addr,
-            'to': _decode_mime_header(msg.get('To', '')),
-            'cc': _decode_mime_header(msg.get('Cc', '')),
+            'to': _decode_mime_header_safe(msg.get('To', '')),
+            'cc': _decode_mime_header_safe(msg.get('Cc', '')),
             'date': dt,
             'date_human': dt.strftime('%d.%m.%Y %H:%M') if dt else '',
             'body_html': body_html,
@@ -370,14 +423,24 @@ def _extract_body(msg):
 
             # Вложение
             if 'attachment' in cdisp:
+                # Имя из Content-Disposition или Content-Type
                 filename = part.get_filename()
+                if not filename:
+                    filename = part.get_param('name')
                 if filename:
                     filename = _decode_mime_header(filename)
+                else:
+                    # Fallback: file_<index>.<ext>
+                    ext = mimetypes.guess_extension(ctype) or ''
+                    filename = f'file{ext}'
+
                 payload = part.get_payload(decode=True) or b''
+                import base64
                 attachments.append({
-                    'filename': filename or 'file',
+                    'filename': filename,
                     'content_type': ctype,
                     'size': len(payload),
+                    'data_b64': base64.b64encode(payload).decode('ascii'),
                 })
                 continue
 
@@ -399,6 +462,42 @@ def _extract_body(msg):
             body_html = text
         else:
             body_text = text
+
+    # === W47: санитизация HTML через bleach ===
+    if body_html:
+        allowed_tags = [
+            'a', 'abbr', 'acronym', 'b', 'blockquote', 'br', 'code', 'dd', 'del',
+            'div', 'dl', 'dt', 'em', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+            'hr', 'i', 'img', 'ins', 'kbd', 'li', 'ol', 'p', 'pre', 'q',
+            's', 'samp', 'small', 'span', 'strike', 'strong', 'sub', 'sup',
+            'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr', 'tt', 'u', 'ul',
+        ]
+        allowed_attrs = {
+            '*': ['class', 'style', 'id', 'align', 'valign', 'width', 'height'],
+            'a': ['href', 'title', 'target', 'rel'],
+            'img': ['src', 'alt', 'title', 'width', 'height'],
+            'table': ['border', 'cellpadding', 'cellspacing', 'width', 'style'],
+            'td': ['colspan', 'rowspan', 'width', 'valign', 'align', 'style'],
+            'th': ['colspan', 'rowspan', 'width', 'valign', 'align', 'style'],
+        }
+        allowed_protocols = ['http', 'https', 'mailto', 'cid', 'data']
+        body_html = bleach.clean(
+            body_html,
+            tags=allowed_tags,
+            attributes=allowed_attrs,
+            protocols=allowed_protocols,
+            strip=True,
+        )
+        # Принудительно: ссылки — target="_blank" rel="noopener noreferrer"
+        def _add_link_attrs(attrs, new=False):
+            attrs[(None, 'target')] = '_blank'
+            attrs[(None, 'rel')] = 'noopener noreferrer'
+            return attrs
+
+        body_html = bleach.linkify(
+            body_html,
+            callbacks=[_add_link_attrs],
+        )
 
     return body_html, body_text, attachments
 

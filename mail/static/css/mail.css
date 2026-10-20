@@ -331,3 +331,51 @@
     margin-bottom: 12px;
     opacity: 0.6;
 }
+
+/* === Вложения письма === */
+.mail-view-attachments {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--mail-panel-border);
+}
+
+.mail-attachments-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--mail-text-muted);
+    margin-bottom: 8px;
+}
+
+.mail-attachment-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    margin-bottom: 6px;
+    background: var(--mail-bg-hover);
+    border: 1px solid var(--mail-panel-border);
+    border-radius: 6px;
+    font-size: 13px;
+    text-decoration: none;
+    color: #374151;
+    transition: background 0.15s;
+}
+
+.mail-attachment-item:hover {
+    background: var(--mail-bg-selected);
+    text-decoration: none;
+    color: #111827;
+}
+
+.mail-attachment-name {
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mail-attachment-size {
+    flex: 0 0 auto;
+    color: var(--mail-text-muted);
+    font-size: 11px;
+}
