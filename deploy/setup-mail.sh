@@ -142,7 +142,7 @@ install -o root -g root -m 0644 "$tmp" /etc/dovecot/conf.d/10-mail.conf
 rm -f "$tmp"
 
 # Остальные без параметров — просто копируем
-for f in 10-auth.conf 10-master.conf 10-ssl.conf 20-lmtp.conf dovecot.conf; do
+for f in 10-auth.conf 10-master.conf 10-ssl.conf 15-mailboxes.conf 20-lmtp.conf 90-quota.conf dovecot.conf; do
     install -o root -g root -m 0644 "$TEMPLATES_DIR/dovecot/$f" "/etc/dovecot/conf.d/$f"
 done
 

@@ -1,9 +1,9 @@
 markdown
 # SPEC — единый источник правды по проекту platform
 
-**Версия:** v2
-**Дата:** 2026-10-16
-**Статус:** W47 (UI почты) — в работе, Этапы 1–2 завершены. W2 завершён.
+**Версия:** v3
+**Дата:** 2026-10-23
+**Статус:** W47 (UI почты) — в работе, Этапы 1–4 завершены. W2 завершён. Идёт Этап 5 (Sieve).
 
 ---
 
@@ -187,8 +187,13 @@ text
 ├── mail/ ← почта (Flask-сервис)
 │ ├── app.py
 │ ├── config.py
-│ ├── mail_service.py ← doveadm, systemctl, archive
+│ ├── mail_service.py ← doveadm, systemctl, archive, send_mail
+│ ├── imap_client.py ← IMAP-обёртка (master-user, папки, письма, кэш)
 │ ├── wsgi.py
+│ ├── static/
+│ │ ├── css/mail.css
+│ │ ├── js/{mail.js, compose.js}
+│ │ └── vendor/tinymce/
 │ ├── requirements.txt
 │ ├── venv/
 │ ├── migrations/
@@ -199,8 +204,15 @@ text
 │ │ └── 2d9755b81350_initial_mail_schema_mail_domain_mailbox.py
 │ └── templates/
 │ ├── base.html
-│ ├── index.html ← главная (карточка ящика)
-│ └── change_password.html
+│ ├── base_mail.html ← трёхпанельный layout
+│ ├── index.html ← INBOX
+│ ├── compose.html ← форма написания
+│ ├── settings.html ← настройки
+│ ├── change_password.html
+│ └── partials/
+│ ├── folder_list.html
+│ ├── message_list.html
+│ └── message_view.html
 │
 ├── docs/
 │ ├── SPEC.md ← ЭТОТ ФАЙЛ (единый источник правды)
@@ -634,17 +646,35 @@ Mailbox.password_hash — legacy-поле, не используется (см. 
 - Кэш: список писем 30 сек, папки 60 сек (`SimpleCache`).
 - UI: кликабельные письма, просмотр письма, стили `mail.css`.
 
+**Этап 3 — Чтение и просмотр:**
+- `imap_client.py`: кэш тел (`get_message_cached`, TTL 30 мин), `get_quota` через IMAP `GETQUOTAROOT` (вместо `doveadm`).
+- AJAX-загрузка письма: `/api/message/<uid>` (возвращает HTML-фрагмент), спиннер в панели 3.
+- `mail.js`: перехват кликов, `history.pushState`, спиннер.
+- **Bleach + CSP** для безопасности HTML-писем (`imap_client._extract_body`).
+- **Вложения**: скачивание (`/api/attachment/<uid>/<index>`), список в `message_view.html`.
+- **Фиксы кодировки**: многострочный `Subject`, суррогатные символы (нормализация через `encode('utf-8', errors='ignore')`).
+- **Dovecot**: `imap_quota` в `20-imap.conf`, `driver = count` в `90-quota.conf`, `auto = subscribe` для `Sent`, `Drafts`, `Junk`, `Trash` (папки создаются автоматически).
+- **Кэш**: `FileSystemCache` (`/tmp/mail_cache`) — шарится между Gunicorn-воркерами.
+
+**Этап 4 — Отправка:**
+- Форма `compose` (TinyMCE 7, `license_key: 'gpl'`), поля To, Cc, Bcc, Subject, Body.
+- Отправка через `sendmail -f <from> -t` (Postfix).
+- **Копия в Sent** (IMAP APPEND).
+- **Автодополнение** получателей (`RecentRecipient`), эндпоинт `/api/recipients?q=...`.
+- **Ответы / пересылка**: `/compose?reply=<uid>&mode=reply|reply_all|forward`, заполнение формы цитатой.
+- **Черновики**: автосохранение (`/api/draft`, IMAP APPEND в `Drafts`), кнопка «Сохранить черновик», `beforeunload`.
+- **Вложения**: приём файлов (до 30 МБ), `send_mail` собирает MIME с вложениями, отображение в `compose.html`.
+
 **Ограничения:**
-- Вложения (скачивание) — ещё нет (Этап 3).
-- Отправка, ответы, пересылка — ещё нет (Этап 4).
 - Sieve-правила — ещё нет (Этап 5).
 - Обработка ошибок структурированная (`ErrorLog`) — Этап 8.
+- Иконки файлов по расширению — Этап 9 (полировка).
 - Dovecot 2.4 — специфичный синтаксис конфигов (см. БАГ-W47-DOVECOT-*).
 
 **Коммиты:** 5c90982, 690861c, 2298f7d, 085ded0, b987539, d09d700, 8ce48f2, 9640609, 15522c1, eab1bfb, 73bb77e, 5daa6d2.
 
 6. В РАБОТЕ
-W47 — UI почты (Этап 3: полноценное чтение, вложения, ответы).
+W47 — UI почты (Этап 5: Sieve-правила).
 
 7. ЗАПЛАНИРОВАНО
 7.1. W25 — Рефакторинг альбомов
@@ -789,7 +819,7 @@ Cron / systemd timer.
 
 **Цель:** полноценный веб-интерфейс для работы с почтой.
 
-**Статус:** 🔄 в работе. Этапы 1–2 завершены (каркас + IMAP-интеграция). См. раздел 5.9.
+**Статус:** 🔄 в работе. Этапы 1–4 завершены (каркас, IMAP, чтение, отправка). Идёт Этап 5 (Sieve). См. раздел 5.9.
 
 **Что входит:**
 - Чтение, отправка, ответы, пересылка.
@@ -1007,6 +1037,34 @@ text
 **Файлы:** `deploy/setup-mail.sh`.
 **Коммит:** 5daa6d2.
 
+### БАГ-W47-SUBJECT-001 — многострочный Subject (MIME)
+
+**Проблема:** `Subject:` может быть разбит на несколько строк (`=?utf-8?...?=`). Regex `^Subject:\s*(.+)$` захватывал только первую строку.
+**Симптом:** тема обрезана (`Проверка копии в отпра`).
+**Решение:** regex `^Subject:\s*(.+?)(?=\r?\n\S)` с `re.DOTALL`.
+**Файлы:** `mail/imap_client.py`.
+
+### БАГ-W47-ENCODING-001 — суррогатные символы в кэше
+
+**Проблема:** `FileSystemCache` (pickle) не сериализует строки с суррогатными символами (`\udcd0`).
+**Симптом:** ромбики (`����������`) при повторном открытии письма из кэша.
+**Решение:** нормализация `subject.encode('utf-8', errors='ignore').decode('utf-8')` перед кэшированием.
+**Файлы:** `mail/imap_client.py`.
+
+### БАГ-W47-THREAD-001 — кэш и Gunicorn-воркеры
+
+**Проблема:** `SimpleCache` не шарится между 2 воркерами Gunicorn.
+**Симптом:** «не всегда быстро» — 50% запросов попадали в воркер с пустым кэшем.
+**Решение:** `FileSystemCache` (`CACHE_TYPE = 'FileSystemCache'`, `CACHE_DIR = '/tmp/mail_cache'`).
+**Файлы:** `mail/config.py`.
+
+### БАГ-W47-MAILBOX-001 — `Mailbox doesn't exist: Sent / Drafts`
+
+**Проблема:** Dovecot 2.4 не создаёт системные папки автоматически.
+**Симптом:** `select failed: [NONEXISTENT] Mailbox doesn't exist: Sent`.
+**Решение:** `auto = subscribe` для `Sent`, `Drafts`, `Junk`, `Trash` в `15-mailboxes.conf`.
+**Файлы:** `deploy/templates/dovecot/15-mailboxes.conf`.
+
 10. КОСМЕТИКА
 Перенос toast в правый нижний угол
 Проблема: toast перекрывает шапку админки.
@@ -1147,9 +1205,21 @@ W47	Этап 2.1: imap_client.py	15522c1
 W47	Этап 2.2: интеграция IMAP в app.py	eab1bfb
 W47	Этап 2.2: кэш, стили, message_view	73bb77e
 W47	Этап 2.0: инфраструктура Dovecot master-user	5daa6d2
+W47	Этап 3: AJAX-загрузка письма с кэшем тел	<коммит>
+W47	Этап 3: bleach + CSP	<коммит>
+W47	Этап 3: вложения (скачивание)	<коммит>
+W47	Этап 3: фиксы кодировки (Subject, суррогаты)	<коммит>
+W47	Этап 3: FileSystemCache (шарится между воркерами)	<коммит>
+W47	Этап 4.1: форма compose + TinyMCE	<коммит>
+W47	Этап 4.2: отправка через sendmail	<коммит>
+W47	Этап 4.3: копия в Sent	<коммит>
+W47	Этап 4.4: автодополнение получателей	<коммит>
+W47	Этап 4.5: ответы / пересылка	<коммит>
+W47	Этап 4.6: автосохранение черновиков	<коммит>
+W47	Этап 4.7: вложения в compose	<коммит>
 14. СЛЕДУЮЩИЙ ШАГ
 
-**Текущая задача: W47 — UI почты.** Идёт Этап 3 (полноценное чтение, вложения, ответы).
+**Текущая задача: W47 — UI почты.** Идёт Этап 5 (Sieve-правила).
 
 Рекомендации (после W47 или параллельно):
 
