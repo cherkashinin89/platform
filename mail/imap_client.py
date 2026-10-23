@@ -630,3 +630,23 @@ def append_to_sent(email, raw_message):
         return False, f'Ошибка APPEND: {e}'
     finally:
         _safe_close(client)
+
+def append_to_drafts(email, raw_message):
+    """
+    Сохраняет черновик в папку Drafts через IMAP APPEND.
+    raw_message — сырые байты письма (MIME).
+    Возвращает (ok, error).
+    """
+    client, err = _make_client(email)
+    if err:
+        return False, err
+
+    try:
+        folder = 'Drafts'
+        client.append(folder, raw_message, flags=[b'\\Draft'])
+        return True, None
+    except Exception as e:
+        logger.exception(f'append_to_drafts failed for {email}')
+        return False, f'Ошибка APPEND в Drafts: {e}'
+    finally:
+        _safe_close(client)

@@ -1,12 +1,13 @@
 /* ============================================================
-   W47: Compose — инициализация TinyMCE и автодополнение.
+   W47: Compose — TinyMCE, автодополнение, автосохранение.
    ============================================================ */
 
 (function () {
     'use strict';
 
     document.addEventListener('DOMContentLoaded', function () {
-        // === TinyMCE ===
+
+        // === 1. TinyMCE ===
         if (typeof tinymce !== 'undefined') {
             tinymce.init({
                 selector: '#composeBody',
@@ -33,9 +34,8 @@
             console.error('[compose] TinyMCE не загружен');
         }
 
-        // === Автодополнение получателей ===
+        // === 2. Автодополнение получателей ===
         const inputs = ['composeTo', 'composeCc', 'composeBcc'];
-
         inputs.forEach(id => {
             const input = document.getElementById(id);
             if (!input) return;
@@ -82,9 +82,7 @@
                             });
                             dropdown.style.display = 'block';
                         })
-                        .catch(() => {
-                            dropdown.style.display = 'none';
-                        });
+                        .catch(() => { dropdown.style.display = 'none'; });
                 }, 200);
             });
 
@@ -94,6 +92,82 @@
                 }
             });
         });
+
+        // === 3. Автосохранение черновика ===
+        const draftForm = document.getElementById('composeForm');
+        let dirty = false;
+
+        function saveDraft() {
+            const to = document.getElementById('composeTo').value;
+            const subject = document.getElementById('composeSubject').value;
+            let body = '';
+
+            if (typeof tinymce !== 'undefined') {
+                const editor = tinymce.get('composeBody');
+                if (editor) body = editor.getContent();
+            }
+            if (!body) {
+                body = document.getElementById('composeBody').value;
+            }
+
+            if (!to && !subject && !body) return;
+
+            // CSRF-токен из формы
+            const csrfInput = document.querySelector('input[name="csrf_token"]');
+            const csrfToken = csrfInput ? csrfInput.value : '';
+
+            fetch('/api/draft', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': csrfToken,
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({ to: to, subject: subject, body: body }),
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.ok) {
+                    dirty = false;
+                    console.log('[compose] черновик сохранён');
+                } else {
+                    console.warn('[compose] ошибка сохранения черновика:', data.error);
+                }
+            })
+            .catch(err => {
+                console.warn('[compose] ошибка сети при сохранении черновика:', err);
+            });
+        }
+
+        if (draftForm) {
+            // Отслеживаем изменения
+            ['composeTo', 'composeCc', 'composeBcc', 'composeSubject'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.addEventListener('input', () => { dirty = true; });
+            });
+
+            if (typeof tinymce !== 'undefined') {
+                tinymce.on('AddEditor', function (e) {
+                    e.editor.on('input change undo redo', () => { dirty = true; });
+                });
+            }
+
+            // Автосохранение каждые 30 сек
+            setInterval(() => { if (dirty) saveDraft(); }, 30000);
+
+            // При закрытии
+            window.addEventListener('beforeunload', () => { if (dirty) saveDraft(); });
+
+            // Кнопка "Сохранить черновик"
+            const draftBtn = document.getElementById('composeDraft');
+            if (draftBtn) {
+                draftBtn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    saveDraft();
+                });
+            }
+        }
 
         console.log('[compose] init complete');
     });

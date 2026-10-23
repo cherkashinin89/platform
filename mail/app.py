@@ -398,6 +398,44 @@ def create_app(config_class=Config):
             ],
         })
 
+    @app.route('/api/draft', methods=['POST'])
+    @login_required
+    def api_draft():
+        """Сохранение черновика в папку Drafts (IMAP APPEND)."""
+        email = _current_email()
+        if not email:
+            return jsonify({'ok': False, 'error': 'Нет ящика'}), 400
+
+        data = request.get_json(silent=True) or {}
+        to_addr = (data.get('to') or '').strip()
+        subject = (data.get('subject') or '').strip()
+        body = data.get('body') or ''
+
+        if not to_addr and not subject and not body:
+            return jsonify({'ok': False, 'error': 'Пустой черновик'}), 400
+
+        # Формируем MIME-письмо для черновика
+        from email.message import EmailMessage
+        from email.utils import formatdate, make_msgid
+
+        msg = EmailMessage()
+        msg['From'] = email
+        msg['To'] = to_addr or '(без получателя)'
+        msg['Subject'] = subject or '(без темы)'
+        msg['Date'] = formatdate(localtime=True)
+        msg['Message-ID'] = make_msgid(domain=email.split('@')[-1])
+
+        # Тело — HTML
+        msg.set_content(body or '')
+        msg.add_alternative(body or '', subtype='html')
+
+        # Сохраняем в Drafts
+        ok, err = imap_client.append_to_drafts(email, msg.as_bytes())
+        if not ok:
+            return jsonify({'ok': False, 'error': err}), 500
+
+        return jsonify({'ok': True})
+
     @app.route('/settings')
     @login_required
     def settings():
