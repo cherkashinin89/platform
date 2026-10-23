@@ -559,12 +559,65 @@ def create_app(config_class=Config):
     @app.route('/compose', methods=['GET'])
     @login_required
     def compose():
-        """Форма написания письма."""
+        """Форма написания письма (с поддержкой reply/forward)."""
         email = _current_email()
         if not email:
             flash('У вас нет почтового ящика', 'danger')
             return redirect(url_for('settings'))
-        return render_template('compose.html')
+
+        # Параметры для reply/forward
+        reply_uid = request.args.get('reply')
+        forward_uid = request.args.get('forward')
+        folder = request.args.get('folder', 'INBOX')
+        mode = request.args.get('mode', '')
+
+        # Контекст для шаблона (по умолчанию — пустая форма)
+        ctx = {
+            'prefill_to': '',
+            'prefill_cc': '',
+            'prefill_subject': '',
+            'prefill_body': '',
+        }
+
+        # Если reply или forward — подгружаем письмо
+        if reply_uid or forward_uid:
+            uid = int(reply_uid or forward_uid)
+            msg, err = imap_client.get_message(email, folder, uid)
+            if err:
+                flash(f'Не удалось загрузить письмо: {err}', 'danger')
+            else:
+                from_addr = msg.get('from_email', '')
+                subject = msg.get('subject', '')
+                body_html = msg.get('body_html', '') or msg.get('body_text', '')
+
+                if mode in ('reply', 'reply_all'):
+                    ctx['prefill_to'] = from_addr
+                    ctx['prefill_subject'] = f'Re: {subject}' if not subject.startswith('Re:') else subject
+                    ctx['prefill_body'] = (
+                        f'<br><br>--- Исходное сообщение ---<br>'
+                        f'<b>От:</b> {from_addr}<br>'
+                        f'<b>Тема:</b> {subject}<br>'
+                        f'<blockquote>{body_html}</blockquote>'
+                    )
+                    if mode == 'reply_all':
+                        # To: отправитель + все получатели (кроме себя)
+                        to_list = [from_addr]
+                        # Можно добавить To из оригинала, если нужно
+                        ctx['prefill_to'] = ', '.join(to_list)
+                        # Cc: остальные (кроме from_addr и себя)
+                        ctx['prefill_cc'] = ''  # упрощённо
+
+                elif mode == 'forward':
+                    ctx['prefill_to'] = ''
+                    ctx['prefill_subject'] = f'Fwd: {subject}' if not subject.startswith('Fwd:') else subject
+                    ctx['prefill_body'] = (
+                        f'<br><br>--- Пересылаемое сообщение ---<br>'
+                        f'<b>От:</b> {from_addr}<br>'
+                        f'<b>Тема:</b> {subject}<br>'
+                        f'<blockquote>{body_html}</blockquote>'
+                    )
+
+        return render_template('compose.html', **ctx)
 
     @app.route('/compose/send', methods=['POST'])
     @login_required

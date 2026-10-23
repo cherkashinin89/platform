@@ -40,15 +40,18 @@
         </div>
     </div>
     <div class="mail-view-actions mt-3">
-        <button type="button" class="btn btn-sm btn-primary">
+        <a href="{{ url_for('compose', reply=message.uid, folder=request.args.get('folder', 'INBOX'), mode='reply') }}"
+           class="btn btn-sm btn-primary">
             <i class="bi bi-reply"></i> Ответить
-        </button>
-        <button type="button" class="btn btn-sm btn-outline-secondary">
+        </a>
+        <a href="{{ url_for('compose', reply=message.uid, folder=request.args.get('folder', 'INBOX'), mode='reply_all') }}"
+           class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-reply-all"></i> Ответить всем
-        </button>
-        <button type="button" class="btn btn-sm btn-outline-secondary">
+        </a>
+        <a href="{{ url_for('compose', forward=message.uid, folder=request.args.get('folder', 'INBOX'), mode='forward') }}"
+           class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-forward"></i> Переслать
-        </button>
+        </a>
         <button type="button" class="btn btn-sm btn-outline-danger">
             <i class="bi bi-trash"></i> Удалить
         </button>

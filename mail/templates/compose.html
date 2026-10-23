@@ -30,13 +30,15 @@
         <div class="mail-compose-field">
             <label for="composeTo">Кому:</label>
             <input type="text" id="composeTo" name="to" class="form-control"
-                   placeholder="email@example.com" required>
+                   placeholder="email@example.com" required
+                   value="{{ prefill_to or '' }}">
         </div>
 
         <div class="mail-compose-field">
             <label for="composeCc">Копия:</label>
             <input type="text" id="composeCc" name="cc" class="form-control"
-                   placeholder="(необязательно)">
+                   placeholder="(необязательно)"
+                   value="{{ prefill_cc or '' }}">
         </div>
 
         <div class="mail-compose-field">
@@ -48,11 +50,12 @@
         <div class="mail-compose-field">
             <label for="composeSubject">Тема:</label>
             <input type="text" id="composeSubject" name="subject" class="form-control"
-                   placeholder="Тема письма">
+                   placeholder="Тема письма"
+                   value="{{ prefill_subject or '' }}">
         </div>
 
         <div class="mail-compose-body">
-            <textarea id="composeBody" name="body"></textarea>
+            <textarea id="composeBody" name="body">{{ prefill_body or '' }}</textarea>
         </div>
 
         <div class="mail-compose-actions">

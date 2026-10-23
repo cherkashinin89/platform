@@ -20,6 +20,14 @@
                 convert_urls: false,
                 branding: false,
                 language: 'ru',
+                setup: function (editor) {
+                    editor.on('init', function () {
+                        const initialBody = document.getElementById('composeBody').value;
+                        if (initialBody) {
+                            editor.setContent(initialBody);
+                        }
+                    });
+                },
             });
         } else {
             console.error('[compose] TinyMCE не загружен');
