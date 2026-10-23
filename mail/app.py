@@ -375,6 +375,29 @@ def create_app(config_class=Config):
             }
         )
 
+    @app.route('/api/recipients')
+    @login_required
+    def api_recipients():
+        """Поиск получателей для автодополнения (по RecentRecipient)."""
+        from core.models import RecentRecipient
+        q = (request.args.get('q') or '').strip().lower()
+
+        query = RecentRecipient.query.filter_by(user_id=current_user.id)
+        if q:
+            query = query.filter(RecentRecipient.email.ilike(f'%{q}%'))
+        recipients = query.order_by(
+            RecentRecipient.use_count.desc(),
+            RecentRecipient.last_used.desc(),
+        ).limit(10).all()
+
+        return jsonify({
+            'ok': True,
+            'items': [
+                {'email': r.email, 'name': r.name or ''}
+                for r in recipients
+            ],
+        })
+
     @app.route('/settings')
     @login_required
     def settings():
@@ -583,7 +606,7 @@ def create_app(config_class=Config):
 
         # --- Отправка ---
         from mail_service import send_mail
-        ok, err = send_mail(
+        ok, err, raw_message = send_mail(
             from_addr=from_addr,
             to_addrs=to_list,
             subject=subject,
@@ -597,9 +620,34 @@ def create_app(config_class=Config):
             return redirect(url_for('compose'))
 
         # --- Копия в Sent (IMAP APPEND) ---
-        # Пока пропускаем — сделаем в 4.3
-        # imap_client.append_to_sent(email, ...)
-
+        if raw_message:
+            append_ok, append_err = imap_client.append_to_sent(email, raw_message)
+            if not append_ok:
+                current_app.logger.warning(f'append_to_sent failed: {append_err}')
+                # не критично — письмо ушло, просто копии нет
+        # --- Сохранить получателей в RecentRecipient ---
+        try:
+            from core.models import RecentRecipient
+            from datetime import datetime
+            all_recipients = to_list + (cc_list or []) + (bcc_list or [])
+            for addr in all_recipients:
+                existing = RecentRecipient.query.filter_by(
+                    user_id=current_user.id, email=addr
+                ).first()
+                if existing:
+                    existing.use_count += 1
+                    existing.last_used = datetime.utcnow()
+                else:
+                    db.session.add(RecentRecipient(
+                        user_id=current_user.id,
+                        email=addr,
+                        last_used=datetime.utcnow(),
+                        use_count=1,
+                    ))
+            db.session.commit()
+        except Exception as e:
+            current_app.logger.warning(f'RecentRecipient save failed: {e}')
+            db.session.rollback()
         flash('Письмо отправлено', 'success')
         return redirect(url_for('inbox'))
 

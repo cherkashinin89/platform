@@ -314,7 +314,7 @@ def get_message(email, folder, uid):
             header_block = raw.split(b'\r\n\r\n', 1)[0]
         else:
             header_block = raw.split(b'\n\n', 1)[0]
-        match = re.search(rb'^Subject:\s*(.+)$', header_block, re.IGNORECASE | re.MULTILINE)
+        match = re.search(rb'^Subject:\s*(.+?)(?=\r?\n\S)', header_block, re.IGNORECASE | re.MULTILINE | re.DOTALL)
         if match:
             raw_subject_bytes = match.group(1).strip()
             # Если MIME-encoded (=?utf-8?...?=)
@@ -608,3 +608,25 @@ def get_message_cached(email, folder, uid):
     # Кэшируем на 30 мин
     cache.set(cache_key, msg, timeout=1800)
     return msg, False, None
+
+def append_to_sent(email, raw_message):
+    """
+    Сохраняет копию письма в папку Sent через IMAP APPEND.
+    raw_message — сырые байты письма (MIME).
+    Возвращает (ok, error).
+    """
+    client, err = _make_client(email)
+    if err:
+        return False, err
+
+    try:
+        # Папка Sent (системная папка Dovecot)
+        folder = 'Sent'
+        # APPEND с флагом \Seen
+        client.append(folder, raw_message, flags=[b'\\Seen'])
+        return True, None
+    except Exception as e:
+        logger.exception(f'append_to_sent failed for {email}')
+        return False, f'Ошибка APPEND: {e}'
+    finally:
+        _safe_close(client)

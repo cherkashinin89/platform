@@ -223,8 +223,8 @@ def send_mail(from_addr, to_addrs, subject, body_html, body_text=None,
         if result.returncode != 0:
             err = result.stderr.decode('utf-8', errors='replace')
             logger.error(f'sendmail failed: {err}')
-            return False, f'sendmail: {err}'
-        return True, None
+            return False, f'sendmail: {err}', None
+        return True, None, msg.as_bytes()
     except Exception as e:
         logger.exception('send_mail failed')
-        return False, f'Ошибка отправки: {e}'
+        return False, f'Ошибка отправки: {e}', None

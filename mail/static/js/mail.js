@@ -118,9 +118,12 @@
             const uid = item.dataset.uid;
             if (!uid) return;
 
-            // Папку берём из data-folder у родителя или из URL
-            const url = new URL(window.location.href);
-            const folder = url.searchParams.get('folder') || 'INBOX';
+            // Папку берём из data-folder у элемента или из URL
+            let folder = item.dataset.folder;
+            if (!folder) {
+                const url = new URL(window.location.href);
+                folder = url.searchParams.get('folder') || 'INBOX';
+            }
 
             loadMessage(uid, folder, true);
         });

@@ -38,7 +38,8 @@
     {% for msg in messages %}
     <a href="{{ url_for('message', uid=msg.uid, folder=folder_current) }}"
        class="mail-list-item {% if not msg.is_read %}is-unread{% endif %} {% if current_uid == msg.uid %}is-active{% endif %}"
-       data-uid="{{ msg.uid }}">
+       data-uid="{{ msg.uid }}"
+       data-folder="{{ folder_current }}">
         <div class="mail-list-checkbox">
             <input type="checkbox" class="form-check-input m-0">
         </div>
