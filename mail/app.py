@@ -447,6 +447,168 @@ def create_app(config_class=Config):
             mailbox_info=mailbox_info,
         )
 
+    @app.route('/settings/rules')
+    @login_required
+    def settings_rules():
+        """Sieve-правила пользователя."""
+        email = _current_email()
+        if not email:
+            flash('У вас нет почтового ящика', 'danger')
+            return redirect(url_for('settings'))
+
+        # Получаем список Sieve-скриптов из Dovecot
+        sieve_scripts, sieve_error = imap_client.list_sieve_scripts(email)
+        if sieve_error:
+            flash(f'Sieve: {sieve_error}', 'warning')
+
+        # Получаем правила из БД (SieveRule)
+        from core.models import SieveRule
+        rules = SieveRule.query.filter_by(user_id=current_user.id).order_by(
+            SieveRule.priority
+        ).all()
+        folders, folders_error = imap_client.list_folders(email)
+
+        return render_template(
+            'settings_rules.html',
+            rules=rules,
+            sieve_scripts=sieve_scripts or [],
+            folders=folders or [],
+        )
+
+    def _generate_sieve_script(rule):
+        """Генерирует Sieve-скрипт из правила (conditions + actions)."""
+        import json
+
+        conditions = rule.conditions or {}
+        actions = rule.actions or {}
+
+        # Условия
+        cond_lines = []
+        if conditions.get('from'):
+            cond_lines.append(f'address :contains "From" "{conditions["from"]}"')
+        if conditions.get('to'):
+            cond_lines.append(f'address :contains "To" "{conditions["to"]}"')
+        if conditions.get('subject'):
+            cond_lines.append(f'header :contains "Subject" "{conditions["subject"]}"')
+        if conditions.get('body'):
+            cond_lines.append(f'body :contains "{conditions["body"]}"')
+        if conditions.get('size_over'):
+            cond_lines.append(f'size :over {conditions["size_over"]}')
+
+        if not cond_lines:
+            cond_str = 'true'
+        elif len(cond_lines) == 1:
+            cond_str = cond_lines[0]
+        else:
+            cond_str = 'allof(' + ', '.join(cond_lines) + ')'
+
+        # Действия
+        action_lines = []
+        if actions.get('move_to'):
+            action_lines.append(f'fileinto "{actions["move_to"]}";')
+        if actions.get('mark_read'):
+            action_lines.append('addflag "\\\\Seen";')
+        if actions.get('delete'):
+            action_lines.append('discard;')
+        if actions.get('forward_to'):
+            action_lines.append(f'redirect "{actions["forward_to"]}";')
+
+        if not action_lines:
+            action_lines.append('keep;')
+
+        script = f'''require ["fileinto", "imap4flags", "copy", "body", "regex"];
+# Rule: {rule.name}
+if {cond_str} {{
+    {' '.join(action_lines)}
+}}
+'''
+        return script
+
+    @app.route('/api/sieve/rule', methods=['POST'])
+    @login_required
+    def api_sieve_rule():
+        """Создание/обновление Sieve-правила."""
+        from core.models import SieveRule
+        import json
+
+        email = _current_email()
+        if not email:
+            return jsonify({'ok': False, 'error': 'Нет ящика'}), 400
+
+        data = request.get_json(silent=True) or {}
+        rule_id = data.get('id')
+        name = (data.get('name') or '').strip()
+        conditions = data.get('conditions') or {}
+        actions = data.get('actions') or {}
+
+        if not name:
+            return jsonify({'ok': False, 'error': 'Укажите название правила'}), 400
+
+        if rule_id:
+            rule = SieveRule.query.filter_by(id=rule_id, user_id=current_user.id).first()
+            if not rule:
+                return jsonify({'ok': False, 'error': 'Правило не найдено'}), 404
+        else:
+            rule = SieveRule(user_id=current_user.id)
+            db.session.add(rule)
+
+        rule.name = name
+        rule.conditions = conditions
+        rule.actions = actions
+        rule.is_active = data.get('is_active', True)
+        rule.priority = data.get('priority', 0)
+        db.session.commit()
+
+        # Генерируем Sieve-скрипт и сохраняем в Dovecot
+        sieve_script = _generate_sieve_script(rule)
+        ok, err = imap_client.put_sieve_script(email, f'rule_{rule.id}', sieve_script)
+        if not ok:
+            return jsonify({'ok': False, 'error': err}), 500
+
+        return jsonify({'ok': True, 'id': rule.id})
+
+    @app.route('/api/sieve/rule/<int:rule_id>', methods=['DELETE'])
+    @login_required
+    def api_sieve_rule_delete(rule_id):
+        """Удаление Sieve-правила."""
+        from core.models import SieveRule
+
+        email = _current_email()
+        if not email:
+            return jsonify({'ok': False, 'error': 'Нет ящика'}), 400
+
+        rule = SieveRule.query.filter_by(id=rule_id, user_id=current_user.id).first()
+        if not rule:
+            return jsonify({'ok': False, 'error': 'Правило не найдено'}), 404
+
+        script_name = f'rule_{rule.id}'
+        db.session.delete(rule)
+        db.session.commit()
+
+        # Удаляем скрипт из Dovecot
+        imap_client.delete_sieve_script(email, script_name)
+
+        return jsonify({'ok': True})
+
+    @app.route('/api/sieve/activate', methods=['POST'])
+    @login_required
+    def api_sieve_activate():
+        """Активация Sieve-скрипта."""
+        email = _current_email()
+        if not email:
+            return jsonify({'ok': False, 'error': 'Нет ящика'}), 400
+
+        data = request.get_json(silent=True) or {}
+        script_name = data.get('name')
+        if not script_name:
+            return jsonify({'ok': False, 'error': 'Укажите имя скрипта'}), 400
+
+        ok, err = imap_client.activate_sieve_script(email, script_name)
+        if not ok:
+            return jsonify({'ok': False, 'error': err}), 500
+
+        return jsonify({'ok': True})
+
     @app.route('/change-password', methods=['GET', 'POST'])
     @login_required
     def change_password():

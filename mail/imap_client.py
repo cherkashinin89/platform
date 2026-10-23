@@ -6,6 +6,7 @@
 #   password = MAIL_MASTER_PASSWORD
 #
 # Возвращаемые объекты — простые dict'ы, готовые для шаблонов.
+import os
 import logging
 import bleach
 import mimetypes
@@ -650,3 +651,109 @@ def append_to_drafts(email, raw_message):
         return False, f'Ошибка APPEND в Drafts: {e}'
     finally:
         _safe_close(client)
+
+def list_sieve_scripts(email):
+    """
+    Возвращает список Sieve-скриптов из Dovecot (doveadm sieve list).
+    Возвращает (scripts_list, error).
+    """
+    import subprocess
+    doveadm = current_app.config.get('DOVEADM', '/usr/bin/doveadm')
+
+    try:
+        result = subprocess.run(
+            ['sudo', doveadm, 'sieve', 'list', '-u', email],
+            capture_output=True,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            err = result.stderr.decode('utf-8', errors='replace').strip()
+            return None, f'doveadm sieve list: {err}'
+
+        output = result.stdout.decode('utf-8', errors='replace').strip()
+        scripts = []
+        for line in output.splitlines():
+            line = line.strip()
+            if line:
+                # Dovecot 2.4: "rule_8 ACTIVE" (без скобок)
+                upper = line.upper()
+                is_active = '(ACTIVE)' in upper or ' ACTIVE' in upper or upper.endswith('ACTIVE')
+                # Убираем ACTIVE (с пробелом и без)
+                name = line.replace('(active)', '').replace('ACTIVE', '').replace('(ACTIVE)', '').strip().strip('"')
+                scripts.append({'name': name, 'is_active': is_active})
+        return scripts, None
+    except Exception as e:
+        logger.exception(f'list_sieve_scripts failed for {email}')
+        return None, f'Ошибка: {e}'
+
+def put_sieve_script(email, script_name, script_content):
+    """
+    Сохраняет Sieve-скрипт в Dovecot (doveadm sieve put).
+    Возвращает (ok, error).
+    """
+    import subprocess
+    import tempfile
+
+    doveadm = current_app.config.get('DOVEADM', '/usr/bin/doveadm')
+
+    try:
+        # Записываем скрипт во временный файл
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.sieve', delete=False) as f:
+            f.write(script_content)
+            tmp_path = f.name
+
+        # put (без -a — не активируем, активируем отдельно)
+        result = subprocess.run(
+            ['sudo', doveadm, 'sieve', 'put', '-u', email, script_name],
+            stdin=open(tmp_path, 'rb'),
+            capture_output=True,
+            timeout=10,
+        )
+        os.unlink(tmp_path)
+
+        if result.returncode != 0:
+            err = result.stderr.decode('utf-8', errors='replace').strip()
+            return False, f'doveadm sieve put: {err}'
+
+        return True, None
+    except Exception as e:
+        logger.exception(f'put_sieve_script failed for {email}')
+        return False, f'Ошибка: {e}'
+
+def delete_sieve_script(email, script_name):
+    """Удаляет Sieve-скрипт (сначала деактивирует, если активен)."""
+    import subprocess
+    doveadm = current_app.config.get('DOVEADM', '/usr/bin/doveadm')
+    try:
+        # Сначала деактивируем (если активен)
+        subprocess.run(
+            ['sudo', doveadm, 'sieve', 'deactivate', '-u', email],
+            capture_output=True,
+            timeout=10,
+        )
+        # Затем удаляем
+        result = subprocess.run(
+            ['sudo', doveadm, 'sieve', 'delete', '-u', email, script_name],
+            capture_output=True,
+            timeout=10,
+        )
+        return result.returncode == 0, None if result.returncode == 0 else result.stderr.decode('utf-8', errors='replace')
+    except Exception as e:
+        logger.exception(f'delete_sieve_script failed')
+        return False, str(e)
+
+
+def activate_sieve_script(email, script_name):
+    """Активирует Sieve-скрипт (doveadm sieve activate)."""
+    import subprocess
+    doveadm = current_app.config.get('DOVEADM', '/usr/bin/doveadm')
+    try:
+        result = subprocess.run(
+            ['sudo', doveadm, 'sieve', 'activate', '-u', email, script_name],
+            capture_output=True,
+            timeout=10,
+        )
+        return result.returncode == 0, None if result.returncode == 0 else result.stderr.decode('utf-8', errors='replace')
+    except Exception as e:
+        logger.exception(f'activate_sieve_script failed')
+        return False, str(e)

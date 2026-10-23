@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block mail_content %}
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<div class="mail-settings-page">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h1 class="mb-0">
+            <i class="bi bi-funnel"></i>
+            Правила (Sieve)
+        </h1>
+        <a href="{{ url_for('settings') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Назад
+        </a>
+    </div>
+
+    {% if sieve_scripts %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <strong>Скрипты в Dovecot</strong>
+        </div>
+        <div class="card-body">
+            <ul class="list-group">
+                {% for s in sieve_scripts %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <code>{{ s.name }}</code>
+                    {% if s.is_active %}
+                    <span class="badge bg-success">Активен</span>
+                    {% else %}
+                    <span class="badge bg-secondary">Неактивен</span>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <strong>Правила ({{ rules|length }})</strong>
+            <button class="btn btn-sm btn-primary" id="addRuleBtn" data-bs-toggle="modal" data-bs-target="#ruleModal">
+                <i class="bi bi-plus-lg"></i> Добавить
+            </button>
+        </div>
+        <div class="card-body">
+            {% if rules %}
+            <div id="sieveRulesList">
+                {% for rule in rules %}
+                <div class="card mb-2" data-id="{{ rule.id }}">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ rule.name }}</strong>
+                                <span class="badge bg-{{ 'success' if rule.is_active else 'secondary' }} ms-2">
+                                    {{ 'Активно' if rule.is_active else 'Неактивно' }}
+                                </span>
+                                <small class="text-muted d-block">Приоритет: {{ rule.priority }}</small>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-outline-primary"
+                                        data-action="edit"
+                                        data-id="{{ rule.id }}"
+                                        data-name="{{ rule.name }}"
+                                        data-conditions="{{ rule.conditions | tojson | forceescape }}"
+                                        data-actions="{{ rule.actions | tojson | forceescape }}">
+                                    <i class="bi bi-pencil"></i> Редактировать
+                                </button>
+                                <button class="btn btn-sm btn-outline-success"
+                                        data-action="activate" data-name="rule_{{ rule.id }}">
+                                    <i class="bi bi-play-fill"></i> Активировать
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger"
+                                        data-action="delete" data-id="{{ rule.id }}">
+                                    <i class="bi bi-trash"></i> Удалить
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted mb-0">Правил нет.</p>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+
+<!-- Модалка "Добавить / Редактировать правило" -->
+<div class="modal fade" id="ruleModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="ruleForm">
+                <div class="modal-header">
+                    <h5 class="modal-title">Добавить правило</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="id" id="ruleId">
+
+                    <div class="mb-3">
+                        <label for="ruleName" class="form-label">Название</label>
+                        <input type="text" class="form-control" id="ruleName" name="name" required>
+                    </div>
+
+                    <hr>
+                    <h6>Условия</h6>
+                    <div class="mb-2">
+                        <label for="ruleFrom" class="form-label">От (From) содержит</label>
+                        <input type="text" class="form-control" id="ruleFrom" name="from">
+                    </div>
+                    <div class="mb-2">
+                        <label for="ruleSubject" class="form-label">Тема содержит</label>
+                        <input type="text" class="form-control" id="ruleSubject" name="subject">
+                    </div>
+                    <div class="mb-2">
+                        <label for="ruleBody" class="form-label">Тело содержит</label>
+                        <input type="text" class="form-control" id="ruleBody" name="body">
+                    </div>
+
+                    <hr>
+                    <h6>Действия</h6>
+                    <div class="mb-2">
+                        <label for="ruleMoveTo" class="form-label">Переместить в папку</label>
+                        <select class="form-select" id="ruleMoveTo" name="move_to">
+                            <option value="">— не выбрано —</option>
+                            {% for f in folders %}
+                            <option value="{{ f.name }}">{{ f.display_name or f.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input type="checkbox" class="form-check-input" id="ruleMarkRead" name="mark_read">
+                        <label class="form-check-label" for="ruleMarkRead">Пометить как прочитанное</label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input type="checkbox" class="form-check-input" id="ruleDelete" name="delete">
+                        <label class="form-check-label" for="ruleDelete">Удалить (discard)</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/sieve_rules.js') }}?v=3"></script>
+{% endblock %}
