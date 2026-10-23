@@ -177,19 +177,21 @@ def create_maildir(email):
     return True, None
 
 def send_mail(from_addr, to_addrs, subject, body_html, body_text=None,
-              cc_addrs=None, bcc_addrs=None):
+              cc_addrs=None, bcc_addrs=None, attachments=None):
     """
     Отправляет письмо через локальный sendmail (Postfix).
-    Возвращает (ok, error_message).
+    attachments — список кортежей (filename, content_type, data_bytes).
+    Возвращает (ok, error, raw_message).
     """
     import email.message
     import email.utils
     import re
+    from email.mime.base import MIMEBase
+    from email import encoders
 
     if not body_html:
-        body_html = '<p></p>'  # fallback, чтобы не было пустого тела
+        body_html = '<p></p>'
 
-    # Формируем MIME-письмо
     msg = email.message.EmailMessage()
     msg['From'] = from_addr
     msg['To'] = ', '.join(to_addrs)
@@ -199,26 +201,33 @@ def send_mail(from_addr, to_addrs, subject, body_html, body_text=None,
     msg['Date'] = email.utils.formatdate(localtime=True)
     msg['Message-ID'] = email.utils.make_msgid(domain=from_addr.split('@')[-1])
 
-    # Тело: text/plain + text/html
     plain = body_text if body_text else re.sub(r'<[^>]+>', '', body_html)
     msg.set_content(plain)
     msg.add_alternative(body_html, subtype='html')
 
-    # Все получатели (To + Cc + Bcc) — для отправки
-    all_recipients = list(to_addrs)
-    if cc_addrs:
-        all_recipients.extend(cc_addrs)
-    if bcc_addrs:
-        all_recipients.extend(bcc_addrs)
+    # Вложения
+    if attachments:
+        for fname, ctype, data in attachments:
+            maintype, _, subtype = ctype.partition('/')
+            if not subtype:
+                maintype, subtype = 'application', 'octet-stream'
+            part = MIMEBase(maintype, subtype)
+            part.set_payload(data)
+            encoders.encode_base64(part)
+            part.add_header(
+                'Content-Disposition',
+                'attachment',
+                filename=('utf-8', '', fname),
+            )
+            msg.attach(part)
 
-    # Отправляем через sendmail -f <from> -t
     sendmail_path = current_app.config.get('SENDMAIL', '/usr/sbin/sendmail')
     try:
         result = subprocess.run(
             [sendmail_path, '-f', from_addr, '-t'],
             input=msg.as_bytes(),
             capture_output=True,
-            timeout=30,
+            timeout=60,
         )
         if result.returncode != 0:
             err = result.stderr.decode('utf-8', errors='replace')

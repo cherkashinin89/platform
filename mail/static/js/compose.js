@@ -170,6 +170,39 @@
         }
 
         console.log('[compose] init complete');
+              // === Отображение выбранных файлов ===
+        const fileInput = document.getElementById('composeFile');
+        const fileList = document.getElementById('composeFileList');
+
+        if (fileInput && fileList) {
+            fileInput.addEventListener('change', function () {
+                fileList.innerHTML = '';
+                Array.from(this.files).forEach((file, index) => {
+                    const div = document.createElement('div');
+                    div.className = 'mail-compose-file-item';
+                    div.innerHTML = `
+                        <i class="bi bi-file-earmark"></i>
+                        <span class="mail-compose-file-name">${file.name}</span>
+                        <span class="mail-compose-file-size">${(file.size / 1024).toFixed(1)} КБ</span>
+                        <button type="button" class="btn btn-sm btn-link text-danger"
+                                data-index="${index}">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    `;
+                    div.querySelector('button').addEventListener('click', () => {
+                        // Удалить файл из input
+                        const dt = new DataTransfer();
+                        Array.from(fileInput.files).forEach((f, i) => {
+                            if (i !== index) dt.items.add(f);
+                        });
+                        fileInput.files = dt.files;
+                        // Перерисовать список
+                        fileInput.dispatchEvent(new Event('change'));
+                    });
+                    fileList.appendChild(div);
+                });
+            });
+        }
     });
 
 })();

@@ -697,6 +697,20 @@ def create_app(config_class=Config):
 
         # --- Отправка ---
         from mail_service import send_mail
+        # === Вложения ===
+        attachments = []
+        files = request.files.getlist('attachments')
+        for f in files:
+            if f and f.filename:
+                data = f.read()
+                attachments.append((f.filename, f.content_type or 'application/octet-stream', data))
+
+        # Ограничение: 30 МБ суммарно
+        total_size = sum(len(d) for _, _, d in attachments)
+        if total_size > 30 * 1024 * 1024:
+            flash('Суммарный размер вложений превышает 30 МБ', 'danger')
+            return redirect(url_for('compose'))
+
         ok, err, raw_message = send_mail(
             from_addr=from_addr,
             to_addrs=to_list,
@@ -704,6 +718,7 @@ def create_app(config_class=Config):
             body_html=body_html,
             cc_addrs=cc_list or None,
             bcc_addrs=bcc_list or None,
+            attachments=attachments or None,
         )
 
         if not ok:

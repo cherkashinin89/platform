@@ -58,6 +58,15 @@
             <textarea id="composeBody" name="body">{{ prefill_body or '' }}</textarea>
         </div>
 
+        <div class="mail-compose-attachments">
+            <label class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-paperclip"></i> Прикрепить файл
+                <input type="file" id="composeFile" name="attachments" multiple
+                       style="display: none;">
+            </label>
+            <div id="composeFileList" class="mail-compose-filelist"></div>
+        </div>
+
         <div class="mail-compose-actions">
             <button type="submit" class="btn btn-primary">
                 <i class="bi bi-send"></i> Отправить

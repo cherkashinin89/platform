@@ -475,3 +475,45 @@
 .recipient-suggest-item:hover {
     background: var(--mail-bg-hover);
 }
+
+/* === Вложения в compose === */
+.mail-compose-attachments {
+    margin: 12px 0;
+    padding-top: 12px;
+    border-top: 1px solid var(--mail-panel-border);
+}
+
+.mail-compose-filelist {
+    margin-top: 8px;
+}
+
+.mail-compose-file-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    margin-bottom: 4px;
+    background: var(--mail-bg-hover);
+    border: 1px solid var(--mail-panel-border);
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+.mail-compose-file-name {
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mail-compose-file-size {
+    flex: 0 0 auto;
+    color: var(--mail-text-muted);
+    font-size: 11px;
+}
+
+.mail-compose-file-item .btn-link {
+    padding: 0;
+    text-decoration: none;
+    font-size: 12px;
+}
