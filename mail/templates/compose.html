@@ -16,6 +16,7 @@
 {% endblock %}
 
 {% block mail_view %}
+<meta name="csrf-token" content="{{ csrf_token() }}">
 <div class="mail-compose">
 
     <div class="mail-compose-header">
@@ -86,4 +87,6 @@
 
 {% block mail_scripts %}
 <script src="{{ url_for('static', filename='js/compose.js') }}"></script>
+<script src="{{ url_for('static', filename='js/attached-files.js') }}"></script>
+{% include "partials/file_manager_modal.html" %}
 {% endblock %}

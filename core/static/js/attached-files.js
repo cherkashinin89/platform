@@ -474,7 +474,7 @@
         cacheElements();
 
         if (!el.overlay) {
-            console.warn('attached-files.js: #fmOverlay не найден — модалка не подключена');
+            // Модалка не подключена (публичная страница) — тихо выходим
             return;
         }
 

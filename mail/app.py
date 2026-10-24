@@ -55,7 +55,7 @@ def create_app(config_class=Config):
             "default-src 'self'; "
             "img-src 'self' data: https:; "
             "style-src 'self' 'unsafe-inline'; "  # inline-стили разрешены (письма)
-            "script-src 'self'; "                  # скрипты только локальные
+            "script-src 'self' 'unsafe-inline'; "             
             "font-src 'self'; "
             "connect-src 'self'; "
             "frame-ancestors 'self'; "
@@ -435,6 +435,115 @@ def create_app(config_class=Config):
             return jsonify({'ok': False, 'error': err}), 500
 
         return jsonify({'ok': True})
+
+    @app.route('/api/cloud-tree')
+    @login_required
+    def api_cloud_tree():
+        """Дерево папок облака (для модалки)."""
+        from core.models import CloudFile
+
+        folders = CloudFile.query.filter_by(
+            owner_id=current_user.id,
+            is_folder=True,
+            is_trashed=False,
+        ).order_by(CloudFile.name).all()
+
+        return jsonify([
+            {'id': f.id, 'name': f.name, 'parent_id': f.parent_id}
+            for f in folders
+        ])
+
+    @app.route('/api/cloud-folder/<int:folder_id>')
+    @login_required
+    def api_cloud_folder(folder_id):
+        """Содержимое папки облака."""
+        from core.models import CloudFile
+
+        items = CloudFile.query.filter_by(
+            owner_id=current_user.id,
+            parent_id=folder_id,
+            is_trashed=False,
+        ).order_by(CloudFile.is_folder.desc(), CloudFile.name).all()
+
+        return jsonify({
+            'folders': [
+                {'id': i.id, 'name': i.name, 'parent_id': i.parent_id}
+                for i in items if i.is_folder
+            ],
+            'files': [
+                {
+                    'id': i.id,
+                    'name': i.name,
+                    'is_folder': i.is_folder,
+                    'size': i.size,
+                    'mime_type': i.mime_type,
+                }
+                for i in items if not i.is_folder
+            ],
+        })
+
+    @app.route('/api/cloud-files')
+    @login_required
+    def api_cloud_files():
+        """Все файлы облака (для выбора)."""
+        from core.models import CloudFile
+
+        files = CloudFile.query.filter_by(
+            owner_id=current_user.id,
+            is_folder=False,
+            is_trashed=False,
+        ).order_by(CloudFile.name).all()
+
+        return jsonify([
+            {
+                'id': f.id,
+                'name': f.name,
+                'is_folder': f.is_folder,
+                'parent_id': f.parent_id,
+                'size': f.size,
+                'mime_type': f.mime_type,
+            }
+            for f in files
+        ])
+
+    @app.route('/api/share-file/<int:file_id>', methods=['POST'])
+    @login_required
+    @csrf.exempt
+    def api_share_file(file_id):
+        """Создаёт (или переиспользует) шару для файла и возвращает абсолютный URL."""
+        from core.models import CloudFile, CloudShare, SiteSettings
+        import secrets
+
+        file = CloudFile.query.filter_by(
+            id=file_id,
+            owner_id=current_user.id,
+            is_trashed=False,
+        ).first()
+        if not file:
+            return jsonify({'ok': False, 'error': 'Файл не найден'}), 404
+
+        # Ищем существующую шару
+        share = CloudShare.query.filter_by(file_id=file.id).first()
+        if not share:
+            share = CloudShare(
+                file_id=file.id,
+                token=secrets.token_urlsafe(32),
+                created_by_id=current_user.id,
+            )
+            db.session.add(share)
+            db.session.commit()
+
+        # Абсолютный URL
+        settings = SiteSettings.get()
+        base = settings.cloud_base_url if settings else 'http://192.168.2.19:5001'
+        url = f'{base}/s/{share.token}'
+
+        return jsonify({
+            'ok': True,
+            'url': url,
+            'name': file.name,
+            'token': share.token,
+        })
 
     @app.route('/settings')
     @login_required

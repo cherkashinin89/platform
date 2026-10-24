@@ -1,5 +1,6 @@
 /* ============================================================
-   W47: Compose — TinyMCE, автодополнение, автосохранение.
+   W47: Compose — TinyMCE, автодополнение, автосохранение,
+   кнопка "Из облака" (attachfile).
    ============================================================ */
 
 (function () {
@@ -15,18 +16,37 @@
                 height: 400,
                 menubar: false,
                 plugins: 'link lists code',
-                toolbar: 'undo redo | bold italic underline | bullist numlist | link | code',
+                toolbar: 'undo redo | bold italic underline | bullist numlist | link | attachfile | code',
                 relative_urls: false,
                 remove_script_host: false,
                 convert_urls: false,
                 branding: false,
                 language: 'ru',
                 setup: function (editor) {
+                    // prefill_body (ответ/пересылка)
                     editor.on('init', function () {
                         const initialBody = document.getElementById('composeBody').value;
                         if (initialBody) {
                             editor.setContent(initialBody);
                         }
+                    });
+
+                    // Кнопка "Из облака"
+                    editor.ui.registry.addButton('attachfile', {
+                        icon: 'upload',
+                        tooltip: 'Прикрепить из облака',
+                        onAction: function () {
+                            window.__activeEditor = editor;
+                            if (window.fmOpen) {
+                                window.fmOpen();
+                            } else {
+                                console.error('fmOpen не найден');
+                            }
+                        }
+                    });
+
+                    editor.on('focus', function () {
+                        window.__activeEditor = editor;
                     });
                 },
             });
@@ -112,7 +132,6 @@
 
             if (!to && !subject && !body) return;
 
-            // CSRF-токен из формы
             const csrfInput = document.querySelector('input[name="csrf_token"]');
             const csrfToken = csrfInput ? csrfInput.value : '';
 
@@ -141,7 +160,6 @@
         }
 
         if (draftForm) {
-            // Отслеживаем изменения
             ['composeTo', 'composeCc', 'composeBcc', 'composeSubject'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.addEventListener('input', () => { dirty = true; });
@@ -153,13 +171,10 @@
                 });
             }
 
-            // Автосохранение каждые 30 сек
             setInterval(() => { if (dirty) saveDraft(); }, 30000);
 
-            // При закрытии
             window.addEventListener('beforeunload', () => { if (dirty) saveDraft(); });
 
-            // Кнопка "Сохранить черновик"
             const draftBtn = document.getElementById('composeDraft');
             if (draftBtn) {
                 draftBtn.addEventListener('click', function (e) {
@@ -169,8 +184,7 @@
             }
         }
 
-        console.log('[compose] init complete');
-              // === Отображение выбранных файлов ===
+        // === 4. Отображение выбранных файлов ===
         const fileInput = document.getElementById('composeFile');
         const fileList = document.getElementById('composeFileList');
 
@@ -190,19 +204,19 @@
                         </button>
                     `;
                     div.querySelector('button').addEventListener('click', () => {
-                        // Удалить файл из input
                         const dt = new DataTransfer();
                         Array.from(fileInput.files).forEach((f, i) => {
                             if (i !== index) dt.items.add(f);
                         });
                         fileInput.files = dt.files;
-                        // Перерисовать список
                         fileInput.dispatchEvent(new Event('change'));
                     });
                     fileList.appendChild(div);
                 });
             });
         }
+
+        console.log('[compose] init complete');
     });
 
 })();

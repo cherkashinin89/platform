@@ -1,0 +1,73 @@
+{# ================================================================
+   W3: Модалка выбора файлов из облака (двухпанельная)
+
+   Используется в редакторе статей и страниц.
+   Открывается кнопкой attachfile в TinyMCE.
+
+   Структура:
+   - Слева — дерево папок
+   - Справа — плитки файлов/папок + счётчик + кнопки
+   - Внизу — кнопка «Прикрепить (N)»
+   ================================================================ #}
+
+<div class="fm-overlay" id="fmOverlay" aria-hidden="true">
+    <div class="fm-modal" role="dialog" aria-modal="true" aria-labelledby="fmTitle">
+
+        {# === Шапка === #}
+        <div class="fm-modal-header">
+            <h3 class="fm-modal-title" id="fmTitle">
+                <i class="bi bi-folder2-open"></i>
+                <span>Выбрать файлы из облака</span>
+            </h3>
+            <button type="button" class="fm-modal-close" id="fmClose" aria-label="Закрыть">
+                &times;
+            </button>
+        </div>
+
+        {# === Основная часть === #}
+        <div class="fm-modal-body">
+
+            {# Левая панель — дерево папок #}
+            <aside class="fm-tree" id="fmTree">
+                <div class="fm-tree-root is-active" data-folder-id="" id="fmTreeRoot">
+                    <i class="bi bi-hdd-fill"></i>
+                    <span>Мои файлы</span>
+                </div>
+                {# Дерево рендерит JS #}
+                <div id="fmTreeContainer"></div>
+            </aside>
+
+            {# Правая панель — рабочая область #}
+            <div class="fm-main">
+
+                {# Toolbar: счётчик + кнопки #}
+                <div class="fm-toolbar">
+                    <div class="fm-counter">
+                        Выбрано: <strong id="fmSelectedCount">0</strong> из
+                        <span id="fmTotalCount">0</span>
+                    </div>
+                    <div class="fm-toolbar-buttons">
+                        <button type="button" id="fmSelectAll">Выбрать все</button>
+                        <button type="button" id="fmClearAll">Снять все</button>
+                    </div>
+                </div>
+
+                {# Плитки #}
+                <div class="fm-tiles" id="fmTiles">
+                    <div class="fm-tiles-empty">Загрузка…</div>
+                </div>
+
+            </div>
+
+        </div>
+
+        {# === Футер === #}
+        <div class="fm-modal-footer">
+            <button type="button" class="fm-btn-attach" id="fmAttachBtn" disabled>
+                <i class="bi bi-paperclip"></i>
+                <span>Прикрепить (<span id="fmAttachCount">0</span>)</span>
+            </button>
+        </div>
+
+    </div>
+</div>
