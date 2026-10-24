@@ -156,14 +156,8 @@ def create_app(config_class=Config):
             flash('У вас нет почтового ящика', 'danger')
             return redirect(url_for('settings'))
 
-        # === Папки (кэш 60 сек) ===
-        cache_key_folders = f'mail_folders_{email}'
-        folders = cache.get(cache_key_folders)
-        folders_error = None
-        if folders is None:
-            folders, folders_error = imap_client.list_folders(email)
-            if folders is not None:
-                cache.set(cache_key_folders, folders, timeout=60)
+        # === Папки (без кэша — всегда свежие) ===
+        folders, folders_error = imap_client.list_folders(email)
 
         # === Список писем (кэш 30 сек) ===
         cache_key_msgs = f'mail_msgs_{email}_{folder_name}'
@@ -201,6 +195,7 @@ def create_app(config_class=Config):
             folder_current=folder_name,
             folder_title=folder_title,
             folders=folders or [],
+            custom_folders=folders or [],
             messages=messages or [],
             messages_total=messages_total,
             message=None,
@@ -301,6 +296,10 @@ def create_app(config_class=Config):
         )
         if msg_error:
             return jsonify({'ok': False, 'error': msg_error}), 500
+        # Инвалидируем кэш списка (письмо помечено \Seen)
+        if not was_cached:
+            cache_key_msgs = f'mail_msgs_{email}_{folder_name}'
+            cache.delete(cache_key_msgs)
 
         # === Инвалидация кэша заголовков ===
         # После открытия письмо помечается \Seen — заголовок в списке устарел.
@@ -434,6 +433,129 @@ def create_app(config_class=Config):
         if not ok:
             return jsonify({'ok': False, 'error': err}), 500
 
+        return jsonify({'ok': True})
+
+    @app.route('/api/latest-draft')
+    @login_required
+    def api_latest_draft():
+        """Последний черновик (для восстановления)."""
+        email = _current_email()
+        if not email:
+            return jsonify({'ok': False})
+
+        # Получаем список черновиков
+        msgs, total, err = imap_client.list_messages(email, 'Drafts', limit=1, offset=0)
+        if err:
+            return jsonify({'ok': False, 'error': err})
+
+        if not msgs:
+            return jsonify({'ok': True, 'none': True})
+
+        m = msgs[0]
+        # Загружаем полное письмо (черновик)
+        draft, d_err = imap_client.get_message(email, 'Drafts', m['uid'])
+        if d_err:
+            return jsonify({'ok': False, 'error': d_err})
+
+        return jsonify({
+            'ok': True,
+            'uid': m['uid'],
+            'to': draft.get('to', ''),
+            'cc': draft.get('cc', ''),
+            'subject': draft.get('subject', ''),
+            'body': draft.get('body_html', '') or draft.get('body_text', ''),
+            'date_human': draft.get('date_human', ''),
+        })
+
+    @app.route('/api/search')
+    @login_required
+    def api_search():
+        """Поиск писем (IMAP SEARCH)."""
+        email = _current_email()
+        if not email:
+            return jsonify({'ok': False, 'error': 'Нет ящика'}), 400
+
+        q = (request.args.get('q') or '').strip()
+        folder = request.args.get('folder', 'INBOX')
+
+        if not q:
+            return jsonify({'ok': True, 'results': []})
+
+        # IMAP SEARCH
+        results, total, err = imap_client.search_messages(email, folder, q, limit=50)
+        if err:
+            return jsonify({'ok': False, 'error': err}), 500
+
+        return jsonify({
+            'ok': True,
+            'results': results,
+            'total': total,
+        })
+
+    @app.route('/api/folder/create', methods=['POST'])
+    @login_required
+    @csrf.exempt
+    def api_folder_create():
+        """Создание IMAP-папки."""
+        email = _current_email()
+        if not email:
+            return jsonify({'ok': False, 'error': 'Нет ящика'}), 400
+
+        data = request.get_json(silent=True) or {}
+        name = (data.get('name') or '').strip()
+        if not name:
+            return jsonify({'ok': False, 'error': 'Укажите имя папки'}), 400
+
+        ok, err = imap_client.create_folder(email, name)
+        if not ok:
+            return jsonify({'ok': False, 'error': err}), 500
+
+        # Инвалидируем кэш папок
+        cache.delete(f'mail_folders_{email}')
+
+        return jsonify({'ok': True})
+
+    @app.route('/api/folder/rename', methods=['POST'])
+    @login_required
+    @csrf.exempt
+    def api_folder_rename():
+        """Переименование IMAP-папки."""
+        email = _current_email()
+        if not email:
+            return jsonify({'ok': False, 'error': 'Нет ящика'}), 400
+
+        data = request.get_json(silent=True) or {}
+        old_name = (data.get('old_name') or '').strip()
+        new_name = (data.get('new_name') or '').strip()
+        if not old_name or not new_name:
+            return jsonify({'ok': False, 'error': 'Укажите имена'}), 400
+
+        ok, err = imap_client.rename_folder(email, old_name, new_name)
+        if not ok:
+            return jsonify({'ok': False, 'error': err}), 500
+
+        cache.delete(f'mail_folders_{email}')
+        return jsonify({'ok': True})
+
+    @app.route('/api/folder/delete', methods=['POST'])
+    @login_required
+    @csrf.exempt
+    def api_folder_delete():
+        """Удаление IMAP-папки."""
+        email = _current_email()
+        if not email:
+            return jsonify({'ok': False, 'error': 'Нет ящика'}), 400
+
+        data = request.get_json(silent=True) or {}
+        name = (data.get('name') or '').strip()
+        if not name:
+            return jsonify({'ok': False, 'error': 'Укажите имя папки'}), 400
+
+        ok, err = imap_client.delete_folder(email, name)
+        if not ok:
+            return jsonify({'ok': False, 'error': err}), 500
+
+        cache.delete(f'mail_folders_{email}')
         return jsonify({'ok': True})
 
     @app.route('/api/cloud-tree')
@@ -770,56 +892,6 @@ if {cond_str} {{
 
         return jsonify({'ok': True})
 
-    @app.route('/change-password', methods=['GET', 'POST'])
-    @login_required
-    def change_password():
-        """Смена пароля почтового ящика."""
-        mailbox = Mailbox.query.filter_by(user_id=current_user.id).first()
-
-        if not mailbox:
-            flash('У вас нет почтового ящика', 'danger')
-            return redirect(url_for('index'))
-
-        error = None
-
-        if request.method == 'POST':
-            current_password = request.form.get('current_password', '')
-            new_password = request.form.get('new_password', '')
-            confirm_password = request.form.get('confirm_password', '')
-
-            # Проверки
-            if not current_password or not new_password or not confirm_password:
-                error = 'Заполните все поля'
-            elif new_password != confirm_password:
-                error = 'Пароли не совпадают'
-            elif len(new_password) < 6:
-                error = 'Пароль должен содержать минимум 6 символов'
-            else:
-                # Проверяем текущий пароль через Dovecot
-                import subprocess
-                try:
-                    result = subprocess.run(
-                        ['sudo', '/usr/bin/doveadm', 'auth', 'test', mailbox.email, current_password],
-                        capture_output=True,
-                        timeout=10,
-                    )
-                    if result.returncode != 0:
-                        error = 'Текущий пароль неверен'
-                except Exception as e:
-                    error = f'Ошибка проверки пароля: {e}'
-
-                if not error:
-                    # Генерируем новый хэш
-                    ok, result = hash_password(new_password)
-                    if not ok:
-                        error = f'Ошибка создания пароля: {result}'
-                    else:
-                        mailbox.password_hash = result
-                        db.session.commit()
-                        flash('Пароль успешно изменён', 'success')
-                        return redirect(url_for('index'))
-
-        return render_template('change_password.html', mailbox=mailbox, error=error)
 
     @app.route('/health')
     def health():

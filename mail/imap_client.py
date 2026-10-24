@@ -757,3 +757,110 @@ def activate_sieve_script(email, script_name):
     except Exception as e:
         logger.exception(f'activate_sieve_script failed')
         return False, str(e)
+
+def search_messages(email, folder, query, limit=50):
+    """
+    Поиск писем через IMAP SEARCH.
+    Ищет по FROM, SUBJECT, BODY.
+    Возвращает (results, total, error).
+    """
+    client, err = _make_client(email)
+    if err:
+        return None, 0, err
+
+    try:
+        client.select_folder(folder, readonly=True)
+
+        # IMAP SEARCH: OR по FROM, SUBJECT, BODY
+        # Простой вариант: SEARCH TEXT (ищет везде)
+        uids = client.search(['TEXT', query])
+        total = len(uids)
+
+        if not uids:
+            return [], 0, None
+
+        # Сортируем по убыванию, берём окно
+        uids_sorted = sorted(uids, reverse=True)
+        window = uids_sorted[:limit]
+
+        fetch_data = client.fetch(window, [
+            'FLAGS',
+            'BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE)]',
+            'RFC822.SIZE',
+        ])
+
+        results = []
+        for uid in window:
+            data = fetch_data.get(uid, {})
+            raw_headers = data.get(b'BODY[HEADER.FIELDS (FROM SUBJECT DATE)]', b'')
+            flags = data.get(b'FLAGS', ())
+
+            headers = _parse_headers(raw_headers)
+            from_raw = headers.get('from', '')
+            subject = _decode_mime_header(headers.get('subject', ''))
+            date_str = headers.get('date', '')
+            dt = _parse_date(date_str)
+
+            from_name, from_email = _parse_from(from_raw)
+
+            results.append({
+                'uid': uid,
+                'subject': subject or '(без темы)',
+                'from_name': from_name,
+                'from_email': from_email,
+                'date': dt,
+                'date_human': _human_date(dt),
+                'is_read': b'\\Seen' in flags,
+                'is_flagged': b'\\Flagged' in flags,
+            })
+
+        return results, total, None
+    except Exception as e:
+        logger.exception(f'search_messages failed for {email}/{folder}')
+        return None, 0, f'Ошибка поиска: {e}'
+    finally:
+        _safe_close(client)
+
+def create_folder(email, name):
+    """Создаёт IMAP-папку. Возвращает (ok, error)."""
+    client, err = _make_client(email)
+    if err:
+        return False, err
+    try:
+        client.create_folder(name)
+        return True, None
+    except Exception as e:
+        logger.exception(f'create_folder failed for {email}/{name}')
+        return False, f'Ошибка создания папки: {e}'
+    finally:
+        _safe_close(client)
+
+
+def rename_folder(email, old_name, new_name):
+    """Переименовывает IMAP-папку. Возвращает (ok, error)."""
+    client, err = _make_client(email)
+    if err:
+        return False, err
+    try:
+        client.rename_folder(old_name, new_name)
+        return True, None
+    except Exception as e:
+        logger.exception(f'rename_folder failed for {email}/{old_name}->{new_name}')
+        return False, f'Ошибка переименования: {e}'
+    finally:
+        _safe_close(client)
+
+
+def delete_folder(email, name):
+    """Удаляет IMAP-папку. Возвращает (ok, error)."""
+    client, err = _make_client(email)
+    if err:
+        return False, err
+    try:
+        client.delete_folder(name)
+        return True, None
+    except Exception as e:
+        logger.exception(f'delete_folder failed for {email}/{name}')
+        return False, f'Ошибка удаления папки: {e}'
+    finally:
+        _safe_close(client)

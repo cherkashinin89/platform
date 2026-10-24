@@ -1,10 +1,9 @@
 {# ============================================================
-   W47: список папок (панель 1)
-   Этап 1 — статическая заглушка.
-   Этап 3 — реальные папки из IMAP.
+   W47: список папок (панель 1).
+   Стандартные + пользовательские (с счётчиками).
    ============================================================ #}
 
-{# Ожидает в контексте: folder_current (str) — активная папка #}
+{# Ожидает в контексте: folder_current (str), custom_folders (list) #}
 {% set folder_current = folder_current|default('INBOX') %}
 
 <div class="mail-folders-header mb-2 px-2">
@@ -14,14 +13,30 @@
     </a>
 </div>
 
+<div class="mb-2 px-2">
+    <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="createFolderBtn">
+        <i class="bi bi-folder-plus"></i> Создать папку
+    </button>
+</div>
+
 <nav class="mail-folders-nav">
+
+    {% set inbox_f = (custom_folders or []) | selectattr('name', 'equalto', 'INBOX') | first %}
+    {% set sent_f = (custom_folders or []) | selectattr('name', 'equalto', 'Sent') | first %}
+    {% set drafts_f = (custom_folders or []) | selectattr('name', 'equalto', 'Drafts') | first %}
+    {% set junk_f = (custom_folders or []) | selectattr('name', 'equalto', 'Junk') | first %}
+    {% set trash_f = (custom_folders or []) | selectattr('name', 'equalto', 'Trash') | first %}
 
     <a href="{{ url_for('inbox') }}"
        class="mail-folder-item {% if folder_current == 'INBOX' %}is-active{% endif %}"
        data-folder="INBOX">
         <i class="bi bi-inbox me-2"></i>
         <span class="mail-folder-name">Входящие</span>
-        <span class="mail-folder-count">0</span>
+        <span class="mail-folder-count">
+            {% if inbox_f %}
+                {% if inbox_f.unread %}{{ inbox_f.unread }}/{% endif %}{{ inbox_f.total }}
+            {% endif %}
+        </span>
     </a>
 
     <a href="{{ url_for('folder', name='Sent') }}"
@@ -29,7 +44,9 @@
        data-folder="Sent">
         <i class="bi bi-send me-2"></i>
         <span class="mail-folder-name">Отправленные</span>
-        <span class="mail-folder-count">0</span>
+        <span class="mail-folder-count">
+            {% if sent_f %}{{ sent_f.total }}{% endif %}
+        </span>
     </a>
 
     <a href="{{ url_for('folder', name='Drafts') }}"
@@ -37,7 +54,9 @@
        data-folder="Drafts">
         <i class="bi bi-file-earmark me-2"></i>
         <span class="mail-folder-name">Черновики</span>
-        <span class="mail-folder-count">0</span>
+        <span class="mail-folder-count">
+            {% if drafts_f %}{{ drafts_f.total }}{% endif %}
+        </span>
     </a>
 
     <a href="{{ url_for('folder', name='Junk') }}"
@@ -45,7 +64,9 @@
        data-folder="Junk">
         <i class="bi bi-exclamation-octagon me-2"></i>
         <span class="mail-folder-name">Спам</span>
-        <span class="mail-folder-count">0</span>
+        <span class="mail-folder-count">
+            {% if junk_f %}{{ junk_f.total }}{% endif %}
+        </span>
     </a>
 
     <a href="{{ url_for('folder', name='Trash') }}"
@@ -53,26 +74,33 @@
        data-folder="Trash">
         <i class="bi bi-trash me-2"></i>
         <span class="mail-folder-name">Корзина</span>
-        <span class="mail-folder-count">0</span>
+        <span class="mail-folder-count">
+            {% if trash_f %}{{ trash_f.total }}{% endif %}
+        </span>
     </a>
 
-    {# === Пользовательские папки (Этап 3) === #}
-    {% if custom_folders %}
-    <hr class="my-2">
-    {% for f in custom_folders %}
-    <a href="{{ url_for('folder', name=f.name) }}"
-       class="mail-folder-item {% if folder_current == f.name %}is-active{% endif %}"
-       data-folder="{{ f.name }}">
-        <i class="bi bi-folder me-2"></i>
-        <span class="mail-folder-name">{{ f.display_name or f.name }}</span>
-        <span class="mail-folder-count">{{ f.unread or 0 }}/{{ f.total or 0 }}</span>
-    </a>
+    {# === Пользовательские папки === #}
+    {% set standard_names = ['INBOX', 'Sent', 'Drafts', 'Junk', 'Trash', 'Sent Messages'] %}
+    {% for f in (custom_folders or []) %}
+        {% if f.name not in standard_names %}
+        <div class="mail-folder-row">
+            <a href="{{ url_for('folder', name=f.name) }}"
+               class="mail-folder-item {% if folder_current == f.name %}is-active{% endif %}"
+               data-folder="{{ f.name }}">
+                <i class="bi bi-folder me-2"></i>
+                <span class="mail-folder-name">{{ f.display_name or f.name }}</span>
+                <span class="mail-folder-count">{{ f.unread or 0 }}/{{ f.total or 0 }}</span>
+            </a>
+            <button type="button" class="mail-folder-menu-btn"
+                    data-folder-name="{{ f.name }}" title="Действия">
+                <i class="bi bi-three-dots"></i>
+            </button>
+        </div>
+        {% endif %}
     {% endfor %}
-    {% endif %}
 
 </nav>
 
-{# === Ссылка на настройки (дублирует шестерёнку в шапке) === #}
 <div class="mt-3 pt-3 border-top">
     <a href="{{ url_for('settings') }}" class="mail-folder-item">
         <i class="bi bi-gear me-2"></i>

@@ -72,6 +72,25 @@
 
 </div>
 
+<!-- Модалка "Создать папку" -->
+<div class="modal fade" id="createFolderModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Создать папку</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="text" id="newFolderName" class="form-control" placeholder="Имя папки">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" id="createFolderConfirm">Создать</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {# === Скрипты mail === #}

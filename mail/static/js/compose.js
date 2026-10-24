@@ -216,6 +216,44 @@
             });
         }
 
+        // === Восстановление черновика ===
+        const restoreModalEl = document.getElementById('restoreDraftModal');
+        if (restoreModalEl && !window.location.search) {
+            // Только если нет параметров (reply/forward)
+            fetch('/api/latest-draft')
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.ok || data.none) return;
+                    // Показываем модалку
+                    document.getElementById('draftPreview').textContent =
+                        `${data.subject || '(без темы)'} — ${data.date_human}`;
+                    const modal = new bootstrap.Modal(restoreModalEl);
+                    modal.show();
+
+                    // "Восстановить"
+                    document.getElementById('draftRestore').addEventListener('click', function () {
+                        document.getElementById('composeTo').value = data.to || '';
+                        document.getElementById('composeCc').value = data.cc || '';
+                        document.getElementById('composeSubject').value = data.subject || '';
+                        // Тело — в TinyMCE
+                        if (typeof tinymce !== 'undefined') {
+                            const editor = tinymce.get('composeBody');
+                            if (editor) editor.setContent(data.body || '');
+                        } else {
+                            document.getElementById('composeBody').value = data.body || '';
+                        }
+                        modal.hide();
+                    });
+
+                    // "Удалить"
+                    document.getElementById('draftDiscard').addEventListener('click', function () {
+                        // Удаляем черновик через API (опционально)
+                        modal.hide();
+                    });
+                })
+                .catch(() => {});
+        }
+
         console.log('[compose] init complete');
     });
 
