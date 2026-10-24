@@ -570,6 +570,33 @@ def create_app(config_class=Config):
             'inbox_unread': inbox_unread,
         })
 
+    @app.route('/api/latest-unread')
+    @login_required
+    def api_latest_unread():
+        """Последнее непрочитанное письмо (для toast)."""
+        email = _current_email()
+        if not email:
+            return jsonify({'ok': False})
+
+        # Берём список писем INBOX (50 — достаточно)
+        msgs, total, err = imap_client.list_messages(email, 'INBOX', limit=50, offset=0)
+        if err:
+            return jsonify({'ok': False, 'error': err})
+
+        # Ищем первое непрочитанное
+        for m in (msgs or []):
+            if not m.get('is_read'):
+                return jsonify({
+                    'ok': True,
+                    'uid': m.get('uid'),
+                    'from_name': m.get('from_name', ''),
+                    'from_email': m.get('from_email', ''),
+                    'subject': m.get('subject', ''),
+                    'date_human': m.get('date_human', ''),
+                })
+
+        return jsonify({'ok': True, 'none': True})
+
     @app.route('/settings')
     @login_required
     def settings():
