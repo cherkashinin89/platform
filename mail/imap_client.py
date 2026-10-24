@@ -864,3 +864,74 @@ def delete_folder(email, name):
         return False, f'Ошибка удаления папки: {e}'
     finally:
         _safe_close(client)
+
+def trash_message(email, folder, uid):
+    """
+    Перемещает письмо в Trash (IMAP MOVE или COPY+DELETE).
+    Возвращает (ok, error).
+    """
+    client, err = _make_client(email)
+    if err:
+        return False, err
+    try:
+        client.select_folder(folder, readonly=False)
+
+        # Пробуем MOVE (IMAP4rev1 + MOVE extension)
+        try:
+            client.move([uid], 'Trash')
+        except Exception:
+            # Fallback: COPY в Trash, затем STORE \Deleted + EXPUNGE
+            client.copy([uid], 'Trash')
+            client.add_flags([uid], [b'\\Deleted'])
+            client.expunge()
+
+        return True, None
+    except Exception as e:
+        logger.exception(f'trash_message failed for {email}/{folder}/{uid}')
+        return False, f'Ошибка удаления: {e}'
+    finally:
+        _safe_close(client)
+
+def delete_message(email, folder, uid):
+    """
+    Удаляет письмо окончательно (STORE \Deleted + EXPUNGE).
+    Возвращает (ok, error).
+    """
+    client, err = _make_client(email)
+    if err:
+        return False, err
+    try:
+        client.select_folder(folder, readonly=False)
+        client.add_flags([uid], [b'\\Deleted'])
+        client.expunge()
+        return True, None
+    except Exception as e:
+        logger.exception(f'delete_message failed for {email}/{folder}/{uid}')
+        return False, f'Ошибка удаления: {e}'
+    finally:
+        _safe_close(client)
+
+def move_message(email, folder, uid, dest_folder):
+    """
+    Перемещает письмо из folder в dest_folder (IMAP MOVE или COPY+DELETE).
+    Возвращает (ok, error).
+    """
+    client, err = _make_client(email)
+    if err:
+        return False, err
+    try:
+        client.select_folder(folder, readonly=False)
+        # Пробуем MOVE
+        try:
+            client.move([uid], dest_folder)
+        except Exception:
+            # Fallback: COPY + DELETE
+            client.copy([uid], dest_folder)
+            client.add_flags([uid], [b'\\Deleted'])
+            client.expunge()
+        return True, None
+    except Exception as e:
+        logger.exception(f'move_message failed for {email}/{folder}/{uid}->{dest_folder}')
+        return False, f'Ошибка перемещения: {e}'
+    finally:
+        _safe_close(client)

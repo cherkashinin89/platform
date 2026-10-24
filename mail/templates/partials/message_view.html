@@ -52,7 +52,16 @@
            class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-forward"></i> Переслать
         </a>
-        <button type="button" class="btn btn-sm btn-outline-danger">
+        <button type="button" class="btn btn-sm btn-outline-secondary"
+                id="moveMessageBtn"
+                data-uid="{{ message.uid }}"
+                data-folder="{{ request.args.get('folder', 'INBOX') }}">
+            <i class="bi bi-folder-symlink"></i> В папку
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-danger"
+                id="deleteMessageBtn"
+                data-uid="{{ message.uid }}"
+                data-folder="{{ request.args.get('folder', 'INBOX') }}">
             <i class="bi bi-trash"></i> Удалить
         </button>
     </div>

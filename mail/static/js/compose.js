@@ -247,8 +247,24 @@
 
                     // "Удалить"
                     document.getElementById('draftDiscard').addEventListener('click', function () {
-                        // Удаляем черновик через API (опционально)
-                        modal.hide();
+                        fetch('/api/draft/delete', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': (document.querySelector('meta[name="csrf-token"]') || {}).content || '',
+                            },
+                            credentials: 'same-origin',
+                            body: JSON.stringify({ uid: data.uid }),
+                        })
+                        .then(r => r.json())
+                        .then(res => {
+                            if (res.ok) {
+                                modal.hide();
+                            } else {
+                                alert('Ошибка: ' + (res.error || 'неизвестная'));
+                            }
+                        })
+                        .catch(err => alert('Ошибка сети: ' + err));
                     });
                 })
                 .catch(() => {});

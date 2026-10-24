@@ -435,6 +435,29 @@ def create_app(config_class=Config):
 
         return jsonify({'ok': True})
 
+    @app.route('/api/draft/delete', methods=['POST'])
+    @login_required
+    @csrf.exempt
+    def api_draft_delete():
+        """Удаляет черновик из Drafts."""
+        email = _current_email()
+        if not email:
+            return jsonify({'ok': False, 'error': 'Нет ящика'}), 400
+
+        data = request.get_json(silent=True) or {}
+        uid = data.get('uid')
+        if not uid:
+            return jsonify({'ok': False, 'error': 'Укажите UID'}), 400
+
+        ok, err = imap_client.delete_message(email, 'Drafts', int(uid))
+        if not ok:
+            return jsonify({'ok': False, 'error': err}), 500
+
+        cache.delete(f'mail_msgs_{email}_Drafts')
+        cache.delete(f'mail_folders_{email}')
+
+        return jsonify({'ok': True})
+
     @app.route('/api/latest-draft')
     @login_required
     def api_latest_draft():
@@ -556,6 +579,58 @@ def create_app(config_class=Config):
             return jsonify({'ok': False, 'error': err}), 500
 
         cache.delete(f'mail_folders_{email}')
+        return jsonify({'ok': True})
+
+    @app.route('/api/message/trash', methods=['POST'])
+    @login_required
+    @csrf.exempt
+    def api_message_trash():
+        """Перемещает письмо в Trash."""
+        email = _current_email()
+        if not email:
+            return jsonify({'ok': False, 'error': 'Нет ящика'}), 400
+
+        data = request.get_json(silent=True) or {}
+        uid = data.get('uid')
+        folder = data.get('folder', 'INBOX')
+
+        if not uid:
+            return jsonify({'ok': False, 'error': 'Укажите UID'}), 400
+
+        ok, err = imap_client.trash_message(email, folder, int(uid))
+        if not ok:
+            return jsonify({'ok': False, 'error': err}), 500
+
+        # Инвалидируем кэш
+        cache.delete(f'mail_msgs_{email}_{folder}')
+        cache.delete(f'mail_folders_{email}')
+
+        return jsonify({'ok': True})
+
+    @app.route('/api/message/move', methods=['POST'])
+    @login_required
+    @csrf.exempt
+    def api_message_move():
+        """Перемещает письмо в указанную папку."""
+        email = _current_email()
+        if not email:
+            return jsonify({'ok': False, 'error': 'Нет ящика'}), 400
+
+        data = request.get_json(silent=True) or {}
+        uid = data.get('uid')
+        folder = data.get('folder', 'INBOX')
+        dest = data.get('dest')
+        if not uid or not dest:
+            return jsonify({'ok': False, 'error': 'Укажите UID и папку'}), 400
+
+        ok, err = imap_client.move_message(email, folder, int(uid), dest)
+        if not ok:
+            return jsonify({'ok': False, 'error': err}), 500
+
+        cache.delete(f'mail_msgs_{email}_{folder}')
+        cache.delete(f'mail_msgs_{email}_{dest}')
+        cache.delete(f'mail_folders_{email}')
+
         return jsonify({'ok': True})
 
     @app.route('/api/cloud-tree')

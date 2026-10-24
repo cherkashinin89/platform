@@ -326,4 +326,71 @@
         });
     });
 
+    // === Удаление письма ===
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest('#deleteMessageBtn');
+        if (!btn) return;
+
+        const uid = btn.dataset.uid;
+        const folder = btn.dataset.folder;
+        if (!uid) return;
+
+        if (!confirm('Переместить письмо в корзину?')) return;
+
+        fetch('/api/message/trash', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ uid: uid, folder: folder }),
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.ok) {
+                 // Успех — перезагружаем папку
+                window.location.href = `/folder/${encodeURIComponent(folder)}`;
+            } else {
+                alert('Ошибка: ' + (data.error || 'неизвестная'));
+            }
+        })
+        .catch(err => alert('Ошибка сети: ' + err));
+    });
+
+    // === Перемещение письма ===
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest('#moveMessageBtn');
+        if (!btn) return;
+
+        const uid = btn.dataset.uid;
+        const folder = btn.dataset.folder;
+        if (!uid) return;
+
+        // Заполняем select
+        const modal = new bootstrap.Modal(document.getElementById('moveMessageModal'));
+        modal.show();
+
+        // Обработчик подтверждения (один раз)
+        const confirmBtn = document.getElementById('moveMessageConfirm');
+        confirmBtn.onclick = function () {
+            const dest = document.getElementById('moveDestSelect').value;
+            if (!dest) return;
+
+            fetch('/api/message/move', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ uid: uid, folder: folder, dest: dest }),
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.ok) {
+                    modal.hide();
+                    window.location.href = `/folder/${encodeURIComponent(folder)}`;
+                } else {
+                    alert('Ошибка: ' + (data.error || 'неизвестная'));
+                }
+            })
+            .catch(err => alert('Ошибка сети: ' + err));
+        };
+    });
+
 })();
