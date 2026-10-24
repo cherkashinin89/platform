@@ -1079,12 +1079,20 @@ if {cond_str} {{
         folder = request.args.get('folder', 'INBOX')
         mode = request.args.get('mode', '')
 
+        # Папки (для левой панели)
+        folders, _ = imap_client.list_folders(email)
+
         # Контекст для шаблона (по умолчанию — пустая форма)
         ctx = {
             'prefill_to': '',
             'prefill_cc': '',
             'prefill_subject': '',
             'prefill_body': '',
+            'custom_folders': folders or [],
+            'folder_current': 'INBOX',
+            'folder_title': 'Новое письмо',
+            'messages': [],
+            'message': None,
         }
 
         # Если reply или forward — подгружаем письмо

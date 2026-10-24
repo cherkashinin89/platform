@@ -585,3 +585,123 @@
 .mail-folder-dropdown button:hover {
     background: var(--mail-bg-hover);
 }
+
+/* === W47: компактная панель папок (Gmail-like) === */
+.mail-panel-folders {
+    flex: 0 0 60px;
+    width: 60px;
+    border-right: 1px solid var(--mail-panel-border);
+    background: var(--mail-bg-panel);
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: 12px 4px;
+    transition: width 0.2s ease, flex-basis 0.2s ease;
+    z-index: 10;
+}
+
+.mail-panel-folders:hover {
+    flex: 0 0 220px;
+    width: 220px;
+    padding: 12px 8px;
+    box-shadow: 2px 0 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Скрываем текст в компактном режиме */
+.mail-panel-folders .mail-folder-name,
+.mail-panel-folders .mail-folders-header,
+.mail-panel-folders .mail-folder-count {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.mail-panel-folders:hover .mail-folder-name,
+.mail-panel-folders:hover .mail-folders-header,
+.mail-panel-folders:hover .mail-folder-count {
+    opacity: 1;
+}
+
+/* Счётчик в компактном режиме — маленький бейдж */
+.mail-panel-folders .mail-folder-count {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    font-size: 9px;
+    background: var(--mail-accent);
+    color: #fff;
+    border-radius: 8px;
+    padding: 1px 4px;
+    min-width: 14px;
+    text-align: center;
+}
+
+.mail-panel-folders:hover .mail-folder-count {
+    position: static;
+    background: transparent;
+    color: var(--mail-text-muted);
+    font-size: 11px;
+    padding: 0;
+    min-width: auto;
+}
+
+/* Иконки — всегда видны, по центру */
+.mail-panel-folders .mail-folder-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    border-radius: 6px;
+    justify-content: flex-start;
+    gap: 8px;
+}
+
+.mail-panel-folders:not(:hover) .mail-folder-item {
+    justify-content: center;
+    gap: 0;
+}
+
+.mail-panel-folders:not(:hover) .mail-folder-item i {
+    font-size: 18px;
+}
+
+/* Скрываем кнопку "Создать папку" и "Написать" в компактном */
+.mail-panel-folders:not(:hover) .mail-folders-header,
+.mail-panel-folders:not(:hover) .mail-folders-nav + div,
+.mail-panel-folders:not(:hover) #createFolderBtn {
+    opacity: 0;
+    height: 0;
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
+}
+
+.mail-panel-folders .mail-folder-count {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    font-size: 9px;
+    background: var(--mail-accent);
+    color: #fff;
+    border-radius: 8px;
+    padding: 1px 4px;
+    min-width: 14px;
+    text-align: center;
+    opacity: 1;
+    z-index: 2;
+}
+
+/* Для пользовательских папок (с кнопкой ...) — счётчик левее */
+.mail-panel-folders .mail-folder-row .mail-folder-count {
+    right: 24px;  /* отступ под кнопку «...» */
+}
+
+.mail-panel-folders:hover .mail-folder-row .mail-folder-count {
+    position: static;
+    right: auto;
+    background: transparent;
+    color: var(--mail-text-muted);
+    font-size: 11px;
+    padding: 0;
+    min-width: auto;
+}
