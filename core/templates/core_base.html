@@ -332,6 +332,37 @@
 
     {# === Дополнительные скрипты проекта === #}
     {% block scripts %}{% endblock %}
+    {# W47: счётчик непрочитанных (для всех сервисов) #}
+    <script>
+        (function () {
+            'use strict';
+            function updateUnreadBadge() {
+                const mailUrl = '{{ site_settings.mail_base_url if site_settings else "http://192.168.2.19:5003" }}';
+                fetch(mailUrl + '/api/unread-count', { credentials: 'include' })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (!data.ok) return;
+                        const badge = document.getElementById('mailUnreadBadge');
+                        if (!badge) return;
+                        const count = data.total_unread || 0;
+                        if (count > 0) {
+                            badge.textContent = count;
+                            badge.style.display = '';
+                        } else {
+                            badge.style.display = 'none';
+                        }
+                    })
+                    .catch(() => {});
+            }
+            // Ждём готовности DOM
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', updateUnreadBadge);
+            } else {
+                updateUnreadBadge();
+            }
+            setInterval(updateUnreadBadge, 60000);
+        })();
+    </script>
 
     {# W31: toast-уведомления (fade-in/fade-out) #}
     <script src="{{ url_for('static', filename='shared/js/toast.js') }}"></script>

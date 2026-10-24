@@ -17,6 +17,7 @@
 {% set header_admin_url = site_settings.site_base_url ~ '/admin/' if site_settings else '' %}
 {% set header_admin_editor_url = site_settings.site_base_url ~ '/admin/' if site_settings else '' %}
 {% set header_settings_url = url_for('settings') %}
+{% set header_unread_count = true %}
 {% include 'partials/header.html' %}
 {% endblock %}
 

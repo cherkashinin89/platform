@@ -545,6 +545,31 @@ def create_app(config_class=Config):
             'token': share.token,
         })
 
+    @app.route('/api/unread-count')
+    @login_required
+    def api_unread_count():
+        """Количество непрочитанных (для счётчика)."""
+        email = _current_email()
+        if not email:
+            return jsonify({'ok': False, 'unread': 0})
+
+        # Без кэша — актуальные данные
+        folders, err = imap_client.list_folders(email)
+        if err:
+            return jsonify({'ok': False, 'unread': 0, 'error': err})
+
+        total_unread = sum(f.get('unread', 0) for f in (folders or []))
+        inbox_unread = next(
+            (f.get('unread', 0) for f in (folders or []) if f.get('name') == 'INBOX'),
+            0,
+        )
+
+        return jsonify({
+            'ok': True,
+            'total_unread': total_unread,
+            'inbox_unread': inbox_unread,
+        })
+
     @app.route('/settings')
     @login_required
     def settings():
@@ -1027,6 +1052,21 @@ if {cond_str} {{
             db.session.rollback()
         flash('Письмо отправлено', 'success')
         return redirect(url_for('inbox'))
+
+    @app.after_request
+    def add_cors_headers(response):
+        if request.path.startswith('/api/'):
+            origin = request.headers.get('Origin', '')
+            allowed = [
+                'http://192.168.2.19',
+                'http://192.168.2.19:5001',
+            ]
+            if origin in allowed:
+                response.headers['Access-Control-Allow-Origin'] = origin
+                response.headers['Access-Control-Allow-Credentials'] = 'true'
+                response.headers['Access-Control-Allow-Methods'] = 'GET, POST, DELETE, OPTIONS'
+                response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-CSRFToken'
+        return response
 
     return app
 
