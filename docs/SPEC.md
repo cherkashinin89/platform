@@ -1,9 +1,9 @@
 markdown
 # SPEC — единый источник правды по проекту platform
 
-**Версия:** v4
-**Дата:** 2026-10-24
-**Статус:** W47 (UI почты) — в работе, Этапы 1–7 + A/B/C/D завершены. W2 завершён. Идёт полировка (Этап 9).
+**Версия:** v5
+**Дата:** 2026-10-27
+**Статус:** W47 (UI почты) — полировка. W2 завершён. W48 (Collabora) — Этапы 1–2, отложен до наведения порядка в миграциях. Миграции унифицированы в `core/migrations/`.
 
 ---
 
@@ -104,6 +104,12 @@ text
 │ ├── system_stats.py
 │ ├── backup_utils.py
 │ ├── files_icons.py
+│ ├── migrations/                            ← ЕДИНСТВЕННЫЙ источник правды по схеме БД
+│ │   ├── env.py
+│ │   ├── alembic.ini
+│ │   ├── script.py.mako
+│ │   └── versions/
+│ │       └── 761def80153f_initial_все_таблицы_core.py
 │ ├── templates/
 │ │ ├── core_base.html
 │ │ └── partials/
@@ -122,6 +128,7 @@ text
 │
 ├── framework/ ← сайт + админка
 │ ├── app.py
+│ ├── cli.py                                 ← CLI-команда create-admin
 │ ├── config.py
 │ ├── forms.py
 │ ├── mail_utils.py ← HTTP к mail (hash-password, quota, reload, archive)
@@ -175,6 +182,8 @@ text
 │ ├── requirements.txt
 │ ├── venv/
 │ ├── cloud_data/
+├── collabora/                                 ← Collabora Online (Docker)
+│   └── docker-compose.yml
 │ ├── templates/
 │ │ ├── base_cloud.html
 │ │ ├── index.html
@@ -310,18 +319,17 @@ class Mailbox(db.Model):
 MailAlias — НЕ создаём. Ролевые адреса — через пользователей. Если понадобится — отдельная задача.
 
 4. АРХИТЕКТУРА
-4.1. Три сервиса — одна БД, разные истории миграций
+### 4.1. Три сервиса — одна БД, единая история миграций
 Общая БД: myframework.
 
-Свои истории миграций:
+**Единый источник правды:** `core/migrations/`.
+- Модели — в `core/models.py`.
+- `core/migrations/env.py` — без белых списков, берёт весь `db.metadata`.
+- `version_table='alembic_version'` — одна.
+- Запуск из любого сервиса: `flask db migrate -d ../core/migrations` (или через `directory` в `Migrate.init_app`).
+- framework/cloud/mail **не имеют** своих `migrations/`.
 
-framework/migrations/ → alembic_version, FRAMEWORK_TABLES.
-
-cloud/migrations/ → alembic_version_cloud, свой белый список.
-
-mail/migrations/ → alembic_version_mail, MAIL_TABLES = {mail_domain, mailbox, alembic_version_mail}.
-
-Модели — в core/models.py (общий источник правды).
+**История до перехода:** `framework/migrations/`, `mail/migrations/` удалены. Архив — в git-коммитах до `0d5cca0a2c6867524fa1c36eb1812b0318ebcd7f`.
 
 4.2. SSO (единый вход)
 На тестовом: разные origin (:80, :5001, :5003). Cookie session — Domain=192.168.2.19 (без порта) — шарятся между портами. SSO работает.
@@ -1046,6 +1054,12 @@ X2. Криптопровайдер (ЭЦП)
 
 Приоритет: низкий (косметика).
 
+### БАГ-MIGR-001 — дефолт mail_base_url в SiteSettings
+
+**Проблема:** `SiteSettings.mail_base_url` имел дефолт `:5002` (порт облака) вместо `:5003` (порт почты). После пересоздания БД шапка делала fetch `/api/unread-count` на `:5002` → 404.
+**Решение:** дефолт в `core/models.py` исправлен на `:5003`; значение в БД обновлено.
+**Файлы:** `core/models.py` (строка 320).
+
 БАГ-W2-006 — кэш браузера на /admin/quotas/
 Проблема: после изменения квоты почты на /admin/quotas/user/<id>, возврат на /admin/quotas/ не показывает новое значение (browser cache).
 
@@ -1225,11 +1239,14 @@ PGPASSWORD='myframework_dev_password' pg_dump -Fc -Z 9 \
   -h localhost -U myframework -d myframework \
   -f ~/backups_platform_$(date +%Y%m%d)/db.dump
 
-# Миграции
+# Миграции (единая история — core/migrations/)
 cd /home/deploy/apps/platform/framework && source venv/bin/activate
-flask db migrate -m "описание"
+flask db migrate -m "описание"    # путь берётся из Migrate.init_app(directory=...)
 flask db upgrade
 flask db downgrade
+
+# Создание администратора
+flask create-admin
 
 # Секреты
 python3 -c "import secrets; print(secrets.token_hex(32))"
@@ -1309,9 +1326,11 @@ W47	Этап 4.4: автодополнение получателей	<комм�
 W47	Этап 4.5: ответы / пересылка	<коммит>
 W47	Этап 4.6: автосохранение черновиков	<коммит>
 W47	Этап 4.7: вложения в compose	<коммит>
+W48	Этап 1-2: Collabora CODE + WOPI-каркас	d517666
+—	core/migrations: инициализация единой истории	0d5cca0
 14. СЛЕДУЮЩИЙ ШАГ
 
-**Текущая задача: W47 — UI почты.** Идёт Этап 9 (полировка). Сделано: компактная панель, Gmail-style compose, фикс подвала. Осталось: иконки файлов, lightbox, форма поиска, очистка.
+**Текущая задача: W48 — Collabora (Этап 3).** Этапы 1–2 завершены (инфраструктура, WOPI-каркас). Миграции унифицированы в `core/migrations/`. Следующий шаг — реальные файлы (`GetFile`/`PutFile`), `can_edit` в `CloudShare`, кнопка «Редактировать онлайн».
 
 **Отложено до боевого:**
 - Спам-фильтр (кнопка «Это спам» + обучение Rspamd + Sieve-правило).

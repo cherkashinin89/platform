@@ -103,6 +103,7 @@ def create_app(config_class=Config):
     login_manager.init_app(app)
     csrf.init_app(app)
     migrate.init_app(app, db)
+    migrate.init_app(app, db, directory='/home/deploy/apps/platform/core/migrations')
 
     # === Загрузчик пользователя для Flask-Login ===
     @login_manager.user_loader

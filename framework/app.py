@@ -1,5 +1,6 @@
 # app.py - Основной файл приложения framework
 import os
+from cli import create_admin
 from datetime import datetime
 from flask import (
     Flask, render_template, redirect, url_for, flash, request,
@@ -624,6 +625,7 @@ def create_app(config_class=Config):
     login_manager.init_app(app)
     csrf.init_app(app)
     migrate.init_app(app, db)
+    migrate.init_app(app, db, directory='/home/deploy/apps/platform/core/migrations')
 
     # Фильтры Jinja
     app.jinja_env.filters['human_size_bytes'] = human_size
@@ -4297,6 +4299,7 @@ def create_app(config_class=Config):
         except Exception as e:
             return jsonify({'active': False, 'error': str(e)}), 200
     
+    app.cli.add_command(create_admin)
     return app
 
 

@@ -317,7 +317,7 @@ class SiteSettings(db.Model):
     # === Базовые URL для кросс-приложений ===
     site_base_url = db.Column(db.String(200), default='http://192.168.2.19', nullable=False)
     cloud_base_url = db.Column(db.String(200), default='http://192.168.2.19:5001', nullable=False)
-    mail_base_url = db.Column(db.String(200), default='http://192.168.2.19:5002', nullable=False)
+    mail_base_url = db.Column(db.String(200), default='http://192.168.2.19:5003', nullable=False)
 
     # === Элементы интерфейса ===
     show_header = db.Column(db.Boolean, default=True, nullable=False)
