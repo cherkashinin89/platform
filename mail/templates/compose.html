@@ -2,18 +2,14 @@
 
 {% block mail_title %}Написать письмо{% endblock %}
 
+{% block body_class %}mail-compose-page{% endblock %}
+
 {% block mail_folders %}
     {# В compose левая панель — тоже папки, но неактивные #}
     {% include 'partials/folder_list.html' %}
 {% endblock %}
 
-{% block mail_list %}
-<div class="mail-compose-list">
-    <div class="p-3 text-muted">
-        <i class="bi bi-pencil-square"></i> Новое письмо
-    </div>
-</div>
-{% endblock %}
+{% block mail_list %}{% endblock %}
 
 {% block mail_view %}
 <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -33,19 +29,24 @@
             <input type="text" id="composeTo" name="to" class="form-control"
                    placeholder="email@example.com" required
                    value="{{ prefill_to or '' }}">
+            <button type="button" class="btn btn-sm btn-link" id="toggleCcBcc">
+                Копия/Скрытая
+            </button>
         </div>
 
-        <div class="mail-compose-field">
-            <label for="composeCc">Копия:</label>
-            <input type="text" id="composeCc" name="cc" class="form-control"
-                   placeholder="(необязательно)"
-                   value="{{ prefill_cc or '' }}">
-        </div>
+        <div id="ccBccFields" class="d-none">
+            <div class="mail-compose-field">
+                <label for="composeCc">Копия:</label>
+                <input type="text" id="composeCc" name="cc" class="form-control"
+                       placeholder="(необязательно)"
+                       value="{{ prefill_cc or '' }}">
+            </div>
 
-        <div class="mail-compose-field">
-            <label for="composeBcc">Скрытая копия:</label>
-            <input type="text" id="composeBcc" name="bcc" class="form-control"
-                   placeholder="(необязательно)">
+            <div class="mail-compose-field">
+                <label for="composeBcc">Скрытая копия:</label>
+                <input type="text" id="composeBcc" name="bcc" class="form-control"
+                       placeholder="(необязательно)">
+            </div>
         </div>
 
         <div class="mail-compose-field">
@@ -60,8 +61,8 @@
         </div>
 
         <div class="mail-compose-attachments">
-            <label class="btn btn-sm btn-outline-secondary">
-                <i class="bi bi-paperclip"></i> Прикрепить файл
+            <label class="btn btn-sm btn-outline-secondary" title="Прикрепить файл">
+                <i class="bi bi-paperclip"></i>
                 <input type="file" id="composeFile" name="attachments" multiple
                        style="display: none;">
             </label>
@@ -75,7 +76,7 @@
             <button type="button" class="btn btn-outline-secondary" id="composeDraft">
                 <i class="bi bi-file-earmark"></i> Сохранить черновик
             </button>
-            <a href="{{ url_for('inbox') }}" class="btn btn-outline-danger">
+            <a href="{{ url_for('inbox') }}" class="btn btn-outline-danger ms-auto">
                 <i class="bi bi-x-lg"></i> Отмена
             </a>
         </div>

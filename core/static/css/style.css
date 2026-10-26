@@ -1800,7 +1800,7 @@ img[data-lightbox]:hover {
     background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
     color: rgba(255, 255, 255, 0.75);
     padding: var(--space-xl) 0 var(--space-md);
-    margin-top: var(--space-xl);
+    /* margin-top: var(--space-xl); */
     border-top: 3px solid var(--color-primary);
 }
 

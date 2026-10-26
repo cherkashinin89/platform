@@ -384,8 +384,9 @@
 
 /* === Compose (форма написания письма) === */
 .mail-compose {
-    padding: 20px;
-    height: 100%;
+    flex: 1 1 auto;
+    width: 100%;
+    padding: 20px 40px;
     overflow-y: auto;
 }
 
@@ -428,10 +429,6 @@
     box-shadow: none;
     border-bottom: 1px solid var(--mail-accent);
     outline: none;
-}
-
-.mail-compose-body {
-    margin: 12px 0;
 }
 
 .mail-compose-actions {
@@ -704,4 +701,69 @@
     font-size: 11px;
     padding: 0;
     min-width: auto;
+}
+
+/* === W47: Gmail-style compose === */
+.mail-compose {
+    padding: 20px;
+    max-width: 900px;
+    margin: 0 auto;
+    height: 100%;
+    overflow-y: auto;
+}
+
+.mail-compose-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--mail-panel-border);
+}
+
+.mail-compose-field {
+    display: grid;
+    grid-template-columns: 80px 1fr auto;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--mail-panel-border);
+}
+
+.mail-compose-body {
+    flex: 1 1 auto;
+    margin: 12px 0;
+    min-height: 300px;
+    display: flex;
+    flex-direction: column;
+}
+
+.mail-compose-body .tox-tinymce {
+    flex: 1 1 auto;
+    height: 100% !important;
+}
+
+/* === W47: в compose скрываем панель 2 === */
+body.mail-compose-page .mail-panel-list {
+    display: none;
+}
+
+/* === W47: в compose форма на всю ширину === */
+.mail-panel-view {
+    flex: 1 1 100%;
+}
+
+.mail-compose {
+    max-width: 100%;
+    padding: 20px 40px;
+}
+
+.mail-compose form {
+    max-width: 100%;
+}
+
+/* === W47: в compose скрываем панель 2 (список) === */
+body.mail-compose-page .mail-panel-list {
+    display: none;
 }

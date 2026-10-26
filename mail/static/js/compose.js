@@ -270,6 +270,15 @@
                 .catch(() => {});
         }
 
+        // === Cc/Bcc (показать/скрыть) ===
+        const toggleCcBcc = document.getElementById('toggleCcBcc');
+        const ccBccFields = document.getElementById('ccBccFields');
+        if (toggleCcBcc && ccBccFields) {
+            toggleCcBcc.addEventListener('click', function () {
+                ccBccFields.classList.toggle('d-none');
+            });
+        }
+
         console.log('[compose] init complete');
     });
 

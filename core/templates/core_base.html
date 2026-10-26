@@ -37,7 +37,7 @@
     {% block head_extra %}{% endblock %}
 </head>
 
-<body class="d-flex flex-column min-vh-100">
+<body class="d-flex flex-column min-vh-100 {% block body_class %}{% endblock %}">
     <div class="d-flex flex-column flex-grow-1">
 
         {# === ПАРАМЕТРЫ ШАПКИ + ОБЩАЯ ШАПКА (проект переопределяет блок целиком) === #}
