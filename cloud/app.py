@@ -21,6 +21,8 @@ from cloud_service import (
 )
 from core.extensions import db, login_manager, csrf, migrate
 from core.models import User, CloudFile, CloudShare, SiteSettings
+from wopi_test import wopi_test_bp
+
 
 # === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ШАРИНГА ===
 
@@ -77,6 +79,8 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
     app.config['TEMPLATES_AUTO_RELOAD'] = True
+    csrf.exempt(wopi_test_bp)
+    app.register_blueprint(wopi_test_bp)
 
     # === Подключаем шаблоны core (общие) + локальные ===
     # Приоритет: cloud/templates/ → core/templates/
@@ -881,6 +885,20 @@ def create_app(config_class=Config):
             })
 
         return jsonify({'ok': True, 'attachments': attachments})
+
+
+    @app.route('/test_collabora')
+    def test_collabora():
+        return '''
+<!DOCTYPE html>
+<html>
+<head><title>Collabora test</title></head>
+<body>
+<iframe src="http://192.168.2.19:5005/browser/dist/cool.html?WOPISrc=http%3A%2F%2F192.168.2.19%3A5001%2Fwopi%2Ffiles%2Ftest123&access_token=testtoken"
+        style="width:100%; height:800px; border:none;"></iframe>
+</body>
+</html>
+'''
 
     return app
 

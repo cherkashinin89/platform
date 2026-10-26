@@ -1,0 +1,13 @@
+services:
+  collabora:
+    image: collabora/code:latest
+    container_name: collabora
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9980:9980"
+    environment:
+      - aliasgroup1=http://192.168.2.19:5001
+      - server_name=192.168.2.19:5005
+      - extra_params=--o:ssl.enable=false --o:ssl.termination=false
+    cap_add:
+      - MKNOD
