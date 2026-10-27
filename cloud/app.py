@@ -21,6 +21,7 @@ from cloud_service import (
 )
 from core.extensions import db, login_manager, csrf, migrate
 from core.models import User, CloudFile, CloudShare, SiteSettings
+from core.auth import editor_required
 from wopi_test import wopi_test_bp
 
 
@@ -518,8 +519,9 @@ def create_app(config_class=Config):
 
     @app.route('/attached')
     @login_required
+    @editor_required
     def attached():
-        """W36: страница «Прикреплено к статьям» — список привязанных шар."""
+        """W36: страница «Прикреплено к статьям» — список привязанных файлов."""
         from cloud_service import list_attached_shares
         attached_list = list_attached_shares(current_user.id)
         quota = get_quota_info(current_user)
@@ -851,16 +853,10 @@ def create_app(config_class=Config):
 
         Используется модалкой удаления в корзину.
         """
-        from core.models import ShareAttach, CloudShare, Article, Page
+        from core.models import ContentFile, Article, Page
 
-        # Все шары на этот файл
-        shares = CloudShare.query.filter_by(file_id=file_id).all()
-        if not shares:
-            return jsonify({'ok': True, 'attachments': []})
-
-        share_ids = [s.id for s in shares]
-
-        attaches = ShareAttach.query.filter(ShareAttach.share_id.in_(share_ids)).all()
+        # W58: все привязки файла к статьям/страницам
+        attaches = ContentFile.query.filter_by(file_id=file_id).all()
 
         attachments = []
         for a in attaches:

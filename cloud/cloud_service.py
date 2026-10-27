@@ -637,44 +637,44 @@ def list_shares(owner_id):
 
 def list_attached_shares(owner_id):
     """
-    W36: список шар пользователя, привязанных к статьям/страницам.
+    W58: список файлов пользователя, привязанных к статьям/страницам.
 
     Возвращает список словарей:
-        [{share, attachments: [{target_type, target_id, title, url, date}]}, ...]
+        [{file, attachments: [{target_type, target_id, title, url, date}]}, ...]
 
-    Где share — объект CloudShare, attachments — список привязок через ShareAttach.
+    Где file — объект CloudFile, attachments — список привязок через ContentFile.
     """
-    from core.models import ShareAttach, Article, Page
+    from core.models import ContentFile, Article, Page
 
-    # Все шары пользователя, у которых есть привязки
-    shares = (
-        CloudShare.query
-        .filter_by(created_by_id=owner_id)
-        .order_by(CloudShare.created_at.desc())
+    # Все файлы пользователя
+    files = (
+        CloudFile.query
+        .filter_by(owner_id=owner_id, is_folder=False, is_trashed=False)
+        .order_by(CloudFile.created_at.desc())
         .all()
     )
 
-    if not shares:
+    if not files:
         return []
 
-    share_ids = [s.id for s in shares]
+    file_ids = [f.id for f in files]
 
-    # Все привязки для этих шар
-    attaches = (
-        ShareAttach.query
-        .filter(ShareAttach.share_id.in_(share_ids))
-        .order_by(ShareAttach.created_at.desc())
+    # Все привязки для этих файлов
+    links = (
+        ContentFile.query
+        .filter(ContentFile.file_id.in_(file_ids))
+        .order_by(ContentFile.created_at.desc())
         .all()
     )
 
-    # Группируем по share_id
-    by_share = {}
-    for a in attaches:
-        by_share.setdefault(a.share_id, []).append(a)
+    # Группируем по file_id
+    by_file = {}
+    for link in links:
+        by_file.setdefault(link.file_id, []).append(link)
 
     result = []
-    for s in shares:
-        atts = by_share.get(s.id, [])
+    for f in files:
+        atts = by_file.get(f.id, [])
         if not atts:
             continue
 
@@ -702,7 +702,7 @@ def list_attached_shares(owner_id):
             })
 
         result.append({
-            'share': s,
+            'file': f,
             'attachments': attachments,
         })
 

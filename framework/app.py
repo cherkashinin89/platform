@@ -231,162 +231,55 @@ def _build_menu_tree(items):
     return build(None)
 
 # === ФАБРИКА ПРИЛОЖЕНИЯ ===
-def _process_attached_files_in_html(content_html, target_type, target_id, user_id):
+def _process_attached_files_in_html(content_html, user_id, target_type, target_id):
     """
-    W3: обработка прикреплённых файлов в HTML при сохранении статьи/страницы.
+    W58: обработка прикреплённых файлов в HTML при сохранении статьи/страницы.
 
     Что делает:
-    1. Находит data-file-id (новые файлы, только что прикреплённые).
-    2. Для каждого создаёт шару через cloud API.
-    3. Заменяет data-file-id → data-share-token, убирает is-temp.
-    4. Создаёт ShareAttach для новых связей.
-    5. Удаляет ShareAttach, если токен пропал из HTML.
-    6. Удаляет CloudShare, если у неё не осталось ShareAttach.
+    1. Находит data-file-id (файлы, прикреплённые через модалку).
+    2. Заменяет data-file-id="<id>" → href="/files/<id>", убирает is-temp.
+    3. Создаёт ContentFile для новых связей.
+    4. Удаляет ContentFile, если файл больше не в HTML.
 
     Возвращает (ok: bool, new_html: str | None, error: str | None).
     """
     import re
-    import requests
-    from flask import current_app
-    from core.models import ShareAttach, CloudShare
+    from core.models import ContentFile
 
     if not content_html:
         return True, content_html, None
 
-    cloud_base = 'http://127.0.0.1:5002'
-    internal_key = current_app.config.get('INTERNAL_API_KEY') or os.getenv('INTERNAL_API_KEY')
-    if not internal_key:
-        return False, None, 'INTERNAL_API_KEY не настроен'
+     # --- 1. Находим все href="/files/<id>" ---
+    file_id_pattern = re.compile(r'href="/files/(\d+)"')
+    file_ids_in_html = set(file_id_pattern.findall(content_html))
 
-    headers = {
-        'X-Internal-Key': internal_key,
-        'X-User-Id': str(user_id),
-    }
+    # --- 2. HTML уже содержит href="/files/<id>" (модалка вставляет сразу) ---
+    new_html = content_html
 
-    # --- 1. Находим все data-file-id в HTML ---
-    # Паттерн: data-file-id="42"
-    file_id_pattern = re.compile(r'data-file-id="(\d+)"')
-    new_file_ids = set(file_id_pattern.findall(content_html))
-
-    # --- 2. Для каждого file_id — создаём шару и заменяем в HTML ---
-    # Карта file_id → token
-    file_id_to_token = {}
-    for fid in new_file_ids:
-        try:
-            resp = requests.post(
-                f'{cloud_base}/api/internal-share/{fid}',
-                headers=headers,
-                timeout=5,
-            )
-        except requests.RequestException as e:
-            return False, None, f'Cloud недоступен: {e}'
-
-        if resp.status_code != 200:
-            return False, None, f'Cloud вернул {resp.status_code}: {resp.text[:200]}'
-
-        j = resp.json()
-        if not j.get('ok'):
-            return False, None, j.get('error', 'Ошибка cloud')
-
-        share_info = j['share']
-        file_id_to_token[fid] = share_info['token']
-
-        # Создаём ShareAttach
-        existing = ShareAttach.query.filter_by(
-            share_id=share_info['id'],
-            target_type=target_type,
-            target_id=target_id,
-        ).first()
-        if not existing:
-            attach = ShareAttach(
-                share_id=share_info['id'],
-                target_type=target_type,
-                target_id=target_id,
-            )
-            db.session.add(attach)
-
-    # --- 3. Заменяем в HTML: data-file-id → data-share-token, убираем is-temp ---
-    # 3a. Сначала заменяем data-file-id → data-share-token
-    def replace_file_id(match):
-        fid = match.group(1)
-        token = file_id_to_token.get(fid)
-        if not token:
-            return match.group(0)
-        return f'data-share-token="{token}"'
-
-    new_html = file_id_pattern.sub(replace_file_id, content_html)
-
-    # 3b. Добавляем href к плиткам, у которых его нет
-    #     (только что созданные через makeTempHtml — там нет href)
-    def add_href_to_anchor(match):
-        full_tag = match.group(0)
-
-        # Папки: у них уже есть href="#" и data-is-folder — оставляем как есть
-        if 'data-is-folder="true"' in full_tag:
-            return full_tag
-
-        # Уже есть href — не трогаем
-        if 'href=' in full_tag:
-            return full_tag
-
-        # Извлекаем data-share-token
-        token_match = re.search(r'data-share-token="([^"]+)"', full_tag)
-        if not token_match:
-            return full_tag
-        token = token_match.group(1)
-        # Вставляем href после <a
-        return full_tag.replace('<a ', f'<a href="/s/{token}" ', 1)
-
-    # Паттерн: <a ...>...</a> (нежадный)
-    new_html = re.sub(r'<a\s[^>]*>', add_href_to_anchor, new_html)
-
-    # Убираем класс is-temp
+    # Убираем класс is-temp (на случай остатков)
     new_html = re.sub(r'\s+is-temp', '', new_html)
-
-    # --- 4. Собираем все data-share-token в новом HTML ---
-    token_pattern = re.compile(r'data-share-token="([^"]+)"')
-    tokens_in_html = set(token_pattern.findall(new_html))
-
-    # --- 5. Для каждого токена в HTML — убеждаемся, что есть ShareAttach ---
-    for token in tokens_in_html:
-        share = CloudShare.query.filter_by(token=token).first()
-        if not share:
-            # Шара не найдена — возможно, удалена. Оставляем как есть (плитка станет (недоступно) при рендере).
-            continue
-        existing = ShareAttach.query.filter_by(
-            share_id=share.id,
+    # --- 4. Создаём ContentFile для новых связей ---
+    for fid in file_ids_in_html:
+        existing = ContentFile.query.filter_by(
+            file_id=int(fid),
             target_type=target_type,
             target_id=target_id,
         ).first()
         if not existing:
-            attach = ShareAttach(
-                share_id=share.id,
+            db.session.add(ContentFile(
+                file_id=int(fid),
                 target_type=target_type,
                 target_id=target_id,
-            )
-            db.session.add(attach)
+            ))
 
-    # --- 6. Удаляем ShareAttach, чьи токены не в HTML ---
-    attaches_for_target = ShareAttach.query.filter_by(
+    # --- 5. Удаляем ContentFile, чьи файлы не в HTML ---
+    links = ContentFile.query.filter_by(
         target_type=target_type,
         target_id=target_id,
     ).all()
-
-    for attach in attaches_for_target:
-        share = CloudShare.query.get(attach.share_id)
-        if not share:
-            # Шара уже нет — удаляем attach
-            db.session.delete(attach)
-            continue
-        if share.token not in tokens_in_html:
-            # Токен пропал из HTML — удаляем attach
-            db.session.delete(attach)
-            # Проверяем, остались ли другие attach для этой шары
-            db.session.flush()  # чтобы изменения вступили в силу для запроса ниже
-            remaining = ShareAttach.query.filter_by(share_id=share.id).count()
-            if remaining == 0:
-                # Больше нигде не используется — удаляем и шару
-                db.session.delete(share)
+    for link in links:
+        if str(link.file_id) not in file_ids_in_html:
+            db.session.delete(link)
 
     return True, new_html, None
 
@@ -461,7 +354,7 @@ def _collect_user_assets(user_id):
             'files': [CloudFile],           # не в корзине, не папки — только файлы? нет, все
             'files_trashed': [CloudFile],   # в корзине (тоже передаём)
             'shares': [CloudShare],
-            'attachments': [ShareAttach],
+            'content_files': [ContentFile],
             'articles_authored': [Article],
             'pages_authored': [Page],
             'uploaded_files': [UploadedFile],
@@ -474,7 +367,7 @@ def _collect_user_assets(user_id):
         }
     """
     from core.models import (
-        CloudFile, CloudShare, ShareAttach,
+        CloudFile, CloudShare, ContentFile,
         Article, Page, UploadedFile, Mailbox,
     )
 
@@ -483,8 +376,8 @@ def _collect_user_assets(user_id):
     files_trashed = [f for f in files if f.is_trashed]
 
     shares = CloudShare.query.filter_by(created_by_id=user_id).all()
-    share_ids = [s.id for s in shares]
-    attachments = ShareAttach.query.filter(ShareAttach.share_id.in_(share_ids)).all() if share_ids else []
+    file_ids = [f.id for f in files]
+    content_files = ContentFile.query.filter(ContentFile.file_id.in_(file_ids)).all() if file_ids else []
 
     articles = Article.query.filter(Article.authors.any(id=user_id)).all()
     pages = Page.query.filter_by(created_by_id=user_id).all() if hasattr(Page, 'created_by_id') else []
@@ -501,7 +394,7 @@ def _collect_user_assets(user_id):
         'files': files_active,
         'files_trashed': files_trashed,
         'shares': shares,
-        'attachments': attachments,
+        'content_files': content_files,
         'articles_authored': articles,
         'pages_authored': pages,
         'uploaded_files': uploaded,
@@ -702,80 +595,50 @@ def create_app(config_class=Config):
         """Отображение статьи по ID"""
         article = Article.query.get_or_404(id)
 
-        # W3: помечаем плитки с мёртвыми шарами как (недоступно)
-        processed_content = _mark_unavailable_shares(article.content)
-
         return render_template(
             'article.html',
             article=article,
-            processed_content=processed_content,
         )
 
-    @app.route('/article/<int:id>/folder/<int:folder_id>')
-    def article_folder_view(id, folder_id):
-        """
-        W3: AJAX-фрагмент содержимого папки для статьи.
-        Возвращает HTML-фрагмент (folder_view.html).
+    @app.route('/files/<int:file_id>')
+    def serve_cloud_file(file_id):
+        """W58: безопасная отдача файла из облака (X-Accel-Redirect)."""
+        from core.models import CloudFile, ContentFile, Article, Page
 
-        Проверки:
-        - статья существует и публична;
-        - папка привязана к статье через ShareAttach;
-        - папка внутри папки-шары (is_descendant_of).
-        """
-        from core.models import ShareAttach, CloudShare
-        from core.cloud_utils import get_share_by_token, is_descendant_of, list_folder_items
+        file = CloudFile.query.get(file_id)
+        if not file or file.is_folder or file.is_trashed:
+            return '', 404
 
-        article = Article.query.get_or_404(id)
+        # Проверяем привязку к опубликованной статье / странице
+        links = ContentFile.query.filter_by(file_id=file_id).all()
+        if not links:
+            return '', 403
 
-        # Находим все шары, привязанные к статье
-        attaches = ShareAttach.query.filter_by(
-            target_type='article',
-            target_id=article.id,
-        ).all()
-
-        if not attaches:
-            abort(404)
-
-        # Ищем шару, внутри которой лежит folder_id
-        target_share = None
-        target_root = None
-        for att in attaches:
-            share = CloudShare.query.get(att.share_id)
-            if not share:
-                continue
-            root = share.file  # папка-шара
-            if not root or not root.is_folder:
-                continue
-            if root.id == folder_id:
-                target_share = share
-                target_root = root
-                break
-            if is_descendant_of(CloudFile.query.get(folder_id), root):
-                target_share = share
-                target_root = root
+        allowed = False
+        for link in links:
+            if link.target_type == 'article':
+                art = Article.query.get(link.target_id)
+                if art and art.is_published:
+                    allowed = True
+                    break
+            elif link.target_type == 'page':
+                # Page всегда публична
+                allowed = True
                 break
 
-        if not target_share:
-            abort(404)
+        if not allowed:
+            return '', 403
 
-        folder = CloudFile.query.filter_by(
-            id=folder_id,
-            is_folder=True,
-            is_trashed=False,
-        ).first()
-        if not folder:
-            abort(404)
+        # X-Accel-Redirect → Nginx отдаст файл
+        accel_path = f'/protected_files/{file.owner_id}/{file.stored_name}'
+        response = app.response_class(status=200)
+        response.headers['X-Accel-Redirect'] = accel_path
 
-        items = list_folder_items(folder.owner_id, parent_id=folder.id)
-
-        return render_template(
-            'partials/folder_view.html',
-            article=article,
-            token=target_share.token,
-            item=target_root,
-            folder=folder,
-            items=items,
-        )
+        # Безопасные заголовки: не-картинки — как attachment
+        ext = file.stored_name.rsplit('.', 1)[-1].lower() if '.' in file.stored_name else ''
+        if ext not in ('jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'):
+            response.headers['Content-Disposition'] = f'attachment; filename="{file.name}"'
+        return response
 
     """Поиск"""
     @app.route('/search')
@@ -957,7 +820,6 @@ def create_app(config_class=Config):
 
     @app.route('/logout')
     @login_required
-    @editor_required
     def logout():
         """Выход из системы"""
         logout_user()
@@ -2471,20 +2333,12 @@ def create_app(config_class=Config):
                 f'unregister_file_usages (article delete) failed: {e}'
             )
 
-        # W3: удаляем ShareAttach + шары-сироты
-        from core.models import ShareAttach, CloudShare
-        attaches = ShareAttach.query.filter_by(
+        # W58: удаляем привязки файлов к статье
+        from core.models import ContentFile
+        ContentFile.query.filter_by(
             target_type='article',
             target_id=article.id,
-        ).all()
-        for attach in attaches:
-            share = CloudShare.query.get(attach.share_id)
-            db.session.delete(attach)
-            db.session.flush()
-            if share:
-                remaining = ShareAttach.query.filter_by(share_id=share.id).count()
-                if remaining == 0:
-                    db.session.delete(share)
+        ).delete()
 
         db.session.delete(article)
         db.session.commit()
@@ -2714,20 +2568,12 @@ def create_app(config_class=Config):
                 f'unregister_file_usages (page delete) failed: {e}'
             )
 
-        # W3: удаляем ShareAttach + шары-сироты
-        from core.models import ShareAttach, CloudShare
-        attaches = ShareAttach.query.filter_by(
+        # W58: удаляем привязки файлов к странице
+        from core.models import ContentFile
+        ContentFile.query.filter_by(
             target_type='page',
             target_id=page.id,
-        ).all()
-        for attach in attaches:
-            share = CloudShare.query.get(attach.share_id)
-            db.session.delete(attach)
-            db.session.flush()
-            if share:
-                remaining = ShareAttach.query.filter_by(share_id=share.id).count()
-                if remaining == 0:
-                    db.session.delete(share)
+        ).delete()
 
         menu_item = page.menu_item
         if menu_item:
@@ -3655,21 +3501,13 @@ def create_app(config_class=Config):
                 ...
             ]}
         """
-        from core.models import ShareAttach, Article, Page, CloudShare
+        from core.models import ContentFile, Article, Page
 
-        # Находим все активные шары на этот файл
-        shares = CloudShare.query.filter_by(file_id=file_id).all()
-        if not shares:
-            return jsonify({'ok': True, 'attachments': []})
+        # W58: находим все привязки файла к статьям/страницам
+        links = ContentFile.query.filter_by(file_id=file_id).all()
 
-        share_ids = [s.id for s in shares]
-
-        # Находим все ShareAttach для этих шар
-        attaches = ShareAttach.query.filter(ShareAttach.share_id.in_(share_ids)).all()
-
-        # Собираем target_title и target_url
         attachments = []
-        for a in attaches:
+        for a in links:
             title = None
             url = None
             if a.target_type == 'article':
@@ -3684,108 +3522,11 @@ def create_app(config_class=Config):
                     url = url_for('page_view', slug=page.slug) if hasattr(page, 'slug') else f'/page/{page.id}'
 
             attachments.append({
-                'share_id': a.share_id,
                 'target_type': a.target_type,
                 'target_id': a.target_id,
                 'target_title': title or '—',
                 'target_url': url or '#',
             })
-
-        return jsonify({'ok': True, 'attachments': attachments})
-
-    @app.route('/admin/api/attach-to-article', methods=['POST'])
-    @login_required
-    @editor_required
-    def admin_api_attach_to_article():
-        """
-        Прикрепляет файлы облака к статье или странице.
-
-        Формат запроса: {"article_id": 3, "file_ids": [8, 12]}
-                     или {"page_id": 6, "file_ids": [8, 12]}
-        Формат ответа:  {"ok": true, "attachments": [...]}
-        """
-        import requests
-        from core.models import ShareAttach, Article, Page
-
-        data = request.get_json(silent=True) or {}
-        article_id = data.get('article_id')
-        page_id = data.get('page_id')
-        file_ids = data.get('file_ids') or []
-
-        if not file_ids or (not article_id and not page_id):
-            return jsonify({'ok': False, 'error': 'Нужны file_ids + article_id или page_id'}), 400
-
-        if article_id and page_id:
-            return jsonify({'ok': False, 'error': 'Укажите только article_id или только page_id'}), 400
-
-        # Определяем target_type и target_id
-        if article_id:
-            target = Article.query.get(article_id)
-            if not target:
-                return jsonify({'ok': False, 'error': 'Статья не найдена'}), 404
-            target_type = 'article'
-            target_id = article_id
-        else:
-            target = Page.query.get(page_id)
-            if not target:
-                return jsonify({'ok': False, 'error': 'Страница не найдена'}), 404
-            target_type = 'page'
-            target_id = page_id
-
-        cloud_base = 'http://127.0.0.1:5002'
-        internal_key = current_app.config.get('INTERNAL_API_KEY') or os.getenv('INTERNAL_API_KEY')
-        if not internal_key:
-            return jsonify({'ok': False, 'error': 'INTERNAL_API_KEY не настроен'}), 500
-
-        headers = {
-            'X-Internal-Key': internal_key,
-            'X-User-Id': str(current_user.id),
-        }
-
-        attachments = []
-        for fid in file_ids:
-            try:
-                resp = requests.post(
-                    f'{cloud_base}/api/internal-share/{fid}',
-                    headers=headers,
-                    timeout=5,
-                )
-            except requests.RequestException as e:
-                return jsonify({'ok': False, 'error': f'Cloud недоступен: {e}'}), 502
-
-            if resp.status_code != 200:
-                return jsonify({'ok': False, 'error': f'Cloud вернул {resp.status_code}'}), 502
-
-            j = resp.json()
-            if not j.get('ok'):
-                return jsonify({'ok': False, 'error': j.get('error', 'Ошибка cloud')}), 502
-
-            share_info = j['share']
-
-            existing = ShareAttach.query.filter_by(
-                share_id=share_info['id'],
-                target_type=target_type,
-                target_id=target_id,
-            ).first()
-
-            if not existing:
-                attach = ShareAttach(
-                    share_id=share_info['id'],
-                    target_type=target_type,
-                    target_id=target_id,
-                )
-                db.session.add(attach)
-
-            attachments.append({
-                'share_id': share_info['id'],
-                'token': share_info['token'],
-                'path': share_info['path'],
-                'file_id': share_info['file_id'],
-                'file_name': share_info['file_name'],
-                'is_folder': share_info['is_folder'],
-            })
-
-        db.session.commit()
 
         return jsonify({'ok': True, 'attachments': attachments})
 

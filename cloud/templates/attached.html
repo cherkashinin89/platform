@@ -138,18 +138,18 @@
         </thead>
         <tbody>
             {% for entry in attached_list %}
-                {% set s = entry.share %}
+                {% set f = entry.file %}
                 <tr>
                     <td>
-                        {% if s.file.is_folder %}
+                        {% if f.is_folder %}
                             <span class="item-icon folder"><i class="bi bi-folder-fill"></i></span>
                         {% else %}
-                            {% set icon_class, icon_color = s.file.name | icon_for_file() %}
+                            {% set icon_class, icon_color = f.name | icon_for_file() %}
                             <span class="item-icon file" style="color: {{ icon_color }};">
                                 <i class="bi {{ icon_class }}"></i>
                             </span>
                         {% endif %}
-                        <a href="/s/{{ s.token }}" target="_blank" class="item-link">{{ s.file.name }}</a>
+                        <a href="/files/{{ f.id }}" target="_blank" class="item-link">{{ f.name }}</a>
                     </td>
 
                     <td>
@@ -177,11 +177,11 @@
                         <div class="row-actions">
                             <button type="button"
                                     class="btn-icon-action"
-                                    onclick="copyToClipboard('/s/{{ s.token }}')"
+                                    onclick="copyToClipboard('/files/{{ f.id }}')"
                                     title="Скопировать ссылку">
                                 <i class="bi bi-link-45deg"></i>
                             </button>
-                            <a href="/s/{{ s.token }}" target="_blank"
+                            <a href="/files/{{ f.id }}" target="_blank"
                                class="btn-icon-action"
                                title="Открыть">
                                 <i class="bi bi-box-arrow-up-right"></i>

@@ -460,50 +460,29 @@ class CloudShare(db.Model):
     def __repr__(self):
         return f'<CloudShare {self.token}>'
 
-class ShareAttach(db.Model):
-    """
-    Привязка публичной шары к статье или странице.
-
-    Полиморфная M2M-связь:
-    - одна шара может быть привязана к нескольким статьям/страницам;
-    - одна статья/страница может иметь несколько привязанных шар.
-
-    При удалении CloudShare — записи удаляются каскадом (FK).
-    При удалении статьи/страницы — записи удаляются в коде (полиморфизм,
-    FK не срабатывает).
-    """
-    __tablename__ = 'share_attach'
+class ContentFile(db.Model):
+    """W58: прямая привязка файла облака к статье/странице (замена ShareAttach)."""
+    __tablename__ = 'content_file'
 
     __table_args__ = (
         db.CheckConstraint(
             "target_type IN ('article', 'page')",
-            name='ck_share_attach_target_type'
+            name='ck_content_file_target_type'
         ),
-        db.Index('idx_share_attach_target', 'target_type', 'target_id'),
+        db.Index('idx_content_file_target', 'target_type', 'target_id'),
+        db.UniqueConstraint('file_id', 'target_type', 'target_id',
+                            name='uq_content_file_target'),
     )
 
     id = db.Column(db.Integer, primary_key=True)
-
-    share_id = db.Column(
-        db.Integer,
-        db.ForeignKey('cloud_share.id', ondelete='CASCADE'),
-        nullable=False,
-        index=True,
-    )
-
+    file_id = db.Column(db.Integer, db.ForeignKey('cloud_file.id', ondelete='CASCADE'),
+                        nullable=False, index=True)
     target_type = db.Column(db.String(20), nullable=False)
-    target_id = db.Column(db.Integer, nullable=False, index=True)
-
+    target_id = db.Column(db.Integer, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    share = db.relationship(
-        'CloudShare',
-        backref=db.backref('attachments', passive_deletes=True),
-        passive_deletes=True,
-    )
-
-    def __repr__(self):
-        return f'<ShareAttach share={self.share_id} {self.target_type}={self.target_id}>'
+    file = db.relationship('CloudFile', backref=db.backref('content_links', lazy='dynamic',
+                                                           passive_deletes=True))
 
 class WopiToken(db.Model):
     """Токен доступа Collabora к файлу облака (WOPI)."""
