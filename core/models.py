@@ -528,6 +528,22 @@ class WopiToken(db.Model):
     share = db.relationship('CloudShare', backref=db.backref('wopi_tokens', lazy='dynamic',
                                                              passive_deletes=True))
 
+class CloudFileVersion(db.Model):
+    """История версий файла облака (W48)."""
+    __tablename__ = 'cloud_file_version'
+
+    id = db.Column(db.Integer, primary_key=True)
+    file_id = db.Column(db.Integer, db.ForeignKey('cloud_file.id', ondelete='CASCADE'),
+                        nullable=False, index=True)
+    stored_name = db.Column(db.String(255), nullable=False)
+    size = db.Column(db.BigInteger, nullable=False, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'),
+                              nullable=True)
+
+    file = db.relationship('CloudFile', backref=db.backref(
+        'versions', lazy='dynamic', passive_deletes=True, order_by='CloudFileVersion.created_at.desc()'))
+    created_by = db.relationship('User')
     
 # ============================================================
 # Почта: MailDomain, Mailbox

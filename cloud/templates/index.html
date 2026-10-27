@@ -28,7 +28,7 @@
 <div class="cloud-layout" id="cloudLayout">
 
     {# === ЛЕВАЯ КОЛОНКА: ДЕРЕВО ПАПОК === #}
-     <aside class="cloud-tree" id="cloudTree">
+    <aside class="cloud-tree" id="cloudTree">
         <button class="cloud-tree-close" onclick="closeTreeDrawer()" title="Закрыть">
             <i class="bi bi-x-lg"></i>
         </button>
@@ -109,38 +109,25 @@
 
                 {# Группа 3: действия с выделенным #}
                 <div class="cloud-actions-group" id="selectionActions">
-                    <button class="btn-cloud" id="btnRename"
-                            onclick="renameSelected()"
-                            title="Переименовать"
-                            disabled>
+                    <button class="btn-cloud" id="btnRename" onclick="renameSelected()" title="Переименовать" disabled>
                         <i class="bi bi-pencil"></i>
                         <span class="btn-label">Переименовать</span>
                     </button>
-                    <button class="btn-cloud" id="btnShare"
-                            onclick="shareSelected()"
-                            title="Поделиться"
-                            disabled>
+                    <button class="btn-cloud" id="btnShare" onclick="shareSelected()" title="Поделиться" disabled>
                         <i class="bi bi-link-45deg"></i>
                         <span class="btn-label">Поделиться</span>
                     </button>
-                    <button class="btn-cloud" id="btnMove"
-                            onclick="moveSelected()"
-                            title="Переместить в другую папку"
-                            disabled>
+                    <button class="btn-cloud" id="btnMove" onclick="moveSelected()" title="Переместить в другую папку"
+                        disabled>
                         <i class="bi bi-arrow-right-circle"></i>
                         <span class="btn-label">Переместить</span>
                     </button>
-                    <button class="btn-cloud" id="btnDownload"
-                            onclick="downloadSelected()"
-                            title="Скачать"
-                            disabled>
+                    <button class="btn-cloud" id="btnDownload" onclick="downloadSelected()" title="Скачать" disabled>
                         <i class="bi bi-download"></i>
                         <span class="btn-label">Скачать</span>
                     </button>
-                    <button class="btn-cloud btn-danger-cloud" id="btnTrash"
-                            onclick="trashSelected()"
-                            title="Удалить в корзину"
-                            disabled>
+                    <button class="btn-cloud btn-danger-cloud" id="btnTrash" onclick="trashSelected()"
+                        title="Удалить в корзину" disabled>
                         <i class="bi bi-trash"></i>
                         <span class="btn-label">Удалить</span>
                     </button>
@@ -154,21 +141,19 @@
             {% if items %}
             <div class="cloud-tiles" id="itemsGrid">
                 {% for item in items %}
-                <div class="fm-tile {% if item.is_folder %}is-folder{% endif %}"
-                     data-id="{{ item.id }}"
-                     data-name="{{ item.name }}"
-                     data-isfolder="{{ 'true' if item.is_folder else 'false' }}"
-                     data-row="1">
+                <div class="fm-tile {% if item.is_folder %}is-folder{% endif %}" data-id="{{ item.id }}"
+                    data-name="{{ item.name }}" data-isfolder="{{ 'true' if item.is_folder else 'false' }}"
+                    data-row="1">
                     <div class="fm-tile-checkbox" data-action="select"></div>
 
                     <div class="fm-tile-preview">
                         {% if item.is_folder %}
-                            <i class="bi bi-folder-fill"></i>
+                        <i class="bi bi-folder-fill"></i>
                         {% elif item.mime_type and item.mime_type.startswith('image/') %}
-                            <img src="{{ url_for('api_download', file_id=item.id) }}" alt="{{ item.name }}" loading="lazy">
+                        <img src="{{ url_for('api_download', file_id=item.id) }}" alt="{{ item.name }}" loading="lazy">
                         {% else %}
-                            {% set icon_class, icon_color = item.name | icon_for_file() %}
-                            <i class="bi {{ icon_class }}" style="color: {{ icon_color }};"></i>
+                        {% set icon_class, icon_color = item.name | icon_for_file() %}
+                        <i class="bi {{ icon_class }}" style="color: {{ icon_color }};"></i>
                         {% endif %}
                     </div>
 
@@ -178,28 +163,33 @@
                     <div class="fm-tile-actions">
                         {% if not item.is_folder and item.name.lower().endswith(('.docx', '.xlsx', '.pptx')) %}
                         <button class="btn-icon-action"
-                                onclick="event.stopPropagation(); editOnline({{ item.id }}, '{{ item.name | e }}')"
-                                title="Редактировать онлайн">
-                                     {% if item.name.lower().endswith('.docx') %}
-                                     <i class="bi bi-file-earmark-word"></i>
-                                     {% elif item.name.lower().endswith('.xlsx') %}
-                                     <i class="bi bi-file-earmark-excel"></i>
-                                     {% elif item.name.lower().endswith('.pptx') %}
-                                     <i class="bi bi-file-earmark-ppt"></i>
-                                     {% else %}
-                                     <i class="bi bi-file-earmark-text"></i>
-                                     {% endif %}
-                                </button>
+                            onclick="event.stopPropagation(); editOnline({{ item.id }}, '{{ item.name | e }}')"
+                            title="Редактировать онлайн">
+                            {% if item.name.lower().endswith('.docx') %}
+                            <i class="bi bi-file-earmark-word"></i>
+                            {% elif item.name.lower().endswith('.xlsx') %}
+                            <i class="bi bi-file-earmark-excel"></i>
+                            {% elif item.name.lower().endswith('.pptx') %}
+                            <i class="bi bi-file-earmark-ppt"></i>
+                            {% else %}
+                            <i class="bi bi-file-earmark-text"></i>
+                            {% endif %}
+                        </button>
                         {% endif %}
                         <button class="btn-icon-action btn-share"
-                                onclick="event.stopPropagation(); openShareModal({{ item.id }}, '{{ item.name | e }}', {{ 'true' if item.is_folder else 'false' }})"
-                                title="Поделиться"><i class="bi bi-link-45deg"></i></button>
+                            onclick="event.stopPropagation(); openShareModal({{ item.id }}, '{{ item.name | e }}', {{ 'true' if item.is_folder else 'false' }})"
+                            title="Поделиться"><i class="bi bi-link-45deg"></i></button>
+                        {% if not item.is_folder %}
                         <button class="btn-icon-action"
-                                onclick="event.stopPropagation(); openRenameModal({{ item.id }}, '{{ item.name | e }}', {{ 'true' if item.is_folder else 'false' }})"
-                                title="Переименовать"><i class="bi bi-pencil"></i></button>
+                            onclick="event.stopPropagation(); openVersionsModal({{ item.id }}, '{{ item.name | e }}')"
+                            title="История версий"><i class="bi bi-clock-history"></i></button>
+                        {% endif %}
+                        <button class="btn-icon-action"
+                            onclick="event.stopPropagation(); openRenameModal({{ item.id }}, '{{ item.name | e }}', {{ 'true' if item.is_folder else 'false' }})"
+                            title="Переименовать"><i class="bi bi-pencil"></i></button>
                         <button class="btn-icon-action btn-trash"
-                                onclick="event.stopPropagation(); trashItem({{ item.id }}, '{{ item.name | e }}', {{ 'true' if item.is_folder else 'false' }})"
-                                title="В корзину"><i class="bi bi-trash"></i></button>
+                            onclick="event.stopPropagation(); trashItem({{ item.id }}, '{{ item.name | e }}', {{ 'true' if item.is_folder else 'false' }})"
+                            title="В корзину"><i class="bi bi-trash"></i></button>
                     </div>
                 </div>
                 {% endfor %}
@@ -325,7 +315,7 @@
         })();
 
         // ============= NAVIGATE UP =============
-        window.navigateUp = function() {
+        window.navigateUp = function () {
             const parentId = {{ folder.parent_id if folder and folder.parent_id else 'null' }};
             if (parentId !== null) {
                 window.location.href = '/folder/' + parentId;
@@ -380,7 +370,7 @@
     // ============= МОБИЛЬНОЕ ДЕРЕВО (drawer) =============
     const treeBackdrop = document.getElementById('treeBackdrop');
 
-    window.toggleTreeDrawer = function() {
+    window.toggleTreeDrawer = function () {
         if (tree.classList.contains('is-open')) {
             closeTreeDrawer();
         } else {
@@ -389,14 +379,14 @@
         }
     };
 
-    window.closeTreeDrawer = function() {
+    window.closeTreeDrawer = function () {
         tree.classList.remove('is-open');
         treeBackdrop.classList.remove('is-open');
     };
 
     // Закрываем drawer при клике по узлу дерева (переход)
     // Также при ресайзе на десктоп — убираем все мобильные классы
-    window.addEventListener('resize', function() {
+    window.addEventListener('resize', function () {
         if (window.innerWidth > 768) {
             closeTreeDrawer();
         }
@@ -969,7 +959,7 @@
             try {
                 await fetch('/api/trash/' + id, {
                     method: 'POST',
-                    headers: {'X-CSRFToken': csrfToken},
+                    headers: { 'X-CSRFToken': csrfToken },
                 });
             } catch (e) {
                 console.error('trash error id=' + id, e);
@@ -994,23 +984,23 @@
     };
     window.createFolder = async function () {
         const name = folderInput.value.trim();
-        if (!name) {folderError.textContent = 'Введите имя папки'; return;}
+        if (!name) { folderError.textContent = 'Введите имя папки'; return; }
         folderError.textContent = '';
         try {
             const resp = await fetch('/api/folder', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
-                body: JSON.stringify({name, parent_id: currentFolderId}),
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: JSON.stringify({ name, parent_id: currentFolderId }),
             });
             const data = await resp.json();
-            if (!data.ok) {folderError.textContent = data.error || 'Ошибка'; return;}
+            if (!data.ok) { folderError.textContent = data.error || 'Ошибка'; return; }
             window.location.reload();
         } catch (e) {
             folderError.textContent = 'Ошибка сети: ' + e.message;
         }
     };
     folderInput.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') {e.preventDefault(); createFolder();}
+        if (e.key === 'Enter') { e.preventDefault(); createFolder(); }
         if (e.key === 'Escape') closeFolderModal();
     });
     folderModal.addEventListener('click', function (e) {
@@ -1030,7 +1020,7 @@
         renameCurrentName.textContent = (isFolder ? '📁 ' : '📄 ') + name;
         renameError.textContent = '';
         renameModal.classList.add('is-open');
-        setTimeout(() => {renameInput.focus(); renameInput.select();}, 50);
+        setTimeout(() => { renameInput.focus(); renameInput.select(); }, 50);
     };
     window.closeRenameModal = function () {
         renameModal.classList.remove('is-open');
@@ -1039,23 +1029,23 @@
     window.performRename = async function () {
         if (renameItemId === null) return;
         const newName = renameInput.value.trim();
-        if (!newName) {renameError.textContent = 'Введите имя'; return;}
+        if (!newName) { renameError.textContent = 'Введите имя'; return; }
         renameError.textContent = '';
         try {
             const resp = await fetch('/api/rename/' + renameItemId, {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
-                body: JSON.stringify({name: newName}),
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: JSON.stringify({ name: newName }),
             });
             const data = await resp.json();
-            if (!data.ok) {renameError.textContent = data.error || 'Ошибка'; return;}
+            if (!data.ok) { renameError.textContent = data.error || 'Ошибка'; return; }
             window.location.reload();
         } catch (e) {
             renameError.textContent = 'Ошибка сети: ' + e.message;
         }
     };
     renameInput.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') {e.preventDefault(); performRename();}
+        if (e.key === 'Enter') { e.preventDefault(); performRename(); }
         if (e.key === 'Escape') closeRenameModal();
     });
     renameModal.addEventListener('click', function (e) {
@@ -1071,10 +1061,10 @@
         if (!window.confirm(message)) return;
         try {
             const resp = await fetch('/api/trash/' + id, {
-                method: 'POST', headers: {'X-CSRFToken': csrfToken},
+                method: 'POST', headers: { 'X-CSRFToken': csrfToken },
             });
             const data = await resp.json();
-            if (!data.ok) {alert('Ошибка: ' + (data.error || '')); return;}
+            if (!data.ok) { alert('Ошибка: ' + (data.error || '')); return; }
             window.location.reload();
         } catch (e) {
             alert('Ошибка сети: ' + e.message);
@@ -1176,7 +1166,7 @@
 
                     xhr.addEventListener('load', function () {
                         let data = null;
-                        try { data = JSON.parse(xhr.responseText); } catch (e) {}
+                        try { data = JSON.parse(xhr.responseText); } catch (e) { }
 
                         if (xhr.status === 200 && data && data.uploaded && data.uploaded.length > 0) {
                             const up = data.uploaded[0];
@@ -1244,7 +1234,7 @@
         shareModal.classList.add('is-open');
         try {
             const resp = await fetch('/api/share/' + id, {
-                method: 'POST', headers: {'X-CSRFToken': csrfToken},
+                method: 'POST', headers: { 'X-CSRFToken': csrfToken },
             });
             const data = await resp.json();
             if (!data.ok) {
@@ -1279,17 +1269,17 @@
             shareSuccess.style.color = 'var(--color-success)';
             shareSuccess.textContent = '✓ Скопировано';
         }
-        setTimeout(() => {shareSuccess.textContent = '';}, 2500);
+        setTimeout(() => { shareSuccess.textContent = ''; }, 2500);
     };
     window.revokeShareLink = async function () {
         if (!shareCurrentShareId) return;
         if (!window.confirm('Отозвать ссылку?\n\nВсе, у кого она есть, потеряют доступ.')) return;
         try {
             const resp = await fetch('/api/share/revoke/' + shareCurrentShareId, {
-                method: 'POST', headers: {'X-CSRFToken': csrfToken},
+                method: 'POST', headers: { 'X-CSRFToken': csrfToken },
             });
             const data = await resp.json();
-            if (!data.ok) {alert('Ошибка: ' + (data.error || '')); return;}
+            if (!data.ok) { alert('Ошибка: ' + (data.error || '')); return; }
             shareSuccess.style.color = 'var(--color-success)';
             shareSuccess.textContent = '✓ Ссылка отозвана';
             shareLinkInput.value = '';
@@ -1489,23 +1479,91 @@
     });
 
 }) ();
-        async function editOnline(fileId, fileName) {
-            try {
-                const resp = await fetch(`/api/wopi-token/${fileId}`, {
-                    method: 'POST',
-                    credentials: 'include'
-                });
-                const data = await resp.json();
-                if (!data.ok) {
-                    showToast(data.error || 'Не удалось открыть файл', 'danger');
-                    return;
-                }
-                const url = `/test_collabora?file_id=${fileId}&token=${encodeURIComponent(data.token)}`;
-                window.open(url, '_blank');
-            } catch (e) {
-                showToast('Ошибка сети', 'danger');
-                console.error(e);
+    async function editOnline(fileId, fileName) {
+        try {
+            const resp = await fetch(`/api/wopi-token/${fileId}`, {
+                method: 'POST',
+                credentials: 'include'
+            });
+            const data = await resp.json();
+            if (!data.ok) {
+                showToast(data.error || 'Не удалось открыть файл', 'danger');
+                return;
             }
+            const url = `/test_collabora?file_id=${fileId}&token=${encodeURIComponent(data.token)}`;
+            window.open(url, '_blank');
+        } catch (e) {
+            showToast('Ошибка сети', 'danger');
+            console.error(e);
         }
+    }
+
+    async function openVersionsModal(fileId, fileName) {
+        document.getElementById('versionsFileName').textContent = fileName;
+        document.getElementById('versionsList').innerHTML = '<div class="text-center text-muted">Загрузка...</div>';
+        const modal = new bootstrap.Modal(document.getElementById('versionsModal'));
+        modal.show();
+
+        try {
+            const resp = await fetch(`/api/versions/${fileId}`, { credentials: 'include' });
+            const data = await resp.json();
+            if (!data.ok) {
+                document.getElementById('versionsList').innerHTML = `<div class="text-danger">${data.error}</div>`;
+                return;
+            }
+            if (!data.versions.length) {
+                document.getElementById('versionsList').innerHTML = '<div class="text-muted">Версий пока нет</div>';
+                return;
+            }
+            document.getElementById('versionsList').innerHTML = data.versions.map(v => `
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <div><strong>${new Date(v.created_at).toLocaleString('ru-RU')}</strong></div>
+                    <small class="text-muted">${(v.size / 1024).toFixed(1)} КБ · ${v.created_by || 'система'}</small>
+                </div>
+                <button class="btn btn-sm btn-outline-primary"
+                        onclick="restoreVersion(${fileId}, ${v.id})">Восстановить</button>
+            </div>
+        `).join('');
+        } catch (e) {
+            document.getElementById('versionsList').innerHTML = `<div class="text-danger">Ошибка: ${e.message}</div>`;
+        }
+    }
+
+    async function restoreVersion(fileId, versionId) {
+        if (!confirm('Восстановить эту версию? Текущее состояние будет сохранено в историю.')) return;
+        try {
+            const resp = await fetch(`/api/versions/${fileId}/restore/${versionId}`, {
+                method: 'POST',
+                credentials: 'include'
+            });
+            const data = await resp.json();
+            if (data.ok) {
+                showToast('Версия восстановлена', 'success');
+                bootstrap.Modal.getInstance(document.getElementById('versionsModal')).hide();
+                location.reload();
+            } else {
+                showToast(data.error || 'Ошибка восстановления', 'danger');
+            }
+        } catch (e) {
+            showToast('Ошибка сети', 'danger');
+        }
+    }
 </script>
+    <!-- Модалка «История версий» -->
+    <div class="modal fade" id="versionsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">История версий: <span id="versionsFileName"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="versionsList" class="list-group">
+                        <div class="text-center text-muted">Загрузка...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 {% endblock %}
