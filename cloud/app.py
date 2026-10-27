@@ -890,12 +890,19 @@ def create_app(config_class=Config):
 
     @app.route('/test_collabora')
     def test_collabora():
-        return '''
+        file_id = request.args.get('file_id')
+        token = request.args.get('token')
+        if not file_id or not token:
+            return 'Нужны параметры file_id и token', 400
+        wopi_src = f'http://192.168.2.19:5001/wopi/files/{file_id}'
+        from urllib.parse import quote
+        wopi_src_encoded = quote(wopi_src, safe='')
+        return f'''
 <!DOCTYPE html>
 <html>
 <head><title>Collabora test</title></head>
 <body>
-<iframe src="http://192.168.2.19:5005/browser/dist/cool.html?WOPISrc=http%3A%2F%2F192.168.2.19%3A5001%2Fwopi%2Ffiles%2Ftest123&access_token=testtoken"
+<iframe src="http://192.168.2.19:5005/browser/dist/cool.html?WOPISrc={wopi_src_encoded}&access_token={token}"
         style="width:100%; height:800px; border:none;"></iframe>
 </body>
 </html>

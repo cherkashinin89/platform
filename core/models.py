@@ -444,6 +444,8 @@ class CloudShare(db.Model):
     password_hash = db.Column(db.String(256), nullable=True)
     download_count = db.Column(db.Integer, default=0, nullable=False)
     max_downloads = db.Column(db.Integer, default=0, nullable=False)
+    # W48: разрешено ли редактирование онлайн (Collabora)
+    can_edit = db.Column(db.Boolean, default=False, nullable=False)
 
     file = db.relationship('CloudFile', backref='shares')
     created_by = db.relationship('User')
@@ -502,6 +504,29 @@ class ShareAttach(db.Model):
 
     def __repr__(self):
         return f'<ShareAttach share={self.share_id} {self.target_type}={self.target_id}>'
+
+class WopiToken(db.Model):
+    """Токен доступа Collabora к файлу облака (WOPI)."""
+    __tablename__ = 'wopi_token'
+    id = db.Column(db.Integer, primary_key=True)
+    token = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    file_id = db.Column(db.Integer, db.ForeignKey('cloud_file.id', ondelete='CASCADE'),
+                        nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'),
+                        nullable=True, index=True)
+    share_id = db.Column(db.Integer, db.ForeignKey('cloud_share.id', ondelete='CASCADE'),
+                         nullable=True, index=True)
+    can_write = db.Column(db.Boolean, default=False, nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Связи (passive_deletes=True — чтобы ORM не обнулял FK при CASCADE)
+    file = db.relationship('CloudFile', backref=db.backref('wopi_tokens', lazy='dynamic',
+                                                           passive_deletes=True))
+    user = db.relationship('User', backref=db.backref('wopi_tokens', lazy='dynamic',
+                                                     passive_deletes=True))
+    share = db.relationship('CloudShare', backref=db.backref('wopi_tokens', lazy='dynamic',
+                                                             passive_deletes=True))
 
     
 # ============================================================

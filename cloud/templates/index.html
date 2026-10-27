@@ -176,6 +176,21 @@
                     <div class="fm-tile-size">{{ item.size_human() if not item.is_folder else '—' }}</div>
 
                     <div class="fm-tile-actions">
+                        {% if not item.is_folder and item.name.lower().endswith(('.docx', '.xlsx', '.pptx')) %}
+                        <button class="btn-icon-action"
+                                onclick="event.stopPropagation(); editOnline({{ item.id }}, '{{ item.name | e }}')"
+                                title="Редактировать онлайн">
+                                     {% if item.name.lower().endswith('.docx') %}
+                                     <i class="bi bi-file-earmark-word"></i>
+                                     {% elif item.name.lower().endswith('.xlsx') %}
+                                     <i class="bi bi-file-earmark-excel"></i>
+                                     {% elif item.name.lower().endswith('.pptx') %}
+                                     <i class="bi bi-file-earmark-ppt"></i>
+                                     {% else %}
+                                     <i class="bi bi-file-earmark-text"></i>
+                                     {% endif %}
+                                </button>
+                        {% endif %}
                         <button class="btn-icon-action btn-share"
                                 onclick="event.stopPropagation(); openShareModal({{ item.id }}, '{{ item.name | e }}', {{ 'true' if item.is_folder else 'false' }})"
                                 title="Поделиться"><i class="bi bi-link-45deg"></i></button>
@@ -632,6 +647,11 @@
 
                     const isCtrl = e.ctrlKey || e.metaKey;
                     const isShift = e.shiftKey;
+                    const isFolder = tile.dataset.isfolder === 'true';
+                    if (isFolder && !isCtrl && !isShift) {
+                        window.location.href = '/folder/' + tile.dataset.id;
+                        return;
+                    }
 
                     if (isShift && lastSelectedIndex !== -1) {
                         const start = Math.min(lastSelectedIndex, idx);
@@ -1469,5 +1489,23 @@
     });
 
 }) ();
+        async function editOnline(fileId, fileName) {
+            try {
+                const resp = await fetch(`/api/wopi-token/${fileId}`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                const data = await resp.json();
+                if (!data.ok) {
+                    showToast(data.error || 'Не удалось открыть файл', 'danger');
+                    return;
+                }
+                const url = `/test_collabora?file_id=${fileId}&token=${encodeURIComponent(data.token)}`;
+                window.open(url, '_blank');
+            } catch (e) {
+                showToast('Ошибка сети', 'danger');
+                console.error(e);
+            }
+        }
 </script>
 {% endblock %}
