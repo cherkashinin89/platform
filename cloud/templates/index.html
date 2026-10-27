@@ -1480,23 +1480,39 @@
 
 }) ();
     async function editOnline(fileId, fileName) {
-        try {
-            const resp = await fetch(`/api/wopi-token/${fileId}`, {
-                method: 'POST',
-                credentials: 'include'
-            });
-            const data = await resp.json();
-            if (!data.ok) {
-                showToast(data.error || 'Не удалось открыть файл', 'danger');
-                return;
-            }
-            const url = `/test_collabora?file_id=${fileId}&token=${encodeURIComponent(data.token)}`;
-            window.open(url, '_blank');
-        } catch (e) {
-            showToast('Ошибка сети', 'danger');
-            console.error(e);
+    try {
+        // 1. Проверяем доступность Collabora (через бэкенд)
+        const statusResp = await fetch('/api/collabora-status', { credentials: 'include' });
+        const status = await statusResp.json();
+        if (!status.ok) {
+            showToast('Редактор документов временно недоступен. Попробуйте позже.', 'warning', 6000);
+            return;
         }
+
+        // 2. Получаем токен
+        const resp = await fetch(`/api/wopi-token/${fileId}`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            showToast(err.error || 'Нет доступа к файлу', 'danger');
+            return;
+        }
+        const data = await resp.json();
+        if (!data.ok) {
+            showToast(data.error || 'Не удалось открыть файл', 'danger');
+            return;
+        }
+
+        // 3. Открываем Collabora
+        const url = `/test_collabora?file_id=${fileId}&token=${encodeURIComponent(data.token)}`;
+        window.open(url, '_blank');
+    } catch (e) {
+        showToast('Ошибка сети', 'danger');
+        console.error(e);
     }
+}
 
     async function openVersionsModal(fileId, fileName) {
         document.getElementById('versionsFileName').textContent = fileName;

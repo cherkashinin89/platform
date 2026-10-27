@@ -253,3 +253,14 @@ def restore_version(file_id, version_id):
     db.session.commit()
 
     return jsonify({'ok': True})
+
+@wopi_test_bp.route('/api/collabora-status', methods=['GET'])
+def collabora_status():
+    """Проверка доступности Collabora (для JS)."""
+    import urllib.request
+    import urllib.error
+    try:
+        with urllib.request.urlopen('http://127.0.0.1:9980/hosting/discovery', timeout=2) as r:
+            return jsonify({'ok': r.status == 200})
+    except Exception:
+        return jsonify({'ok': False})
