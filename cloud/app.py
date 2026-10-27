@@ -902,7 +902,8 @@ def create_app(config_class=Config):
 <html>
 <head><title>Collabora test</title></head>
 <body>
-<iframe src="http://192.168.2.19:5005/browser/dist/cool.html?WOPISrc={wopi_src_encoded}&access_token={token}"
+<iframe id="collaboraFrame"
+        src="http://192.168.2.19:5005/browser/dist/cool.html?WOPISrc={wopi_src_encoded}&access_token={token}"
         style="width:100%; height:800px; border:none;"></iframe>
 </body>
 </html>

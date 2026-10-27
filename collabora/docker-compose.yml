@@ -8,6 +8,6 @@ services:
     environment:
       - aliasgroup1=http://192.168.2.19:5001
       - server_name=192.168.2.19:5005
-      - extra_params=--o:ssl.enable=false --o:ssl.termination=false
+      - extra_params=--o:ssl.enable=false --o:ssl.termination=false --o:net.postmessage_origin=http://192.168.2.19:5001
     cap_add:
       - MKNOD
