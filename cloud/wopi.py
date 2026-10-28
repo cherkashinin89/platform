@@ -13,7 +13,7 @@ from flask_login import login_required, current_user
 from core.extensions import db
 from core.models import CloudFile, CloudShare, WopiToken
 
-wopi_test_bp = Blueprint('wopi_test', __name__)
+wopi_bp = Blueprint('wopi', __name__)
 
 
 def _get_token(file_id):
@@ -35,7 +35,7 @@ def _file_path(file):
 
 # === Создание токена ===
 
-@wopi_test_bp.route('/api/wopi-token/<int:file_id>', methods=['POST'])
+@wopi_bp.route('/api/wopi-token/<int:file_id>', methods=['POST'])
 @login_required
 def create_wopi_token(file_id):
     """Создаёт WOPI-токен для файла (владелец или получатель шары с can_edit)."""
@@ -76,7 +76,7 @@ def create_wopi_token(file_id):
 
 # === WOPI: CheckFileInfo ===
 
-@wopi_test_bp.route('/wopi/files/<int:file_id>', methods=['GET'])
+@wopi_bp.route('/wopi/files/<int:file_id>', methods=['GET'])
 def wopi_check_file_info(file_id):
     """CheckFileInfo — метаданные файла + права."""
     token = _get_token(file_id)
@@ -98,7 +98,7 @@ def wopi_check_file_info(file_id):
 
 # === WOPI: GetFile ===
 
-@wopi_test_bp.route('/wopi/files/<int:file_id>/contents', methods=['GET'])
+@wopi_bp.route('/wopi/files/<int:file_id>/contents', methods=['GET'])
 def wopi_get_file(file_id):
     """GetFile — отдаём содержимое файла."""
     token = _get_token(file_id)
@@ -123,7 +123,7 @@ def wopi_get_file(file_id):
 
 # === WOPI: PutFile ===
 
-@wopi_test_bp.route('/wopi/files/<int:file_id>/contents', methods=['POST'])
+@wopi_bp.route('/wopi/files/<int:file_id>/contents', methods=['POST'])
 def wopi_put_file(file_id):
     """PutFile — сохраняем изменения в файл."""
     token = _get_token(file_id)
@@ -185,7 +185,7 @@ def wopi_put_file(file_id):
 
     return '', 200
 
-@wopi_test_bp.route('/api/versions/<int:file_id>', methods=['GET'])
+@wopi_bp.route('/api/versions/<int:file_id>', methods=['GET'])
 @login_required
 def list_versions(file_id):
     """Список версий файла (история)."""
@@ -208,7 +208,7 @@ def list_versions(file_id):
         } for v in versions],
     })
 
-@wopi_test_bp.route('/api/versions/<int:file_id>/restore/<int:version_id>', methods=['POST'])
+@wopi_bp.route('/api/versions/<int:file_id>/restore/<int:version_id>', methods=['POST'])
 @login_required
 def restore_version(file_id, version_id):
     """Откат к указанной версии (с сохранением текущей как новой версии)."""
@@ -254,7 +254,7 @@ def restore_version(file_id, version_id):
 
     return jsonify({'ok': True})
 
-@wopi_test_bp.route('/api/collabora-status', methods=['GET'])
+@wopi_bp.route('/api/collabora-status', methods=['GET'])
 def collabora_status():
     """Проверка доступности Collabora (для JS)."""
     import urllib.request

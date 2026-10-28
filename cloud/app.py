@@ -22,7 +22,7 @@ from cloud_service import (
 from core.extensions import db, login_manager, csrf, migrate
 from core.models import User, CloudFile, CloudShare, SiteSettings
 from core.auth import editor_required
-from wopi_test import wopi_test_bp
+from wopi import wopi_bp
 
 
 # === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ШАРИНГА ===
@@ -80,8 +80,8 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
     app.config['TEMPLATES_AUTO_RELOAD'] = True
-    csrf.exempt(wopi_test_bp)
-    app.register_blueprint(wopi_test_bp)
+    csrf.exempt(wopi_bp)
+    app.register_blueprint(wopi_bp)
 
     # === Подключаем шаблоны core (общие) + локальные ===
     # Приоритет: cloud/templates/ → core/templates/
@@ -884,26 +884,58 @@ def create_app(config_class=Config):
         return jsonify({'ok': True, 'attachments': attachments})
 
 
-    @app.route('/test_collabora')
-    def test_collabora():
+    @app.route('/collabora')
+    def collabora():
         file_id = request.args.get('file_id')
         token = request.args.get('token')
         if not file_id or not token:
             return 'Нужны параметры file_id и token', 400
-        wopi_src = f'http://192.168.2.19:5001/wopi/files/{file_id}'
+        from core.models import SiteSettings
+        settings = SiteSettings.query.first()
+        cloud_base = settings.cloud_base_url if settings else 'http://192.168.2.19:5001'
+        collabora_base = settings.collabora_base_url if settings else 'http://192.168.2.19:5005'
+        wopi_src = f'{cloud_base}/wopi/files/{file_id}'
         from urllib.parse import quote
         wopi_src_encoded = quote(wopi_src, safe='')
         return f'''
-<!DOCTYPE html>
-<html>
-<head><title>Collabora test</title></head>
-<body>
-<iframe id="collaboraFrame"
-        src="http://192.168.2.19:5005/browser/dist/cool.html?WOPISrc={wopi_src_encoded}&access_token={token}"
-        style="width:100%; height:800px; border:none;"></iframe>
+            <!DOCTYPE html>
+            <html>
+                <head>
+                <title>{request.args.get('name', 'Collabora')}</title>
+                    <style>
+                        html, body {{ margin: 0; padding: 0; height: 100%; overflow: hidden; }}
+                        iframe {{ width: 100%; height: 100%; border: none; display: block; }}
+                    </style>
+                </head>
+                <body>
+                <iframe id="collaboraFrame"
+                src="{collabora_base}/browser/dist/cool.html?WOPISrc={wopi_src_encoded}&access_token={token}"></iframe>
+
+<script>
+    const iframe = document.getElementById('collaboraFrame');
+
+    // 1. Сообщаем Collabora, что хост готов принимать сообщения
+    iframe.addEventListener('load', function() {{
+        iframe.contentWindow.postMessage(
+            JSON.stringify({{ MessageId: 'Host_PostmessageReady' }}),
+            '{collabora_base}'
+        );
+    }});
+
+    // 2. Слушаем сообщения от Collabora (Doc_Title)
+    window.addEventListener('message', function(event) {{
+        if (event.origin !== '{collabora_base}') return;
+        try {{
+            const msg = JSON.parse(event.data);
+            if (msg.MessageId === 'Doc_Title' && msg.Values && msg.Values.title) {{
+                document.title = msg.Values.title;
+            }}
+        }} catch (e) {{}}
+    }});
+</script>
 </body>
 </html>
-'''
+        '''
 
     return app
 

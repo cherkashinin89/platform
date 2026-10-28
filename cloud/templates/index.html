@@ -1506,7 +1506,7 @@
         }
 
         // 3. Открываем Collabora
-        const url = `/test_collabora?file_id=${fileId}&token=${encodeURIComponent(data.token)}`;
+        const url = `/collabora?file_id=${fileId}&token=${encodeURIComponent(data.token)}&name=${encodeURIComponent(fileName)}`;
         window.open(url, '_blank');
     } catch (e) {
         showToast('Ошибка сети', 'danger');

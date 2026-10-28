@@ -640,6 +640,69 @@ def create_app(config_class=Config):
             response.headers['Content-Disposition'] = f'attachment; filename="{file.name}"'
         return response
 
+    @app.route('/view/<int:file_id>')
+    def view_cloud_file(file_id):
+        """W59: JSON для просмотра офисного файла (read-only, Collabora)."""
+        import secrets
+        from datetime import datetime, timedelta
+
+        from core.extensions import db
+        from core.models import CloudFile, ContentFile, Article, WopiToken
+
+        file = CloudFile.query.get(file_id)
+        if not file or file.is_folder or file.is_trashed:
+            return jsonify({'ok': False, 'error': 'Файл не найден'}), 404
+
+        # Только офисные форматы
+        ext = file.stored_name.rsplit('.', 1)[-1].lower() if '.' in file.stored_name else ''
+        if ext not in ('docx', 'xlsx', 'pptx'):
+            return jsonify({'ok': False, 'error': 'Формат не поддерживается'}), 400
+
+        # Проверяем привязку к опубликованной статье / странице
+        links = ContentFile.query.filter_by(file_id=file_id).all()
+        if not links:
+            return jsonify({'ok': False, 'error': 'Нет доступа'}), 403
+
+        allowed = False
+        for link in links:
+            if link.target_type == 'article':
+                art = Article.query.get(link.target_id)
+                if art and art.is_published:
+                    allowed = True
+                    break
+            elif link.target_type == 'page':
+                allowed = True
+                break
+
+        if not allowed:
+            return jsonify({'ok': False, 'error': 'Нет доступа'}), 403
+
+        # Создаём read-only токен
+        token_str = secrets.token_urlsafe(32)
+        expires_at = datetime.utcnow() + timedelta(hours=1)
+        token = WopiToken(
+            token=token_str,
+            file_id=file_id,
+            user_id=None,
+            share_id=None,
+            can_write=False,
+            expires_at=expires_at,
+        )
+        db.session.add(token)
+        db.session.commit()
+
+        from core.models import SiteSettings
+        settings = SiteSettings.query.first()
+        cloud_base = settings.cloud_base_url if settings else 'http://192.168.2.19:5001'
+        collabora_base = settings.collabora_base_url if settings else 'http://192.168.2.19:5005'
+        wopi_src = f'{cloud_base}/wopi/files/{file_id}'
+        return jsonify({
+            'ok': True,
+            'wopi_src': wopi_src,
+            'access_token': token_str,
+            'collabora_url': collabora_base,
+        })
+
     """Поиск"""
     @app.route('/search')
     def search():
