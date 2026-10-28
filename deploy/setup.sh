@@ -44,7 +44,8 @@ sudo apt install -y \
     git \
     acl \
     libffi-dev libssl-dev \
-    build-essential
+    build-essential \
+    docker.io docker-compose
 
 # === 3. ACL для Nginx (доступ к /home/deploy/) ===
 echo "=== ACL для Nginx ==="
@@ -72,17 +73,25 @@ echo "=== Применение миграций ==="
 cd "$PLATFORM_DIR/framework"
 source venv/bin/activate
 flask db upgrade
+echo "=== Создание администратора (flask create-admin) ==="
+flask create-admin
 deactivate
 
 # === 6. Nginx ===
 echo "=== Настройка Nginx ==="
 sudo rm -f /etc/nginx/sites-enabled/default
-for project in framework cloud; do
+for project in framework cloud collabora; do
     sudo cp "$PLATFORM_DIR/deploy/nginx/$project.conf" "/etc/nginx/sites-available/$project"
     sudo ln -sf "/etc/nginx/sites-available/$project" "/etc/nginx/sites-enabled/$project"
 done
 sudo nginx -t
 sudo systemctl reload nginx
+
+# === 6.1. Collabora (Docker) ===
+echo "=== Collabora (Docker) ==="
+cd "$PLATFORM_DIR/collabora"
+sudo docker compose up -d
+cd "$PLATFORM_DIR"
 
 # === 7. systemd ===
 echo "=== Настройка systemd ==="
@@ -127,3 +136,6 @@ echo "Логи:       sudo journalctl -u framework -f"
 echo "            sudo journalctl -u cloud -f"
 echo "Сайт:       http://<IP или домен>/"
 echo "Облако:     http://<IP или домен>:5001/"
+echo ""
+echo "=== Почта ==="
+echo "Если почта нужна — запустите: sudo SERVICE_USER=$SERVICE_USER bash deploy/setup-mail.sh"
