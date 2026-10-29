@@ -13,7 +13,6 @@
 |---|---|---|---|---|---|
 | W40 | HTTPS | planned | средний | — | task не заведён |
 | W41 | Асинхронные задачи | planned | средний | — | task не заведён |
-| W47 | UI почты (полный, Gmail-like) | planned | высокий | docs/tasks/W47.md | этапы 1–7 + A/B/C/D |
 | W48 | UI соавторов Collabora | deferred | низкий | docs/tasks/W48.md | отложено в рамках W48 v1 |
 | W49 | Мобильный UI почты | planned | средний | docs/tasks/W49.md | |
 | W50 | Адресная книга | planned | средний | docs/tasks/W50.md | |
@@ -26,3 +25,5 @@
 | W57 | Browser notifications и звук | planned | низкий | docs/tasks/W57.md | |
 | X1 | Блочный редактор (вместо TinyMCE) | idea | низкий | — | из SPEC v8 §8 |
 | X2 | Криптопровайдер (ЭЦП) | idea | низкий | — | из SPEC v8 §8 |
+| X3 | Сортировка писем (по дате/отправителю/теме, asc/desc) | idea | средний | — | MailUiState.sort/dir уже в модели; UI и API — нет |
+| X4 | Очистка корзины (empty trash, expunge) | idea | средний | — | сейчас только перемещение в Trash (api_message_trash) |
