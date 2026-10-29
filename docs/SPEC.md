@@ -141,18 +141,18 @@ framework/cloud берут окружение из /home/deploy/apps/platform/.e
 
 Файл /home/deploy/apps/platform/.env, права 600. Загружается в core/config.py (load_dotenv из корня platform); systemd также подхватывает его через EnvironmentFile (framework, cloud).
 
-| Переменная | Назначение |
-|---|---|
-| SECRET_KEY | Секрет Flask-сессий (общий для SSO между сервисами) |
-| DATABASE_URL | PostgreSQL DSN |
-| CLOUD_DATA_ROOT | Корень файлов облака (alias CLOUD_DATA_DIR в cloud) |
-| INTERNAL_API_KEY | Общий секрет framework↔cloud (X-Internal-Key) |
-| MAIL_INTERNAL_URL | Внутренний URL mail-сервиса (по умолчанию http://127.0.0.1:5004) |
-| MAIL_DOMAIN, MAIL_HOSTNAME | Домен/хост почты |
-| MAIL_DB_USER, MAIL_DB_PASSWORD, MAIL_DB_NAME | Доступ к почтовой БД (Dovecot/Postfix) |
-| MAIL_MASTER_PASSWORD | Master-пароль Dovecot |
-| VMAIL_HOME, VMAIL_UID, VMAIL_GID | Путь и владелец виртуальной почты |
-| EXTERNAL_BACKUP_PATH | Каталог внешних бэкапов (по умолчанию /mnt/backup) |
+| Переменная                                    | Назначение                                                       |
+|-----------------------------------------------|------------------------------------------------------------------|
+| SECRET_KEY                                    | Секрет Flask-сессий (общий для SSO между сервисами)              |
+| DATABASE_URL                                  | PostgreSQL DSN                                                   |
+| CLOUD_DATA_ROOT                               | Корень файлов облака (alias CLOUD_DATA_DIR в cloud)              |
+| INTERNAL_API_KEY                              | Общий секрет framework↔cloud (X-Internal-Key)                    |
+| MAIL_INTERNAL_URL                             | Внутренний URL mail-сервиса (по умолчанию http://127.0.0.1:5004) |
+| MAIL_DOMAIN, MAIL_HOSTNAME                    | Домен/хост почты                                                 |
+| MAIL_DB_USER, MAIL_DB_PASSWORD, MAIL_DB_NAME  | Доступ к почтовой БД (Dovecot/Postfix)                           |
+| MAIL_MASTER_PASSWORD                          | Master-пароль Dovecot                                            |
+| VMAIL_HOME, VMAIL_UID, VMAIL_GID              | Путь и владелец виртуальной почты                                |
+| EXTERNAL_BACKUP_PATH                          | Каталог внешних бэкапов (по умолчанию /mnt/backup)               |
 
 ### 7.2. SiteSettings (БД)
 
