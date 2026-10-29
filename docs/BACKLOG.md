@@ -24,3 +24,5 @@
 | W55 | Расширенные логи и аудит | planned | средний | docs/tasks/W55.md | |
 | W56 | UI ошибок в админке | planned | средний | docs/tasks/W56.md | |
 | W57 | Browser notifications и звук | planned | низкий | docs/tasks/W57.md | |
+| X1 | Блочный редактор (вместо TinyMCE) | idea | низкий | — | из SPEC v8 §8 |
+| X2 | Криптопровайдер (ЭЦП) | idea | низкий | — | из SPEC v8 §8 |
