@@ -72,9 +72,16 @@ WOPI: cloud/wopi.py (CheckFileInfo, GetFile, PutFile).
 
 URL — из SiteSettings.collabora_base_url.
 
+Шары облака (W35)
+/s/<token> — framework (просмотр/скачивание). POST /api/share/<id> — cloud (создание).
+
+Ограничения CloudShare: is_public (аноним/только логин), пароль (Argon2id),
+срок (expires_at), лимит скачиваний (max_downloads, download_count).
+При наличии ограничений всегда создаётся новая шара; без них — переиспользуется активная.
+
 Тестовые реквизиты
 См. docs/SPEC.md (раздел 1.3). Сменить при боевом.
 
 История
 Монорепо создано в октябре 2026 объединением myframework и mycloud.
-W2 (почта), W48 (Collabora), W58 (X-Accel-Redirect), W59 (просмотр) — завершены.
+W2 (почта), W48 (Collabora), W58 (X-Accel-Redirect), W59 (просмотр), W35 (закрытая шара) — завершены.
