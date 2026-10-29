@@ -1,0 +1,2320 @@
+/* css/redactix.css */
+
+/* ================================
+   Variables - Light Theme (Default)
+   ================================ */
+:root {
+    /* Primary colors */
+    --redactix-primary: #2563eb;
+    --redactix-primary-hover: #1d4ed8;
+    --redactix-primary-light: #dbeafe;
+    --redactix-primary-rgb: 37, 99, 235;
+
+    /* Danger colors */
+    --redactix-danger: #dc2626;
+    --redactix-danger-hover: #b91c1c;
+    --redactix-danger-light: #fef2f2;
+
+    /* Base colors */
+    --redactix-border: #e5e7eb;
+    --redactix-bg: #ffffff;
+    --redactix-bg-secondary: #f9fafb;
+    --redactix-bg-hover: #f3f4f6;
+    --redactix-bg-active: #e5e7eb;
+    --redactix-text: #374151;
+    --redactix-text-muted: #6b7280;
+    --redactix-text-placeholder: #9ca3af;
+
+    /* UI elements */
+    --redactix-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    --redactix-radius: 6px;
+    --redactix-overlay: rgba(0, 0, 0, 0.4);
+
+    /* Content elements */
+    --redactix-blockquote-bg: #f8fafc;
+    --redactix-code-bg: #f3f4f6;
+    --redactix-code-color: #e11d48;
+    --redactix-mark-bg: #fef08a;
+    --redactix-spoiler-bg: #374151;
+
+    /* Code editor (always dark) */
+    --redactix-code-editor-bg: #1e1e1e;
+    --redactix-code-editor-gutter: #252526;
+    --redactix-code-editor-text: #d4d4d4;
+    --redactix-code-editor-line: #858585;
+    /* Semi-transparent: the selection is drawn in the textarea ON TOP of the highlighted
+       backdrop — an opaque background would cover the text under the selection */
+    --redactix-code-editor-selection: rgba(58, 110, 165, 0.45);
+
+    /* Syntax highlighting tokens in HTML mode (VS Code Dark palette;
+       the code editor is always dark, so no overrides in themes are needed) */
+    --redactix-code-token-tag: #569cd6;
+    --redactix-code-token-attr: #9cdcfe;
+    --redactix-code-token-value: #ce9178;
+    --redactix-code-token-punct: #808080;
+    --redactix-code-token-comment: #6a9955;
+    --redactix-code-token-entity: #d7ba7d;
+
+    /* Pre blocks */
+    --redactix-pre-bg: #1f2937;
+    --redactix-pre-text: #e5e7eb;
+
+    /* Floating toolbar (always dark) */
+    --redactix-floating-bg: #1f2937;
+    --redactix-floating-text: #e5e7eb;
+    --redactix-floating-separator: rgba(255, 255, 255, 0.2);
+
+    /* Callouts - these are semantic and usually stay the same */
+    --redactix-callout-bg: #f3f4f6;
+    --redactix-callout-border: #d1d5db;
+    --redactix-callout-text: #374151;
+
+    /* Find highlight */
+    --redactix-find-highlight: #fef08a;
+    --redactix-find-current: #f97316;
+
+    /* Drag states */
+    --redactix-drag-bg: #dbeafe;
+    --redactix-dragover-bg: #eff6ff;
+}
+
+/* ================================
+   Dark Theme
+   ================================ */
+.redactix-wrapper.redactix-dark {
+    /* Primary colors - slightly brighter for dark mode */
+    --redactix-primary: #3b82f6;
+    --redactix-primary-hover: #60a5fa;
+    --redactix-primary-light: #1e3a5f;
+    --redactix-primary-rgb: 59, 130, 246;
+
+    /* Danger colors */
+    --redactix-danger: #ef4444;
+    --redactix-danger-hover: #f87171;
+    --redactix-danger-light: #3f1d1d;
+
+    /* Base colors */
+    --redactix-border: #374151;
+    --redactix-bg: #1f2937;
+    --redactix-bg-secondary: #111827;
+    --redactix-bg-hover: #374151;
+    --redactix-bg-active: #4b5563;
+    --redactix-text: #f3f4f6;
+    --redactix-text-muted: #9ca3af;
+    --redactix-text-placeholder: #6b7280;
+
+    /* UI elements */
+    --redactix-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    --redactix-overlay: rgba(0, 0, 0, 0.6);
+
+    /* Content elements */
+    --redactix-blockquote-bg: #111827;
+    --redactix-code-bg: #374151;
+    --redactix-code-color: #fb7185;
+    --redactix-mark-bg: #854d0e;
+    --redactix-spoiler-bg: #e5e7eb;
+
+    /* Pre blocks */
+    --redactix-pre-bg: #111827;
+    --redactix-pre-text: #e5e7eb;
+
+    /* Callouts - darker versions */
+    --redactix-callout-bg: #374151;
+    --redactix-callout-border: #4b5563;
+    --redactix-callout-text: #f3f4f6;
+
+    /* Find highlight */
+    --redactix-find-highlight: #854d0e;
+    --redactix-find-current: #ea580c;
+
+    /* Drag states */
+    --redactix-drag-bg: #1e3a5f;
+    --redactix-dragover-bg: #1e3a5f;
+}
+
+/* Dark theme via prefers-color-scheme (auto mode) */
+@media (prefers-color-scheme: dark) {
+    .redactix-wrapper.redactix-auto {
+        /* Primary colors */
+        --redactix-primary: #3b82f6;
+        --redactix-primary-hover: #60a5fa;
+        --redactix-primary-light: #1e3a5f;
+        --redactix-primary-rgb: 59, 130, 246;
+
+        /* Danger colors */
+        --redactix-danger: #ef4444;
+        --redactix-danger-hover: #f87171;
+        --redactix-danger-light: #3f1d1d;
+
+        /* Base colors */
+        --redactix-border: #374151;
+        --redactix-bg: #1f2937;
+        --redactix-bg-secondary: #111827;
+        --redactix-bg-hover: #374151;
+        --redactix-bg-active: #4b5563;
+        --redactix-text: #f3f4f6;
+        --redactix-text-muted: #9ca3af;
+        --redactix-text-placeholder: #6b7280;
+
+        /* UI elements */
+        --redactix-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        --redactix-overlay: rgba(0, 0, 0, 0.6);
+
+        /* Content elements */
+        --redactix-blockquote-bg: #111827;
+        --redactix-code-bg: #374151;
+        --redactix-code-color: #fb7185;
+        --redactix-mark-bg: #854d0e;
+        --redactix-spoiler-bg: #e5e7eb;
+
+        /* Pre blocks */
+        --redactix-pre-bg: #111827;
+        --redactix-pre-text: #e5e7eb;
+
+        /* Callouts */
+        --redactix-callout-bg: #374151;
+        --redactix-callout-border: #4b5563;
+        --redactix-callout-text: #f3f4f6;
+
+        /* Find highlight */
+        --redactix-find-highlight: #854d0e;
+        --redactix-find-current: #ea580c;
+
+        /* Drag states */
+        --redactix-drag-bg: #1e3a5f;
+        --redactix-dragover-bg: #1e3a5f;
+    }
+}
+
+/* ================================
+   Wrapper
+   ================================ */
+.redactix-wrapper {
+    border: 1px solid var(--redactix-border);
+    border-radius: var(--redactix-radius);
+    background: var(--redactix-bg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    position: relative;
+    overflow: clip;
+}
+
+/* ================================
+   Toolbar
+   ================================ */
+.redactix-toolbar {
+    background: var(--redactix-bg-secondary);
+    border-bottom: 1px solid var(--redactix-border);
+    padding: 8px 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+    z-index: 100;
+    border-top-left-radius: var(--redactix-radius);
+    border-top-right-radius: var(--redactix-radius);
+}
+
+.redactix-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--redactix-text);
+    transition: all 0.15s ease;
+}
+
+/* Find button — the first in the right group */
+.redactix-btn[data-command="find"] {
+    margin-left: auto;
+}
+
+.redactix-btn:hover {
+    background: var(--redactix-bg-hover);
+}
+
+.redactix-btn:active {
+    background: var(--redactix-bg-active);
+}
+
+.redactix-btn.active {
+    background: var(--redactix-primary);
+    color: white;
+}
+
+.redactix-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+.redactix-toolbar-separator {
+    width: 1px !important;
+    height: 24px !important;
+    background: var(--redactix-border) !important;
+    margin: 0 6px !important;
+}
+
+/* ================================
+   Editor
+   ================================ */
+.redactix-editor,
+.redactix-editor [contenteditable="true"] {
+    outline: none;
+}
+
+.redactix-editor {
+    padding: 20px;
+    padding-left: 40px;
+    min-height: 300px;
+    overflow-y: auto;
+    line-height: 1.7;
+    font-size: 16px;
+    color: var(--redactix-text);
+    white-space: pre-wrap;
+    /* Bottom corner rounding */
+    border-bottom-left-radius: var(--redactix-radius);
+    border-bottom-right-radius: var(--redactix-radius);
+}
+
+.redactix-editor.is-empty::before {
+    content: attr(data-placeholder);
+    color: var(--redactix-text-muted);
+    pointer-events: none;
+    position: absolute;
+}
+
+.redactix-editor p {
+    margin: 0 0 1em 0;
+}
+
+.redactix-editor h1,
+.redactix-editor h2,
+.redactix-editor h3 {
+    margin: 1.5em 0 0.5em 0;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+/* Убираем верхний отступ у первого элемента */
+.redactix-editor>*:first-child {
+    margin-top: 0;
+}
+
+.redactix-editor h1 {
+    font-size: 2em;
+}
+
+.redactix-editor h2 {
+    font-size: 1.5em;
+}
+
+.redactix-editor h3 {
+    font-size: 1.25em;
+}
+
+/* Quote-card: outer figure owns the border, background and padding so that
+   blockquote and figcaption share a single visual container.
+   The left padding is wider to accommodate the drag-handle of inner blocks. */
+.redactix-editor figure.quote-card {
+    margin: 1em 0;
+    padding: 0.6em 1em 0.6em 2.5em;
+    border-left: 4px solid var(--redactix-primary);
+    background: var(--redactix-blockquote-bg);
+    color: var(--redactix-text-muted);
+    text-align: left;
+}
+
+/* Inner blockquote is a transparent container — the figure draws the box. */
+.redactix-editor figure.quote-card > blockquote {
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+}
+
+/* Inner blocks of a quote-card: collapse the default top/bottom margin of
+   the first and last child so the figure's padding owns the spacing. */
+.redactix-editor figure.quote-card > blockquote > * {
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+}
+.redactix-editor figure.quote-card > blockquote > *:first-child {
+    margin-top: 0;
+}
+.redactix-editor figure.quote-card > blockquote > *:last-child {
+    margin-bottom: 0;
+}
+
+/* Headings inside a quote keep their size but lose the default huge margins */
+.redactix-editor figure.quote-card > blockquote > h1,
+.redactix-editor figure.quote-card > blockquote > h2,
+.redactix-editor figure.quote-card > blockquote > h3 {
+    font-weight: 600;
+}
+
+/* Author caption: photo on the left, text on the right. All optional.
+   A thin top border separates the caption from the quote text but keeps
+   them inside the same card. */
+.redactix-editor figure.quote-card > figcaption {
+    margin-top: 0.6em;
+    padding-top: 0.6em;
+    border-top: 1px solid var(--redactix-border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.875em;
+    color: var(--redactix-text-muted);
+    text-align: left;
+}
+
+.redactix-editor figure.quote-card > figcaption > img {
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    cursor: pointer;
+}
+
+.redactix-editor figure.quote-card > figcaption > span {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.redactix-editor figure.quote-card > figcaption > span:empty::before,
+.redactix-editor figure.quote-card > figcaption > span:has(> br:only-child)::before {
+    content: attr(data-placeholder);
+    color: var(--redactix-text-placeholder);
+    font-style: italic;
+    pointer-events: none;
+}
+
+/* Big preset — borders move to the figure so the caption stays in the box. */
+.redactix-editor figure.quote-card.big {
+    border-left: none;
+    border-top: 3px solid var(--redactix-primary);
+    border-bottom: 3px solid var(--redactix-primary);
+    background: transparent;
+    color: var(--redactix-text);
+    padding: 1em 1em 1.1em 2.5em;
+    text-align: center;
+}
+
+.redactix-editor figure.quote-card.big > blockquote {
+    font-size: 1.5em;
+    text-align: center;
+    font-style: italic;
+}
+
+.redactix-editor figure.quote-card.big > figcaption {
+    justify-content: center;
+    text-align: center;
+    border-top: none;
+    margin-top: 0.8em;
+    padding-top: 0;
+    font-size: 0.7em;
+    font-style: normal;
+}
+
+/* In big preset photo and text sit together, both centered as a pair. */
+.redactix-editor figure.quote-card.big > figcaption > span {
+    flex: 0 1 auto;
+}
+
+/* Callout (aside) - base style (gray, without class).
+   The left padding is wider than others to accommodate the drag-handle of
+   inner blocks without overlapping the content. */
+.redactix-editor aside {
+    margin: 1em 0;
+    padding: 1em 1em 1em 2.5em;
+    border-radius: var(--redactix-radius);
+    background: var(--redactix-callout-bg);
+    border: 1px solid var(--redactix-callout-border);
+    color: var(--redactix-callout-text);
+}
+
+/* Inner blocks of a callout: collapse top/bottom margin of the
+   first / last child so the aside's padding owns the spacing. */
+.redactix-editor aside > * {
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+}
+.redactix-editor aside > *:first-child {
+    margin-top: 0;
+}
+.redactix-editor aside > *:last-child {
+    margin-bottom: 0;
+}
+
+.redactix-editor aside > h1,
+.redactix-editor aside > h2,
+.redactix-editor aside > h3 {
+    font-weight: 600;
+}
+
+/* HR inside a callout: use currentColor so it's visible against the
+   callout's tinted background. */
+.redactix-editor aside .redactix-separator {
+    margin: 0.5em 0;
+    padding: 6px 0;
+}
+.redactix-editor aside hr {
+    border-top-color: currentColor;
+    opacity: 0.25;
+}
+
+/* Callout presets */
+.redactix-editor aside.warning {
+    background: #fef3c7;
+    border-color: #f59e0b;
+    color: #92400e;
+}
+
+.redactix-editor aside.danger {
+    background: #fee2e2;
+    border-color: #ef4444;
+    color: #991b1b;
+}
+
+.redactix-editor aside.information {
+    background: #dbeafe;
+    border-color: #3b82f6;
+    color: #1e40af;
+}
+
+.redactix-editor aside.success {
+    background: #dcfce7;
+    border-color: #22c55e;
+    color: #166534;
+}
+
+/* Callout emoji.
+   We make padding-left wider than usual to leave space between the emoji and the text
+   for the drag-handle of inner blocks. */
+.redactix-editor aside[data-emoji] {
+    padding-left: 4em;
+    position: relative;
+}
+
+.redactix-editor aside[data-emoji]::before {
+    content: attr(data-emoji);
+    position: absolute;
+    left: 0.5em;
+    top: 0.75em;
+    font-size: 1.25em;
+    line-height: 1;
+    cursor: pointer;
+    user-select: none;
+}
+
+/* Callout emoji input popup */
+.redactix-emoji-input {
+    position: absolute;
+    z-index: 200;
+    background: var(--redactix-bg);
+    border: 1px solid var(--redactix-border);
+    border-radius: var(--redactix-radius);
+    box-shadow: var(--redactix-shadow);
+    padding: 8px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    animation: menuFadeIn 0.15s ease;
+}
+
+.redactix-emoji-input input {
+    width: 80px;
+    padding: 6px 8px;
+    border: 1px solid var(--redactix-border);
+    border-radius: 4px;
+    font-size: 20px;
+    text-align: center;
+    background: var(--redactix-bg);
+    color: var(--redactix-text);
+    outline: none;
+}
+
+.redactix-emoji-input input:focus {
+    border-color: var(--redactix-primary);
+    box-shadow: 0 0 0 3px rgba(var(--redactix-primary-rgb), 0.1);
+}
+
+.redactix-emoji-input input.invalid {
+    border-color: var(--redactix-danger);
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+}
+
+.redactix-emoji-hint {
+    font-size: 12px;
+    color: var(--redactix-text-muted);
+    white-space: nowrap;
+}
+
+.redactix-emoji-hint.is-error {
+    color: var(--redactix-danger);
+}
+
+.redactix-emoji-hint kbd {
+    display: inline-block;
+    padding: 1px 5px;
+    font-size: 11px;
+    font-family: inherit;
+    background: var(--redactix-bg-secondary);
+    border: 1px solid var(--redactix-border);
+    border-radius: 3px;
+    box-shadow: 0 1px 0 var(--redactix-border);
+}
+
+.redactix-editor ul,
+.redactix-editor ol {
+    margin: 0.5em 0;
+    padding-left: 1.5em;
+}
+
+.redactix-editor li {
+    margin: 0.25em 0;
+    min-height: 1.7em;
+    /* Prevents empty li from collapsing */
+}
+
+.redactix-editor a {
+    color: var(--redactix-primary);
+    text-decoration: underline;
+}
+
+.redactix-editor code {
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    font-size: 0.9em;
+    background: var(--redactix-code-bg);
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+    color: var(--redactix-code-color);
+}
+
+.redactix-editor mark {
+    background: var(--redactix-mark-bg);
+    padding: 0.1em 0.2em;
+    border-radius: 2px;
+    color: inherit;
+}
+
+.redactix-editor .spoiler {
+    background: var(--redactix-spoiler-bg);
+    color: var(--redactix-spoiler-bg);
+    padding: 0.1em 0.3em;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.redactix-editor .spoiler:hover,
+.redactix-editor .spoiler:focus {
+    background: var(--redactix-code-bg);
+    color: inherit;
+}
+
+.redactix-editor pre {
+    margin: 1em 0;
+    padding: 1em;
+    background: var(--redactix-pre-bg);
+    border-radius: var(--redactix-radius);
+    overflow-x: auto;
+    cursor: pointer;
+}
+
+.redactix-editor pre code {
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    font-size: 0.9em;
+    background: transparent;
+    padding: 0;
+    color: var(--redactix-pre-text);
+    white-space: pre;
+}
+
+/* ================================
+   Word/Character Counter
+   ================================ */
+.redactix-counter {
+    position: absolute;
+    bottom: 8px;
+    right: 12px;
+    font-size: 12px;
+    color: var(--redactix-text-muted);
+    background: var(--redactix-bg);
+    opacity: 0.9;
+    padding: 2px 8px;
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.redactix-editor img {
+    max-width: 100%;
+    max-height: 450px;
+    width: auto;
+    height: auto;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+}
+
+.redactix-editor img:hover {
+    opacity: 0.85;
+}
+
+/* Native <video> uploaded via the Video module. Mirrors the image
+   max-height (450px) so vertical clips don't blow up the editor;
+   the production site is expected to define its own width rules. */
+.redactix-editor figure.redactix-video {
+    position: relative;
+}
+
+.redactix-editor figure.redactix-video > video {
+    display: block;
+    margin: 0 auto;
+    max-width: 100%;
+    max-height: 450px;
+    width: auto;
+    height: auto;
+    border-radius: 4px;
+    background: #000;
+}
+
+/* Photo gallery — multiple images grouped under a single figure with a
+   shared figcaption. The inner .redactix-gallery-grid is an auto-fit
+   grid in the editor; the production site is expected to override. */
+.redactix-editor figure.redactix-gallery {
+    position: relative;
+}
+
+/* Flex row instead of grid: every image keeps its native aspect ratio
+   but locks to a uniform 200px height. Wide panoramas take more width,
+   verticals take less, and the row wraps when it runs out of space. */
+.redactix-editor figure.redactix-gallery > .redactix-gallery-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.redactix-editor figure.redactix-gallery > .redactix-gallery-grid > img,
+.redactix-editor figure.redactix-gallery > .redactix-gallery-grid > a {
+    display: block;
+    height: 200px;
+    width: auto;
+    max-width: 100%;
+    margin: 0;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.redactix-editor figure.redactix-gallery > .redactix-gallery-grid > a > img {
+    display: block;
+    height: 100%;
+    width: auto;
+    max-width: 100%;
+    max-height: none;
+    border-radius: 4px;
+}
+
+.redactix-editor figure.redactix-gallery > .redactix-gallery-grid > img {
+    max-height: none;
+}
+
+/* Edit button on the whole gallery — matches embed/video styling. */
+.redactix-editor .redactix-gallery-edit-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 2;
+    background: rgba(17, 24, 39, 0.85);
+    color: #fff;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s, background 0.15s;
+}
+
+.redactix-editor figure.redactix-gallery:hover .redactix-gallery-edit-btn {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.redactix-editor .redactix-gallery-edit-btn:hover {
+    background: var(--redactix-primary);
+}
+
+/* Floating Edit button — same look as the embed Edit button. */
+.redactix-editor .redactix-video-edit-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 2;
+    background: rgba(17, 24, 39, 0.85);
+    color: #fff;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s, background 0.15s;
+}
+
+.redactix-editor figure.redactix-video:hover .redactix-video-edit-btn {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.redactix-editor .redactix-video-edit-btn:hover {
+    background: var(--redactix-primary);
+}
+
+.redactix-editor hr {
+    margin: 0;
+    /* Spacings are managed by the wrapper */
+    border: none;
+    height: auto;
+    border-top: 2px solid var(--redactix-border);
+    cursor: default;
+    user-select: none;
+    pointer-events: none;
+    /* Events will be caught by the wrapper */
+}
+
+.redactix-separator {
+    margin: 1.5em 0;
+    padding: 10px 0;
+    cursor: default;
+    user-select: none;
+    display: block;
+}
+
+.redactix-editor figure,
+.redactix-figure {
+    margin: 1em 0;
+    padding: 0;
+    text-align: center;
+}
+
+.redactix-editor figure:not(.quote-card) > figcaption,
+.redactix-figure figcaption {
+    margin-top: 8px;
+    font-size: 14px;
+    color: var(--redactix-text-muted);
+    text-align: center;
+}
+
+/* Placeholder for empty figcaption (only regular images) */
+.redactix-editor figure:not(.quote-card) > figcaption:empty::before,
+.redactix-editor figure:not(.quote-card) > figcaption:has(> br:only-child)::before {
+    content: 'Add caption...';
+    color: var(--redactix-text-placeholder);
+    font-style: italic;
+    pointer-events: none;
+}
+
+/* Hide the original textarea */
+textarea.redactix[style*="display: none"] {
+    display: none !important;
+}
+
+/* ================================
+   Modal
+   ================================ */
+.redactix-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--redactix-overlay);
+    z-index: 10000;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    backdrop-filter: blur(2px);
+}
+
+.redactix-modal-overlay.is-open {
+    display: flex;
+}
+
+.redactix-modal-content {
+    background: var(--redactix-bg);
+    padding: 24px;
+    border-radius: 12px;
+    width: 720px;
+    max-width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: var(--redactix-shadow);
+    animation: modalFadeIn 0.2s ease;
+}
+
+/* Modal window - responsive grid for fields */
+.redactix-modal-content .redactix-modal-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0 20px;
+}
+
+.redactix-modal-content .redactix-modal-grid>div {
+    min-width: 0;
+}
+
+/* Full-width elements in the grid */
+.redactix-modal-content .redactix-modal-full-width {
+    grid-column: 1 / -1;
+}
+
+@media (max-width: 600px) {
+    .redactix-modal-content {
+        width: 95%;
+        max-width: 95%;
+        padding: 16px;
+    }
+
+    .redactix-modal-content .redactix-modal-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95) translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.redactix-modal-content h3 {
+    margin: 0 0 20px 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--redactix-text);
+}
+
+.redactix-modal-content label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 500;
+    font-size: 14px;
+    color: var(--redactix-text);
+}
+
+.redactix-modal-content input[type="text"],
+.redactix-modal-content input[type="number"],
+.redactix-modal-content textarea,
+.redactix-modal-content select {
+    width: 100%;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    box-sizing: border-box;
+    border: 1px solid var(--redactix-border);
+    border-radius: var(--redactix-radius);
+    font-size: 14px;
+    background: var(--redactix-bg);
+    color: var(--redactix-text);
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.redactix-modal-content input::placeholder,
+.redactix-modal-content textarea::placeholder {
+    color: var(--redactix-text-placeholder);
+}
+
+.redactix-modal-content input:focus,
+.redactix-modal-content textarea:focus,
+.redactix-modal-content select:focus {
+    outline: none;
+    border-color: var(--redactix-primary);
+    box-shadow: 0 0 0 3px rgba(var(--redactix-primary-rgb), 0.1);
+}
+
+/* Control buttons inside the form (not in the footer) */
+.redactix-modal-content .redactix-modal-grid button,
+.redactix-modal-content .redactix-upload-group button {
+    padding: 10px 20px;
+    border: 1px solid var(--redactix-border);
+    border-radius: var(--redactix-radius);
+    font-size: 14px;
+    font-weight: 400;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    background: var(--redactix-bg);
+    color: var(--redactix-text);
+}
+
+.redactix-modal-content .redactix-modal-grid button:hover,
+.redactix-modal-content .redactix-upload-group button:hover {
+    background: var(--redactix-bg-hover);
+}
+
+/* Modal footer buttons */
+.redactix-modal-footer {
+    margin-top: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+.redactix-modal-footer-left,
+.redactix-modal-footer-right {
+    display: flex;
+    gap: 10px;
+}
+
+.redactix-modal-footer-right {
+    margin-left: auto;
+}
+
+.redactix-modal-btn {
+    padding: 10px 20px;
+    border-radius: var(--redactix-radius);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    border: none;
+    transition: background 0.15s, opacity 0.15s;
+}
+
+.redactix-modal-btn-primary {
+    background: var(--redactix-primary);
+    color: white;
+}
+
+.redactix-modal-btn-primary:hover {
+    background: var(--redactix-primary-hover);
+}
+
+.redactix-modal-btn-secondary {
+    background: var(--redactix-bg-hover);
+    color: var(--redactix-text);
+    border: 1px solid var(--redactix-border);
+}
+
+.redactix-modal-btn-secondary:hover {
+    background: var(--redactix-bg-active);
+}
+
+.redactix-modal-btn-danger {
+    background: var(--redactix-danger);
+    color: white;
+}
+
+.redactix-modal-btn-danger:hover {
+    background: var(--redactix-danger-hover);
+}
+
+.redactix-modal-btn-gray {
+    background: var(--redactix-text-muted);
+    color: white;
+}
+
+.redactix-modal-btn-gray:hover {
+    opacity: 0.85;
+}
+
+/* ================================
+   Table
+   ================================ */
+.redactix-editor table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1em 0;
+}
+
+.redactix-editor td,
+.redactix-editor th {
+    border: 1px solid var(--redactix-border);
+    padding: 10px 12px;
+    text-align: left;
+}
+
+.redactix-editor th {
+    background: var(--redactix-bg-secondary);
+    font-weight: 600;
+}
+
+/* Table Context Menu */
+.redactix-table-menu {
+    position: absolute;
+    background: var(--redactix-bg);
+    border: 1px solid var(--redactix-border);
+    box-shadow: var(--redactix-shadow);
+    border-radius: 8px;
+    padding: 6px;
+    z-index: 100;
+    min-width: 200px;
+    animation: menuFadeIn 0.15s ease;
+}
+
+/* Table Handles */
+.redactix-table-handle {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    background: var(--redactix-bg);
+    border: 1px solid var(--redactix-border);
+    border-radius: 4px;
+    color: var(--redactix-text-placeholder);
+    z-index: 50;
+    transition: all 0.15s ease;
+}
+
+.redactix-table-handle:hover {
+    background: var(--redactix-bg-hover);
+    color: var(--redactix-text);
+    border-color: var(--redactix-primary);
+}
+
+.redactix-table-cell-handle {
+    background: #fef3c7;
+    border-color: #f59e0b;
+}
+
+.redactix-table-cell-handle:hover {
+    background: #fde68a;
+    color: #92400e;
+}
+
+.redactix-table-row-handle {
+    background: #dbeafe;
+    border-color: #3b82f6;
+}
+
+.redactix-table-row-handle:hover {
+    background: #bfdbfe;
+    color: #1d4ed8;
+}
+
+/* ================================
+   Embed (figure.redactix-embed)
+   ================================ */
+.redactix-editor figure.redactix-embed {
+    margin: 1em 0;
+    padding: 0;
+    text-align: center;
+}
+
+/* Per-provider max-width: social posts have a natural reading width.
+   Anything wider just adds whitespace around tall vertical content
+   (Instagram reels, TikTok, vertical tweets). margin auto centers them. */
+.redactix-editor figure.redactix-embed[data-provider="bandcamp"],
+.redactix-editor figure.redactix-embed[data-provider="bluesky"],
+.redactix-editor figure.redactix-embed[data-provider="mixcloud"],
+.redactix-editor figure.redactix-embed[data-provider="reddit"] {
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+}
+.redactix-editor figure.redactix-embed[data-provider="instagram"] {
+    max-width: 540px;
+    margin-left: auto;
+    margin-right: auto;
+}
+.redactix-editor figure.redactix-embed[data-provider="twitter"] {
+    max-width: 550px;
+    margin-left: auto;
+    margin-right: auto;
+}
+.redactix-editor figure.redactix-embed[data-provider="tiktok"] {
+    max-width: 325px;
+    margin-left: auto;
+    margin-right: auto;
+}
+.redactix-editor figure.redactix-embed[data-provider="spotify"] {
+    max-width: 700px;
+    margin-left: auto;
+    margin-right: auto;
+}
+.redactix-editor figure.redactix-embed[data-provider="apple-music"] {
+    max-width: 660px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* The .redactix-embed-frame wraps the iframe and controls its aspect-ratio.
+   Default = 16:9 video aspect (padding-top trick keeps responsive width). */
+.redactix-editor figure.redactix-embed .redactix-embed-frame {
+    position: relative;
+    width: 100%;
+    padding-top: 56.25%;
+    height: 0;
+    border-radius: var(--redactix-radius);
+    overflow: hidden;
+    background: var(--redactix-bg-secondary);
+}
+
+.redactix-editor figure.redactix-embed[data-aspect="4:3"] .redactix-embed-frame {
+    padding-top: 75%;
+}
+.redactix-editor figure.redactix-embed[data-aspect="1:1"] .redactix-embed-frame {
+    padding-top: 100%;
+}
+
+/* "auto" aspect = pixel height set inline by JS based on the provider's
+   defaultHeight (or user override). No fixed CSS fallback here — every
+   auto-aspect embed must come with an inline style.height. */
+.redactix-editor figure.redactix-embed[data-aspect="auto"] .redactix-embed-frame {
+    padding-top: 0;
+}
+
+.redactix-editor figure.redactix-embed .redactix-embed-frame > iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+
+.redactix-editor figure.redactix-embed > figcaption {
+    margin-top: 8px;
+    font-size: 14px;
+    color: var(--redactix-text-muted);
+    text-align: center;
+}
+
+/* Floating Edit button on top of the iframe — visible on hover.
+   pointer-events:none by default lets clicks pass through to the iframe;
+   on hover we enable it so the button itself is clickable. */
+.redactix-editor .redactix-embed-edit-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 2;
+    background: rgba(17, 24, 39, 0.85);
+    color: #fff;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s, background 0.15s;
+}
+
+.redactix-editor figure.redactix-embed:hover .redactix-embed-edit-btn {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.redactix-editor .redactix-embed-edit-btn:hover {
+    background: var(--redactix-primary);
+}
+
+/* No hover on touch devices — Edit buttons (embed / video / gallery)
+   are always visible, otherwise the edit modal cannot be reached. */
+@media (hover: none) {
+    .redactix-editor .redactix-embed-edit-btn,
+    .redactix-editor .redactix-video-edit-btn,
+    .redactix-editor .redactix-gallery-edit-btn {
+        opacity: 1;
+        pointer-events: auto;
+    }
+}
+
+/* Legacy class kept for safety (server-rendered HTML from older versions
+   that wasn't run through migration). Will be migrated on next load. */
+.redactix-video-wrapper {
+    position: relative;
+    padding-bottom: 56.25%;
+    height: 0;
+    margin: 1em 0;
+    border-radius: var(--redactix-radius);
+    overflow: hidden;
+}
+
+.redactix-video-wrapper iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+/* Embed modal: tab toggle + hint text */
+.redactix-embed-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--redactix-border);
+}
+.redactix-embed-tab {
+    background: transparent;
+    border: none;
+    padding: 8px 12px;
+    font-size: 13px;
+    color: var(--redactix-text-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+}
+.redactix-embed-tab.is-active {
+    color: var(--redactix-primary);
+    border-bottom-color: var(--redactix-primary);
+}
+.redactix-embed-hint {
+    font-size: 12px;
+    color: var(--redactix-text-muted);
+    margin: 4px 0 12px;
+}
+
+/* ================================
+   Block Handle
+   ================================ */
+.redactix-block-handle {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    color: var(--redactix-text-placeholder);
+    user-select: none;
+    z-index: 10;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+}
+
+.redactix-block-handle:hover {
+    background: var(--redactix-bg-hover);
+    color: var(--redactix-text);
+}
+
+.redactix-block-handle.dragging {
+    cursor: grabbing;
+    background: var(--redactix-primary);
+    color: white;
+}
+
+/* Handle for the entire list */
+.redactix-list-handle {
+    background: #fef3c7;
+    border: 1px dashed #f59e0b;
+}
+
+/* ================================
+   Block Gap Insert Handle ("+")
+   Notion-style hover affordance shown between two top-level blocks.
+   ================================ */
+.redactix-gap-handle {
+    position: absolute;
+    height: 24px;
+    transform: translateY(-50%);
+    display: none;
+    align-items: center;
+    cursor: pointer;
+    z-index: 9;
+    user-select: none;
+}
+
+.redactix-gap-line {
+    flex: 1;
+    height: 2px;
+    background: var(--redactix-primary);
+    border-radius: 1px;
+    opacity: 0.35;
+    transition: opacity 0.15s ease;
+}
+
+.redactix-gap-handle:hover .redactix-gap-line {
+    opacity: 0.7;
+}
+
+.redactix-gap-button {
+    width: 24px;
+    height: 24px;
+    margin: 0 8px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: var(--redactix-primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.redactix-gap-handle:hover .redactix-gap-button {
+    transform: scale(1.1);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.redactix-list-handle:hover {
+    background: #fde68a;
+    color: #92400e;
+}
+
+/* Handle for the entire callout / quote-card — highlight with the primary color to
+   distinguish it from the handle of the inner block. */
+.redactix-container-handle {
+    background: var(--redactix-primary-light);
+    border: 1px dashed var(--redactix-primary);
+    color: var(--redactix-primary);
+}
+
+.redactix-container-handle:hover {
+    background: var(--redactix-primary);
+    color: #fff;
+}
+
+.redactix-block-dragging {
+    background: var(--redactix-drag-bg) !important;
+    opacity: 0.8;
+    border-radius: 4px;
+}
+
+/* ================================
+   Block Menu
+   ================================ */
+.redactix-block-menu {
+    /* Portal'd to <body> + viewport-relative coords so the menu can
+       escape any overflow:hidden ancestor (rounded demo-wrapper, etc.) */
+    position: fixed;
+    background: var(--redactix-bg);
+    border: 1px solid var(--redactix-border);
+    box-shadow: var(--redactix-shadow);
+    border-radius: 8px;
+    padding: 6px;
+    z-index: 1000;
+    min-width: 180px;
+    animation: menuFadeIn 0.15s ease;
+}
+
+@keyframes menuFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.redactix-menu-group {
+    margin-bottom: 4px;
+}
+
+.redactix-menu-group-label {
+    padding: 6px 10px 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--redactix-text-muted);
+    letter-spacing: 0.5px;
+}
+
+.redactix-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--redactix-text);
+    border-radius: 4px;
+    transition: background 0.1s ease;
+}
+
+.redactix-menu-item:hover {
+    background: var(--redactix-bg-hover);
+}
+
+.redactix-menu-item-danger {
+    color: var(--redactix-danger);
+}
+
+.redactix-menu-item-danger:hover {
+    background: var(--redactix-danger-light);
+}
+
+.redactix-menu-icon {
+    width: 20px;
+    text-align: center;
+    font-size: 14px;
+}
+
+.redactix-menu-divider {
+    height: 1px;
+    background: var(--redactix-border);
+    margin: 6px 0;
+}
+
+/* ================================
+   Floating Toolbar
+   ================================ */
+.redactix-floating-toolbar {
+    position: absolute;
+    display: none;
+    align-items: center;
+    gap: 2px;
+    padding: 6px;
+    background: var(--redactix-floating-bg);
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    z-index: 1000;
+    animation: floatingFadeIn 0.15s ease;
+}
+
+@keyframes floatingFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.redactix-floating-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--redactix-floating-text);
+    transition: all 0.1s ease;
+}
+
+.redactix-floating-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.redactix-floating-btn.active {
+    background: var(--redactix-primary);
+    color: white;
+}
+
+.redactix-floating-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.redactix-floating-separator {
+    width: 1px;
+    height: 20px;
+    background: var(--redactix-floating-separator);
+    margin: 0 4px;
+}
+
+/* ================================
+   Drag Ghost
+   ================================ */
+.redactix-drag-ghost {
+    position: fixed;
+    padding: 8px 12px;
+    background: var(--redactix-bg);
+    border: 1px solid var(--redactix-border);
+    border-radius: var(--redactix-radius);
+    box-shadow: var(--redactix-shadow);
+    font-size: 13px;
+    color: var(--redactix-text-muted);
+    max-width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+    z-index: 10000;
+}
+
+.redactix-drag-placeholder {
+    height: 2px;
+    background: var(--redactix-primary);
+    margin: 4px 0;
+    border-radius: 1px;
+}
+
+/* ================================
+   Built-in Code Editor
+   ================================ */
+.redactix-code-editor {
+    display: flex;
+    border-top: 1px solid var(--redactix-border);
+    background: var(--redactix-code-editor-bg);
+    min-height: 300px;
+    font-family: 'SF Mono', 'Consolas', 'Monaco', 'Menlo', monospace !important;
+    font-size: 14px !important;
+    line-height: 21px !important;
+}
+
+.redactix-code-lines {
+    flex-shrink: 0;
+    /* IMPORTANT: padding-top must match the padding-top of
+       .redactix-code-textarea and .redactix-code-backdrop (16px) — previously
+       the textarea had 24px, and line numbers were offset by 8px, hanging "between lines" */
+    padding-top: 16px !important;
+    padding-bottom: 0 !important;
+    margin: 0 !important;
+    /* Gutter background must stretch to the full height of the content and in fullscreen
+       (see comment on .redactix-code-main) */
+    min-height: max-content;
+    background: var(--redactix-code-editor-gutter);
+    color: var(--redactix-code-editor-line);
+    text-align: right;
+    user-select: none;
+    font-size: 14px !important;
+    line-height: 21px !important;
+}
+
+.redactix-code-line-number {
+    padding: 0 12px 0 16px !important;
+    margin: 0 !important;
+    height: 21px !important;
+    font-size: 14px !important;
+    line-height: 21px !important;
+}
+
+.redactix-code-line-number:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.08);
+    cursor: default;
+}
+
+/* Code column: highlighted backdrop behind, transparent textarea on top.
+   Text metrics (font / size / line-height / padding / white-space /
+   tab-size) of textarea and backdrop must match pixel-perfectly. */
+.redactix-code-main {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    /* Во fullscreen .redactix-code-editor имеет фиксированную высоту и
+       скроллится; flex-stretch дал бы колонке высоту видимой области
+       вместо высоты контента — и backdrop обрезался бы ровно по экрану */
+    min-height: max-content;
+}
+
+/* !important on metric-critical properties of the backdrop / textarea / gutter —
+   a conscious exception to the "no !important" rule: this is armor against
+   aggressive styles of CMS/admin panels (textarea { ... }, pre { ... }, code { ... }
+   and global ::selection). Any discrepancy in font, padding, or
+   line-height between the three layers breaks the pixel-perfect matching of highlighting,
+   caret, and line numbers. Inline styles from JS (height, transform) are not affected by these rules. */
+.redactix-code-backdrop {
+    position: absolute !important;
+    /* Without bottom: 0 — the height is determined by its own content, not by
+       the container. Otherwise, with any height mismatch, the highlighting
+       is clipped, while the transparent text of the textarea continues. */
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: auto !important;
+    width: auto !important;
+    height: auto !important;
+    max-width: none !important;
+    max-height: none !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    padding: 16px !important;
+    overflow: hidden !important;
+    pointer-events: none;
+    background: transparent !important;
+    color: var(--redactix-code-editor-text) !important;
+    font-family: 'SF Mono', 'Consolas', 'Monaco', 'Menlo', monospace !important;
+    font-size: 14px !important;
+    line-height: 21px !important;
+    letter-spacing: normal !important;
+    word-spacing: normal !important;
+    text-indent: 0 !important;
+    text-transform: none !important;
+    white-space: pre !important;
+    tab-size: 2 !important;
+    border-radius: 0 !important;
+    border: none !important;
+}
+
+.redactix-code-backdrop > code {
+    display: block !important;
+    font: inherit !important;
+    background: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    letter-spacing: inherit !important;
+    white-space: inherit !important;
+    color: inherit;
+}
+
+/* Highlight tokens. !important protects against CMS rules on pre/code/span,
+   but does not interfere with theming: the color is configured by the variable value. */
+.redactix-code-backdrop .rx-tok-tag     { color: var(--redactix-code-token-tag) !important; }
+.redactix-code-backdrop .rx-tok-attr    { color: var(--redactix-code-token-attr) !important; }
+.redactix-code-backdrop .rx-tok-value   { color: var(--redactix-code-token-value) !important; }
+.redactix-code-backdrop .rx-tok-punct   { color: var(--redactix-code-token-punct) !important; }
+.redactix-code-backdrop .rx-tok-comment { color: var(--redactix-code-token-comment) !important; font-style: italic; }
+.redactix-code-backdrop .rx-tok-entity  { color: var(--redactix-code-token-entity) !important; }
+
+/* Полоса подсветки строки при наведении на её номер */
+.redactix-code-line-highlight {
+    display: none;
+    position: absolute;
+    left: 0;
+    right: 0;
+    background: rgba(255, 255, 255, 0.08);
+    border-left: 2px solid var(--redactix-primary);
+    pointer-events: none;
+}
+
+.redactix-code-textarea {
+    position: relative !important;
+    z-index: 1;
+    display: block !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    padding: 16px !important;
+    border: none !important;
+    outline: none;
+    resize: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    /* Fallback visible color: if the site ends up with an outdated
+       HtmlMode.js without a highlighting backdrop (partial update of
+       files), the text should not disappear */
+    color: var(--redactix-code-editor-text);
+    caret-color: var(--redactix-code-editor-text) !important;
+    font-family: 'SF Mono', 'Consolas', 'Monaco', 'Menlo', monospace !important;
+    font-size: 14px !important;
+    line-height: 21px !important;
+    letter-spacing: normal !important;
+    word-spacing: normal !important;
+    text-indent: 0 !important;
+    text-transform: none !important;
+    white-space: pre !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    tab-size: 2 !important;
+}
+
+/* Transparent text — ONLY in the new overlay structure (textarea lies
+   inside .redactix-code-main next to .redactix-code-backdrop, which
+   draws the highlighted text). With old JS, the selector does not match, and
+   the textarea remains visible. */
+.redactix-code-main > .redactix-code-textarea {
+    color: transparent !important;
+}
+
+.redactix-code-textarea::selection {
+    background: var(--redactix-code-editor-selection) !important;
+}
+
+.redactix-code-main > .redactix-code-textarea::selection {
+    /* Selected text color is transparent: visible glyphs are drawn by the backdrop
+       UNDER the selection, so the selection background must be semi-transparent
+       (see --redactix-code-editor-selection) */
+    color: transparent !important;
+}
+
+/* Скроллбар для редактора кода */
+.redactix-code-textarea::-webkit-scrollbar {
+    height: 10px;
+}
+
+.redactix-code-textarea::-webkit-scrollbar-track {
+    background: var(--redactix-code-editor-bg);
+}
+
+.redactix-code-textarea::-webkit-scrollbar-thumb {
+    background: #424242;
+    border-radius: 5px;
+}
+
+.redactix-code-textarea::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* ================================
+   Fullscreen Mode
+   ================================ */
+body.redactix-fullscreen-active {
+    overflow: hidden;
+}
+
+.redactix-wrapper.redactix-fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 9999;
+    border-radius: 0;
+    border: none;
+    display: flex;
+    flex-direction: column;
+    background: var(--redactix-bg);
+}
+
+.redactix-fullscreen .redactix-toolbar {
+    border-radius: 0;
+    flex-shrink: 0;
+    width: 100%;
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    box-shadow: none !important;
+}
+
+.redactix-fullscreen .redactix-editor {
+    flex: 1;
+    max-width: 1200px;
+    width: 100%;
+    margin: 0 auto;
+    box-sizing: border-box;
+    border-radius: 0;
+    overflow-y: auto;
+}
+
+/* HTML editor in fullscreen mode - without width restriction */
+.redactix-fullscreen .redactix-code-editor {
+    flex: 1;
+    max-width: none;
+    width: 100%;
+    overflow-y: auto;
+}
+
+.redactix-fullscreen .redactix-code-main {
+    flex: 1;
+}
+
+/* Счётчик в полноэкранном режиме */
+.redactix-fullscreen .redactix-counter {
+    position: fixed;
+    bottom: 16px;
+    right: 24px;
+}
+
+/* ================================
+   Find & Replace Panel
+   ================================ */
+.redactix-find-panel {
+    position: absolute;
+    top: 50px;
+    right: 12px;
+    background: var(--redactix-bg);
+    border: 1px solid var(--redactix-border);
+    border-radius: var(--redactix-radius);
+    box-shadow: var(--redactix-shadow);
+    padding: 8px;
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    animation: findPanelFadeIn 0.15s ease;
+}
+
+@keyframes findPanelFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.redactix-find-row,
+.redactix-replace-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.redactix-find-input,
+.redactix-replace-input {
+    padding: 6px 10px;
+    border: 1px solid var(--redactix-border);
+    border-radius: 4px;
+    font-size: 14px;
+    width: 200px;
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.redactix-find-input:focus,
+.redactix-replace-input:focus {
+    border-color: var(--redactix-primary);
+}
+
+.redactix-find-count {
+    font-size: 12px;
+    color: var(--redactix-text-muted);
+    min-width: 70px;
+    text-align: center;
+}
+
+.redactix-find-count.not-found {
+    color: var(--redactix-danger);
+}
+
+.redactix-find-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--redactix-text);
+    transition: all 0.15s ease;
+}
+
+.redactix-find-btn:hover {
+    background: var(--redactix-bg-hover);
+}
+
+.redactix-find-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.redactix-replace-btn {
+    width: auto;
+    padding: 0 10px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+/* Highlight найденного текста */
+.redactix-find-highlight {
+    background: var(--redactix-find-highlight);
+    color: inherit;
+    border-radius: 2px;
+}
+
+.redactix-find-highlight.redactix-find-current {
+    background: var(--redactix-find-current);
+    color: white;
+}
+
+/* ================================
+   Image Upload
+   ================================ */
+
+/* Drag & drop state for editor */
+.redactix-editor.redactix-dragover {
+    background: var(--redactix-dragover-bg);
+    outline: 2px dashed var(--redactix-primary);
+    outline-offset: -4px;
+}
+
+/* Upload placeholder during loading */
+.redactix-upload-placeholder {
+    margin: 1em 0;
+    padding: 24px;
+    background: var(--redactix-bg-secondary);
+    border: 2px dashed var(--redactix-border);
+    border-radius: var(--redactix-radius);
+    text-align: center;
+}
+
+.redactix-upload-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--redactix-text-muted);
+    font-size: 14px;
+}
+
+.redactix-upload-loading svg {
+    animation: redactix-spin 1s linear infinite;
+}
+
+@keyframes redactix-spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Upload error state */
+.redactix-upload-error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--redactix-danger);
+    font-size: 14px;
+}
+
+.redactix-upload-error-close {
+    margin-left: 10px;
+    padding: 4px 12px;
+    background: var(--redactix-danger);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.redactix-upload-error-close:hover {
+    background: var(--redactix-danger-hover);
+}
+
+/* Base64 image upload indicator */
+.redactix-editor figure.redactix-uploading {
+    position: relative;
+}
+
+.redactix-editor figure.redactix-uploading::after {
+    content: 'Uploading...';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    pointer-events: none;
+}
+
+/* ================================
+   Slash Commands Menu
+   ================================ */
+.redactix-slash-menu {
+    position: absolute;
+    background: var(--redactix-bg);
+    border: 1px solid var(--redactix-border);
+    border-radius: 8px;
+    box-shadow: var(--redactix-shadow);
+    z-index: 1000;
+    max-height: 320px;
+    overflow-y: auto;
+    min-width: 280px;
+    animation: slashMenuFadeIn 0.15s ease;
+}
+
+@keyframes slashMenuFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.redactix-slash-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: background 0.1s ease;
+}
+
+.redactix-slash-item:first-child {
+    border-radius: 7px 7px 0 0;
+}
+
+.redactix-slash-item:last-child {
+    border-radius: 0 0 7px 7px;
+}
+
+.redactix-slash-item:only-child {
+    border-radius: 7px;
+}
+
+.redactix-slash-item:hover,
+.redactix-slash-item.selected {
+    background: var(--redactix-bg-hover);
+}
+
+.redactix-slash-item.selected {
+    background: var(--redactix-primary-light);
+}
+
+.redactix-slash-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--redactix-bg-hover);
+    border-radius: 6px;
+    color: var(--redactix-text);
+    flex-shrink: 0;
+}
+
+.redactix-slash-item.selected .redactix-slash-icon {
+    background: var(--redactix-primary-light);
+    color: var(--redactix-primary);
+}
+
+.redactix-slash-icon svg {
+    width: 20px;
+    height: 20px;
+}
+
+.redactix-slash-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.redactix-slash-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--redactix-text);
+    margin-bottom: 2px;
+}
+
+.redactix-slash-desc {
+    font-size: 12px;
+    color: var(--redactix-text-muted);
+}
+
+.redactix-slash-empty {
+    padding: 16px;
+    text-align: center;
+    color: var(--redactix-text-muted);
+    font-size: 14px;
+}
+
+/* ================================
+   RTL (Right-to-Left) Support
+   ================================ */
+.redactix-wrapper.redactix-rtl {
+    direction: rtl;
+}
+
+.redactix-wrapper.redactix-rtl .redactix-editor {
+    text-align: right;
+    padding-left: 20px;
+    padding-right: 40px;
+}
+
+.redactix-wrapper.redactix-rtl .redactix-toolbar {
+    flex-direction: row-reverse;
+}
+
+/* Find button - the first in the left group (inverted for RTL) */
+.redactix-wrapper.redactix-rtl .redactix-btn[data-command="find"] {
+    margin-left: 0;
+    margin-right: auto;
+}
+
+.redactix-wrapper.redactix-rtl .redactix-block-handle {
+    left: auto;
+    right: 8px;
+}
+
+/* Списки в RTL */
+.redactix-wrapper.redactix-rtl .redactix-editor ul,
+.redactix-wrapper.redactix-rtl .redactix-editor ol {
+    padding-left: 0;
+    padding-right: 1.5em;
+}
+
+/* Цитаты в RTL */
+.redactix-wrapper.redactix-rtl .redactix-editor figure.quote-card > blockquote {
+    border-left: none;
+    border-right: 4px solid var(--redactix-primary);
+}
+
+.redactix-wrapper.redactix-rtl .redactix-editor figure.quote-card.big > blockquote {
+    border-right: none;
+}
+
+.redactix-wrapper.redactix-rtl .redactix-editor figure.quote-card > figcaption {
+    text-align: right;
+}
+
+/* Счётчик в RTL */
+.redactix-wrapper.redactix-rtl .redactix-counter {
+    right: auto;
+    left: 12px;
+}
+
+/* Модальные окна в RTL */
+.redactix-wrapper.redactix-rtl .redactix-modal-content {
+    text-align: right;
+}
+
+.redactix-wrapper.redactix-rtl .redactix-modal-footer {
+    flex-direction: row-reverse;
+}
+
+.redactix-wrapper.redactix-rtl .redactix-modal-footer-right {
+    margin-left: 0;
+    margin-right: auto;
+}
+
+/* Inputs и textareas в RTL */
+.redactix-wrapper.redactix-rtl input[type="text"],
+.redactix-wrapper.redactix-rtl input[type="number"],
+.redactix-wrapper.redactix-rtl textarea,
+.redactix-wrapper.redactix-rtl select {
+    direction: rtl;
+    text-align: right;
+}
+
+/* Menus in RTL */
+.redactix-wrapper.redactix-rtl .redactix-block-menu,
+.redactix-wrapper.redactix-rtl .redactix-table-menu {
+    text-align: right;
+}
+
+.redactix-wrapper.redactix-rtl .redactix-menu-item {
+    flex-direction: row-reverse;
+}
+
+/* Slash Commands in RTL */
+.redactix-wrapper.redactix-rtl .redactix-slash-menu {
+    text-align: right;
+}
+
+.redactix-wrapper.redactix-rtl .redactix-slash-item {
+    flex-direction: row-reverse;
+}
+
+.redactix-wrapper.redactix-rtl .redactix-slash-content {
+    text-align: right;
+}
+
+/* Find & Replace panel in RTL */
+.redactix-wrapper.redactix-rtl .redactix-find-panel {
+    right: auto;
+    left: 12px;
+}
+
+.redactix-wrapper.redactix-rtl .redactix-find-row,
+.redactix-wrapper.redactix-rtl .redactix-replace-row {
+    flex-direction: row-reverse;
+}
+
+.redactix-wrapper.redactix-rtl .redactix-find-input,
+.redactix-wrapper.redactix-rtl .redactix-replace-input {
+    direction: rtl;
+    text-align: right;
+}
+
+/* Floating Toolbar в RTL */
+.redactix-wrapper.redactix-rtl .redactix-floating-toolbar {
+    flex-direction: row-reverse;
+}
+
+/* Table handles в RTL */
+.redactix-wrapper.redactix-rtl .redactix-editor td,
+.redactix-wrapper.redactix-rtl .redactix-editor th {
+    text-align: right;
+}
+
+/* Code editor (remains LTR, code is always left to right) */
+.redactix-wrapper.redactix-rtl .redactix-code-editor {
+    direction: ltr;
+}
+
+.redactix-wrapper.redactix-rtl .redactix-code-textarea,
+.redactix-wrapper.redactix-rtl .redactix-code-backdrop {
+    direction: ltr;
+    text-align: left;
+}
+
+/* Pre блоки (код остаётся LTR) */
+.redactix-wrapper.redactix-rtl .redactix-editor pre {
+    direction: ltr;
+    text-align: left;
+}
+
+/* Mobile RTL */
+@media (max-width: 768px) {
+    .redactix-wrapper.redactix-rtl .redactix-editor {
+        padding-right: 20px;
+    }
+
+    .redactix-wrapper.redactix-rtl .redactix-block-handle {
+        right: 2px !important;
+        left: auto !important;
+    }
+}
+
+/* ================================
+   Lite Mode
+   ================================ */
+/* Lite mode - hide the toolbar */
+.redactix-wrapper.redactix-lite-mode .redactix-toolbar {
+    display: none;
+}
+
+.redactix-wrapper.redactix-lite-mode .redactix-editor {
+    border-top-left-radius: var(--redactix-radius);
+    border-top-right-radius: var(--redactix-radius);
+}
+
+/* Resizable editor - for lite mode and max-height mode */
+.redactix-wrapper.redactix-lite-mode .redactix-editor,
+.redactix-wrapper.redactix-has-max-height .redactix-editor {
+    resize: vertical;
+    min-height: 100px;
+}
+
+/* ================================
+   Mobile Responsive
+   ================================ */
+@media (max-width: 768px) {
+    .redactix-editor {
+        padding-left: 20px;
+    }
+
+    /* The handle position is calculated in JS (showHandle) and is already clamped to the left
+       edge; CSS override with !important broke the positioning of handles inside
+       callouts / quote-cards, so it has been removed. */
+
+    .redactix-floating-toolbar {
+        flex-wrap: wrap;
+        max-width: 280px;
+    }
+}
