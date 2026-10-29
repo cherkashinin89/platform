@@ -14,6 +14,7 @@
 | W40 | HTTPS | planned | средний | — | task не заведён |
 | W41 | Асинхронные задачи | planned | средний | — | task не заведён |
 | W48 | UI соавторов Collabora | deferred | низкий | docs/tasks/W48.md | отложено в рамках W48 v1 |
+| W60 | Медиаредактор Redactix (замена TinyMCE) | planned | средний | docs/tasks/W60.md | блочный медиаредактор: галерея, видео, embed, документы; разведка проведена |
 | W49 | Мобильный UI почты | planned | средний | docs/tasks/W49.md | |
 | W50 | Адресная книга | planned | средний | docs/tasks/W50.md | |
 | W51 | Полнотекстовый поиск (FTS) | planned | средний | docs/tasks/W51.md | |
