@@ -447,6 +447,8 @@ class CloudShare(db.Model):
     max_downloads = db.Column(db.Integer, default=0, nullable=False)
     # W48: разрешено ли редактирование онлайн (Collabora)
     can_edit = db.Column(db.Boolean, default=False, nullable=False)
+    # W35: доступна ли анонимам (публичная ссылка без логина)
+    is_public = db.Column(db.Boolean, default=False, nullable=False)
 
     file = db.relationship('CloudFile', backref='shares')
     created_by = db.relationship('User')
@@ -457,6 +459,20 @@ class CloudShare(db.Model):
         if self.max_downloads and self.download_count >= self.max_downloads:
             return True
         return False
+
+    def set_password(self, password):
+        """W35: хэширует пароль шары (Argon2id, без префикса Dovecot)."""
+        self.password_hash = _password_hasher.hash(password)
+
+    def check_password(self, password):
+        """W35: проверяет пароль шары."""
+        if not self.password_hash:
+            return False
+        try:
+            _password_hasher.verify(self.password_hash, password)
+            return True
+        except (VerifyMismatchError, VerificationError, InvalidHashError):
+            return False
 
     def __repr__(self):
         return f'<CloudShare {self.token}>'

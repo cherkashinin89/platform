@@ -11,7 +11,7 @@ import uuid
 import mimetypes
 import secrets
 from flask import current_app
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy import func
 
 from core.extensions import db
@@ -570,9 +570,16 @@ def delete_item_permanently(owner_id, item_id):
 # ПУБЛИЧНЫЕ ССЫЛКИ (ШАРИНГ)
 # =============================================================
 
-def create_share(owner_id, item_id):
+def create_share(owner_id, item_id, is_public=False, password=None,
+                 expires_days=None, max_downloads=None):
     """
     Создаёт публичную ссылку на файл или папку.
+
+    W35: параметры ограничений.
+      is_public      — доступна ли анонимам (без логина)
+      password       — пароль (опционально), хэшируется Argon2id
+      expires_days   — срок жизни в днях (опционально)
+      max_downloads  — лимит скачиваний (опционально, 0 = без лимита)
 
     Возвращает (ok: bool, result: CloudShare|str).
       ok=True  → result = объект CloudShare
@@ -597,7 +604,18 @@ def create_share(owner_id, item_id):
         file_id=item.id,
         token=token,
         created_by_id=owner_id,
+        is_public=bool(is_public),
+        max_downloads=int(max_downloads or 0),
     )
+
+    # W35: срок действия
+    if expires_days:
+        share.expires_at = datetime.utcnow() + timedelta(days=int(expires_days))
+
+    # W35: пароль
+    if password:
+        share.set_password(password)
+
     db.session.add(share)
     db.session.commit()
 

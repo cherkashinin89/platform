@@ -142,6 +142,13 @@ def is_descendant_of(item, ancestor):
     return False
 
 
+def increment_share_download(share):
+    """W35: увеличивает счётчик скачиваний шары и сохраняет."""
+    from core.extensions import db
+    share.download_count = (share.download_count or 0) + 1
+    db.session.commit()
+
+
 def get_share_by_token(token):
     """
     Находит CloudShare по токену.

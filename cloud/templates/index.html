@@ -243,15 +243,48 @@
         <h3>🔗 Поделиться ссылкой</h3>
         <div id="shareCurrentName" style="font-size: 0.9rem; color: var(--color-text-muted); margin-bottom: 16px;">
         </div>
-        <label style="display: block; font-size: 0.85rem; color: var(--color-text-muted); margin-bottom: 6px;">Публичная
-            ссылка:</label>
-        <input type="text" id="shareLinkInput" class="share-link-input" readonly onclick="this.select()">
-        <div class="share-success" id="shareSuccess"></div>
-        <div class="share-actions">
-            <button class="btn-copy" onclick="copyShareLink()">📋 Копировать</button>
-            <button class="btn-revoke" onclick="revokeShareLink()">🗑️ Отозвать</button>
-            <button style="background: var(--color-bg-alt); color: var(--color-text); margin-left: auto;"
-                onclick="closeShareModal()">Закрыть</button>
+
+        <!-- W35: форма параметров шары -->
+        <div id="shareForm">
+            <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 0.9rem;">
+                <input type="checkbox" id="shareIsPublic" style="width: auto;">
+                Публичная ссылка (доступна без логина)
+            </label>
+
+            <label style="display: block; font-size: 0.85rem; color: var(--color-text-muted); margin-bottom: 6px;">
+                Пароль (опционально):</label>
+            <input type="password" id="sharePassword" class="share-link-input"
+                   placeholder="Оставьте пустым — без пароля" style="margin-bottom: 12px;">
+
+            <label style="display: block; font-size: 0.85rem; color: var(--color-text-muted); margin-bottom: 6px;">
+                Срок действия, дней (опционально):</label>
+            <input type="number" id="shareExpiresDays" class="share-link-input" min="1"
+                   placeholder="Например, 7" style="margin-bottom: 12px;">
+
+            <label style="display: block; font-size: 0.85rem; color: var(--color-text-muted); margin-bottom: 6px;">
+                Лимит скачиваний (опционально):</label>
+            <input type="number" id="shareMaxDownloads" class="share-link-input" min="1"
+                   placeholder="Например, 5" style="margin-bottom: 12px;">
+
+            <div class="share-actions">
+                <button class="btn-copy" id="shareCreateBtn" onclick="doCreateShare()">Создать ссылку</button>
+                <button style="background: var(--color-bg-alt); color: var(--color-text); margin-left: auto;"
+                    onclick="closeShareModal()">Закрыть</button>
+            </div>
+        </div>
+
+        <!-- W35: результат — готовая ссылка -->
+        <div id="shareResult" style="display: none;">
+            <label style="display: block; font-size: 0.85rem; color: var(--color-text-muted); margin-bottom: 6px;">
+                Публичная ссылка:</label>
+            <input type="text" id="shareLinkInput" class="share-link-input" readonly onclick="this.select()">
+            <div class="share-success" id="shareSuccess"></div>
+            <div class="share-actions">
+                <button class="btn-copy" onclick="copyShareLink()">📋 Копировать</button>
+                <button class="btn-revoke" onclick="revokeShareLink()">🗑️ Отозвать</button>
+                <button style="background: var(--color-bg-alt); color: var(--color-text); margin-left: auto;"
+                    onclick="closeShareModal()">Закрыть</button>
+            </div>
         </div>
     </div>
 </div>
@@ -1226,29 +1259,64 @@
     const shareSuccess = document.getElementById('shareSuccess');
     let shareCurrentShareId = null;
 
-    window.openShareModal = async function (id, name, isFolder) {
+    // W35: состояние модалки шары
+    let shareCurrentItemId = null;
+    const shareForm = document.getElementById('shareForm');
+    const shareResult = document.getElementById('shareResult');
+
+    // Открывает модалку и показывает форму параметров (W35)
+    window.openShareModal = function (id, name, isFolder) {
         shareCurrentShareId = null;
+        shareCurrentItemId = id;
         shareSuccess.textContent = '';
-        shareLinkInput.value = 'Загрузка…';
+        shareLinkInput.value = '';
         shareCurrentName.textContent = (isFolder ? '📁 ' : '📄 ') + name;
+        // Сброс формы
+        document.getElementById('shareIsPublic').checked = false;
+        document.getElementById('sharePassword').value = '';
+        document.getElementById('shareExpiresDays').value = '';
+        document.getElementById('shareMaxDownloads').value = '';
+        shareForm.style.display = '';
+        shareResult.style.display = 'none';
         shareModal.classList.add('is-open');
+    };
+
+    // W35: создаёт шару с параметрами из формы
+    window.doCreateShare = async function () {
+        if (!shareCurrentItemId) return;
+        const btn = document.getElementById('shareCreateBtn');
+        btn.disabled = true;
+        shareSuccess.style.color = '';
+        shareSuccess.textContent = 'Создание…';
+        const payload = {
+            is_public: document.getElementById('shareIsPublic').checked,
+            password: document.getElementById('sharePassword').value.trim(),
+            expires_days: document.getElementById('shareExpiresDays').value || null,
+            max_downloads: document.getElementById('shareMaxDownloads').value || null,
+        };
         try {
-            const resp = await fetch('/api/share/' + id, {
-                method: 'POST', headers: { 'X-CSRFToken': csrfToken },
+            const resp = await fetch('/api/share/' + shareCurrentItemId, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: JSON.stringify(payload),
             });
             const data = await resp.json();
             if (!data.ok) {
-                shareLinkInput.value = '';
                 shareSuccess.style.color = 'var(--color-danger)';
                 shareSuccess.textContent = 'Ошибка: ' + (data.error || '');
                 return;
             }
             shareCurrentShareId = data.share.id;
             shareLinkInput.value = data.share.url;
+            shareForm.style.display = 'none';
+            shareResult.style.display = '';
+            shareSuccess.style.color = 'var(--color-success)';
+            shareSuccess.textContent = '✓ Ссылка создана';
         } catch (e) {
-            shareLinkInput.value = '';
             shareSuccess.style.color = 'var(--color-danger)';
             shareSuccess.textContent = 'Ошибка сети: ' + e.message;
+        } finally {
+            btn.disabled = false;
         }
     };
     window.closeShareModal = function () {

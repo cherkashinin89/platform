@@ -723,22 +723,39 @@ def create_app(config_class=Config):
     @login_required
     def api_share(item_id):
         """
-        Создаёт публичную ссылку или возвращает существующую.
+        W35: создаёт ссылку с ограничениями (пароль, срок, лимит, is_public).
+        Если ограничений нет и есть активная шара — переиспользуем её.
         """
         item = get_item(current_user.id, item_id, allow_trashed=False)
         if not item:
             return jsonify({'ok': False, 'error': 'Элемент не найден'}), 404
 
-        # Есть ли уже активная ссылка?
-        existing = CloudShare.query.filter_by(
-            file_id=item_id,
-            created_by_id=current_user.id,
-        ).order_by(CloudShare.created_at.desc()).first()
+        data = request.get_json(silent=True) or {}
+        is_public = bool(data.get('is_public', False))
+        password = (data.get('password') or '').strip() or None
+        expires_days = data.get('expires_days') or None
+        max_downloads = data.get('max_downloads') or None
 
-        if existing and not existing.is_expired():
-            share = existing
-        else:
-            ok, result = create_share(current_user.id, item_id)
+        has_limits = bool(password or expires_days or max_downloads)
+
+        share = None
+        if not has_limits:
+            # Без ограничений — можно переиспользовать активную шару
+            existing = CloudShare.query.filter_by(
+                file_id=item_id,
+                created_by_id=current_user.id,
+            ).order_by(CloudShare.created_at.desc()).first()
+            if existing and not existing.is_expired():
+                share = existing
+
+        if share is None:
+            ok, result = create_share(
+                current_user.id, item_id,
+                is_public=is_public,
+                password=password,
+                expires_days=expires_days,
+                max_downloads=max_downloads,
+            )
             if not ok:
                 return jsonify({'ok': False, 'error': result}), 400
             share = result

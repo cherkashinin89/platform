@@ -4,7 +4,7 @@ from cli import create_admin
 from datetime import datetime
 from flask import (
     Flask, render_template, redirect, url_for, flash, request,
-    jsonify, send_from_directory, send_file, abort, current_app
+    jsonify, send_from_directory, send_file, abort, current_app, session
 )
 from flask_login import (
     login_user, logout_user, login_required, current_user
@@ -755,6 +755,45 @@ def create_app(config_class=Config):
         # Иначе — 403, чтобы не палить существование файла
         abort(403)
 
+    def _share_session_key(token):
+        """W35: ключ сессии для отметки доступа к шаре."""
+        return f'share_access_{token}'
+
+    def _share_access_gate(share):
+        """
+        W35: проверка доступа к шаре по is_public / паролю.
+        Возвращает None, если доступ разрешён, иначе — готовый response.
+        """
+        # 1. is_public=False — только для залогиненных
+        if not share.is_public and not current_user.is_authenticated:
+            return redirect(url_for('login', next=request.path))
+
+        # 2. Пароль задан — проверяем отметку в сессии
+        if share.password_hash:
+            if not session.get(_share_session_key(share.token)):
+                return render_template(
+                    'public_share_password.html',
+                    token=share.token,
+                    error=None,
+                ), 401
+        return None
+
+    @app.route('/s/<token>/auth', methods=['POST'])
+    def public_share_auth(token):
+        """W35: приём пароля шары. При успехе — отметка в сессии и редирект."""
+        share = get_share_by_token(token)
+        if not share:
+            return render_template('public_share_invalid.html'), 404
+        password = request.form.get('password', '')
+        if share.password_hash and share.check_password(password):
+            session[_share_session_key(share.token)] = True
+            return redirect(url_for('public_share_view', token=token))
+        return render_template(
+            'public_share_password.html',
+            token=token,
+            error='Неверный пароль',
+        ), 401
+
     @app.route('/s/<token>')
     def public_share_view(token):
         """
@@ -768,6 +807,11 @@ def create_app(config_class=Config):
         share = get_share_by_token(token)
         if not share:
             return render_template('public_share_invalid.html'), 404
+
+        # W35: проверка is_public / пароля
+        gate = _share_access_gate(share)
+        if gate is not None:
+            return gate
 
         item = share.file
         if not item:
@@ -813,14 +857,23 @@ def create_app(config_class=Config):
 
     @app.route('/s/<token>/download')
     def public_share_download(token):
-        """W3: скачивание файла, на который создана шара (framework)."""
+        """W3: скачивание файла, на который создана шара (framework). W35: +лимит."""
         share = get_share_by_token(token)
         if not share:
             abort(404)
 
+        # W35: проверка is_public / пароля
+        gate = _share_access_gate(share)
+        if gate is not None:
+            return gate
+
         item = share.file
         if not item or item.is_folder:
             abort(404)
+
+        # W35: инкремент счётчика скачиваний
+        from core.cloud_utils import increment_share_download
+        increment_share_download(share)
 
         return _send_cloud_file_as_attachment(item)
 
@@ -831,6 +884,11 @@ def create_app(config_class=Config):
         share = get_share_by_token(token)
         if not share:
             abort(404)
+
+        # W35: проверка is_public / пароля
+        gate = _share_access_gate(share)
+        if gate is not None:
+            return gate
 
         root = share.file
         if not root or not root.is_folder:
