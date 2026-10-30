@@ -2,6 +2,10 @@
 
 {% block title %}{{ page.title }} - Мой Сайт{% endblock %}
 
+{% block head_extra %}
+<link rel="stylesheet" href="{{ url_for('static', filename='shared/css/content.css') }}">
+{% endblock %}
+
 {% block content %}
 <nav aria-label="breadcrumb">
     <ol class="breadcrumb">

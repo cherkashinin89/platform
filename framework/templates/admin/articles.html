@@ -79,11 +79,9 @@
                     </td>
                     <td>
                         <a href="{{ url_for('admin_article_edit', id=article.id) }}" class="btn btn-sm btn-outline-primary">Редактировать</a>
-                        <form method="POST" action="{{ url_for('admin_article_delete', id=article.id) }}" class="d-inline"
-                              onsubmit="return confirm('Удалить статью «{{ article.title }}»?');">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
-                        </form>
+                        <button type="submit" class="btn btn-sm btn-outline-danger"
+                                formaction="{{ url_for('admin_article_delete', id=article.id) }}"
+                                onclick="return confirm('Удалить статью «{{ article.title }}»?');">Удалить</button>
                     </td>
                 </tr>
                 {% endfor %}

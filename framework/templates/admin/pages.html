@@ -65,11 +65,9 @@
                     <td>
                         <a href="{{ url_for('show_page', slug=page.slug) }}" target="_blank" class="btn btn-sm btn-outline-secondary">Просмотр</a>
                         <a href="{{ url_for('admin_page_edit', id=page.id) }}" class="btn btn-sm btn-outline-primary">Редактировать</a>
-                        <form method="POST" action="{{ url_for('admin_page_delete', id=page.id) }}" class="d-inline"
-                              onsubmit="return confirm('Удалить страницу «{{ page.title }}»?');">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
-                        </form>
+                        <button type="submit" class="btn btn-sm btn-outline-danger"
+                                formaction="{{ url_for('admin_page_delete', id=page.id) }}"
+                                onclick="return confirm('Удалить страницу «{{ page.title }}»?');">Удалить</button>
                     </td>
                 </tr>
                 {% endfor %}

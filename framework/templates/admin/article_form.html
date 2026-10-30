@@ -37,7 +37,7 @@
             <!-- Содержимое: визуальный редактор -->
             <div class="mb-3">
                 {{ form.content.label(class="form-label") }}
-                {{ form.content(class="form-control rich-editor" + (" is-invalid" if form.content.errors else ""), rows="20") }}
+                {{ form.content(class="form-control redactix-editor" + (" is-invalid" if form.content.errors else ""), rows="20") }}
                 <small class="form-text text-muted">
                     Визуальный редактор: форматирование, таблицы, картинки, файлы.
                     Кнопка <i class="bi bi-folder2-open"></i> открывает файловый менеджер.
@@ -145,4 +145,23 @@
         </form>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<link rel="stylesheet" href="{{ url_for('static', filename='shared/css/content.css') }}">
+{% if article %}
+<input type="hidden" id="redactix-article-id" value="{{ article.id }}">
+{% endif %}
+<link rel="stylesheet" href="{{ url_for('static', filename='shared/vendor/redactix/Redactix.css') }}">
+<script type="module">
+    import Redactix from "{{ url_for('static', filename='shared/vendor/redactix/Redactix.js') }}";
+    const articleId = document.getElementById('redactix-article-id')?.value || '';
+    new Redactix({
+        selector: '.redactix-editor',
+        locale: 'ru',
+        maxHeight: '600px',
+        uploadUrl: '/admin/redactix/upload' + (articleId ? ('?article_id=' + articleId) : ''),
+        browseUrl: '/admin/redactix/browse' + (articleId ? ('?article_id=' + articleId) : ''),
+    });
+</script>
 {% endblock %}

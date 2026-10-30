@@ -302,19 +302,24 @@ def restore_content_folder(owner_id, kind, folder):
     return folder
 
 
-def trash_content_folder(folder, prefix):
+def trash_content_folder(folder, prefix, title=None):
     """
     Перемещает папку контента в корзину (is_trashed=True) с новым именем:
-    prefix = 'article_unnamed' или 'page_unnamed'.
-    Имя: <prefix>_<id>_<дата>.
+    prefix = 'article' или 'page'.
+    Имя: <prefix>_<title>, если заголовок задан (не untitled_),
+         иначе <prefix>_unnamed_<id>_<дата>.
     """
     from core.extensions import db
     from datetime import datetime
     if not folder:
         return None
+    stamp = datetime.utcnow().strftime("%d.%m.%y")
+    if title and not title.startswith('untitled_'):
+        folder.name = f'{prefix}_{title}'
+    else:
+        folder.name = f'{prefix}_unnamed_{folder.id}_{stamp}'
     folder.is_trashed = True
     folder.trashed_at = datetime.utcnow()
-    folder.name = f'{prefix}_{folder.id}_{datetime.utcnow().strftime("%d.%m.%y")}'
     folder.parent_id = None
     db.session.flush()
     return folder

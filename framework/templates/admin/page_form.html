@@ -43,7 +43,7 @@
             <!-- Содержимое: визуальный редактор -->
             <div class="mb-3">
                 {{ form.content.label(class="form-label") }}
-                {{ form.content(class="form-control rich-editor" + (" is-invalid" if form.content.errors else ""),
+                {{ form.content(class="form-control redactix-editor" + (" is-invalid" if form.content.errors else ""),
                 rows="20") }}
                 <small class="form-text text-muted">
                     Можно вставлять изображения, видео и файлы из менеджера.
@@ -167,4 +167,23 @@
         filterParents();
     })();
 </script>
+
+{% block scripts %}
+<link rel="stylesheet" href="{{ url_for('static', filename='shared/css/content.css') }}">
+{% if page %}
+<input type="hidden" id="redactix-page-id" value="{{ page.id }}">
+{% endif %}
+<link rel="stylesheet" href="{{ url_for('static', filename='shared/vendor/redactix/Redactix.css') }}">
+<script type="module">
+    import Redactix from "{{ url_for('static', filename='shared/vendor/redactix/Redactix.js') }}";
+    const pageId = document.getElementById('redactix-page-id')?.value || '';
+    new Redactix({
+        selector: '.redactix-editor',
+        locale: 'ru',
+        maxHeight: '600px',
+        uploadUrl: '/admin/redactix/upload' + (pageId ? ('?page_id=' + pageId) : ''),
+        browseUrl: '/admin/redactix/browse' + (pageId ? ('?page_id=' + pageId) : ''),
+    });
+</script>
+{% endblock %}
 {% endblock %}

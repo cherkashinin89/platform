@@ -85,7 +85,19 @@ def _send_cloud_file(file):
     """
     Отдаёт облачный файл через send_file.
     Физический путь: CLOUD_DATA_ROOT/<owner_id>/<stored_name>.
+    W60: при ?thumb=1 — отдаёт миниатюру (если существует).
     """
+    from core.image_utils import thumbnail_name_for, can_thumbnail
+    from core.cloud_utils import cloud_data_root
+    import os as _os
+
+    use_thumb = request.args.get('thumb') == '1'
+    if use_thumb and can_thumbnail(file.stored_name or ''):
+        thumb_name = thumbnail_name_for(file.stored_name)
+        thumb_path = _os.path.join(cloud_data_root(), str(file.owner_id), thumb_name)
+        if _os.path.exists(thumb_path):
+            return send_file(thumb_path, mimetype='image/jpeg', as_attachment=False)
+
     path = get_cloud_path(file)
     if not path or not os.path.exists(path):
         abort(404)
@@ -1073,6 +1085,107 @@ def create_app(config_class=Config):
                                stats=stats,
                                recent_albums=recent_albums,
                                server_stats=server_stats)
+
+    # --- W60: адаптер Redactix (upload/browse) ---
+
+    def _redactix_context():
+        """Возвращает (kind, content_obj, folder) по query-параметрам."""
+        article_id = request.args.get('article_id', type=int)
+        page_id = request.args.get('page_id', type=int)
+        if article_id:
+            obj = Article.query.get(article_id)
+            if obj and obj.cloud_folder_id:
+                return 'article', obj, CloudFile.query.get(obj.cloud_folder_id)
+        elif page_id:
+            obj = Page.query.get(page_id)
+            if obj and obj.cloud_folder_id:
+                return 'page', obj, CloudFile.query.get(obj.cloud_folder_id)
+        return None, None, None
+
+    @app.route('/admin/redactix/upload', methods=['POST'])
+    @csrf.exempt
+    @login_required
+    @editor_required
+    def admin_redactix_upload():
+        """
+        W60: загрузка из Redactix в облако (папка статьи/страницы).
+        Поля: image (изображение) или video (видео).
+        Контекст: ?article_id= или ?page_id=.
+        Ответ: {success, src, srcset, alt, title}.
+        """
+        import os
+        from core.file_utils import make_stored_name, guess_mime
+        from core.cloud_utils import cloud_data_root
+
+        kind, obj, folder = _redactix_context()
+        if not folder:
+            return jsonify({'success': False, 'error': 'Не найден контекст статьи/страницы'}), 400
+
+        f = request.files.get('image') or request.files.get('video')
+        if not f or not f.filename:
+            return jsonify({'success': False, 'error': 'Файл не передан'}), 400
+
+        owner_id = current_user.id
+        stored_name = make_stored_name(f.filename)
+        user_dir = os.path.join(cloud_data_root(), str(owner_id))
+        os.makedirs(user_dir, exist_ok=True)
+        dst = os.path.join(user_dir, stored_name)
+        f.save(dst)
+        size = os.path.getsize(dst)
+        mime = f.mimetype or guess_mime(f.filename)
+
+        cf = CloudFile(
+            owner_id=owner_id, parent_id=folder.id, name=f.filename,
+            is_folder=False, stored_name=stored_name, size=size, mime_type=mime,
+        )
+        db.session.add(cf)
+        db.session.commit()
+
+        # W60: миниатюра для изображений (как у UploadedFile)
+        from core.image_utils import can_thumbnail, thumbnail_name_for, create_thumbnail
+        is_image = (mime or '').startswith('image/')
+        if is_image and can_thumbnail(stored_name):
+            thumb_name = thumbnail_name_for(stored_name)
+            thumb_path = os.path.join(user_dir, thumb_name)
+            try:
+                create_thumbnail(dst, thumb_path)
+            except Exception:
+                pass
+
+        # src — превью (если есть), оригинал — для лайтбокса
+        if is_image:
+            src = url_for('serve_media', file_id=cf.id, thumb=1)
+        else:
+            src = url_for('serve_media', file_id=cf.id)
+        return jsonify({'success': True, 'src': src, 'srcset': '', 'alt': f.filename, 'title': ''})
+
+    @app.route('/admin/redactix/browse', methods=['POST'])
+    @csrf.exempt
+    @login_required
+    @editor_required
+    def admin_redactix_browse():
+        """
+        W60: список файлов папки статьи/страницы для галереи Redactix.
+        Поля: action=browse, type (image|video).
+        Ответ: {success, images: [{src, alt, title}], allowDelete: false}.
+        """
+        kind, obj, folder = _redactix_context()
+        if not folder:
+            return jsonify({'success': False, 'error': 'Не найден контекст'}), 400
+
+        ftype = request.form.get('type', 'image')
+        prefix = 'video/' if ftype == 'video' else 'image/'
+        files = CloudFile.query.filter(
+            CloudFile.parent_id == folder.id,
+            CloudFile.is_folder.is_(False),
+            CloudFile.mime_type.ilike(prefix + '%'),
+        ).order_by(CloudFile.name).all()
+
+        images = [
+            {'src': url_for('serve_media', file_id=f.id), 'alt': f.name, 'title': ''}
+            for f in files
+        ]
+        return jsonify({'success': True, 'images': images, 'allowDelete': False})
 
     # --- Управление пользователями ---
 
@@ -2627,7 +2740,7 @@ def create_app(config_class=Config):
         if article.cloud_folder_id:
             folder = CloudFile.query.get(article.cloud_folder_id)
             if folder:
-                trash_content_folder(folder, 'article_unnamed')
+                trash_content_folder(folder, 'article', title=article.title)
 
         article.deleted_at = datetime.utcnow()
         db.session.commit()
@@ -2698,6 +2811,27 @@ def create_app(config_class=Config):
             count += 1
         db.session.commit()
         flash(f'Удалено навсегда: {count}', 'warning')
+        return redirect(url_for('admin_articles_trash'))
+
+    @app.route('/admin/articles/empty-trash', methods=['POST'])
+    @login_required
+    @editor_required
+    def admin_articles_empty_trash():
+        """W60: очистить корзину статей (удалить все навсегда)."""
+        articles = Article.query.filter(Article.deleted_at.isnot(None)).all()
+        count = 0
+        for a in articles:
+            if a.cloud_folder_id:
+                folder = CloudFile.query.get(a.cloud_folder_id)
+                if folder:
+                    _purge_cloud_folder(folder, exclude_article_id=a.id)
+            unregister_file_usages('article', a.id)
+            from core.models import ContentFile
+            ContentFile.query.filter_by(target_type='article', target_id=a.id).delete()
+            db.session.delete(a)
+            count += 1
+        db.session.commit()
+        flash(f'Корзина очищена: удалено {count}', 'warning')
         return redirect(url_for('admin_articles_trash'))
 
     # --- Управление страницами ---
@@ -3024,7 +3158,7 @@ def create_app(config_class=Config):
         if page.cloud_folder_id:
             folder = CloudFile.query.get(page.cloud_folder_id)
             if folder:
-                trash_content_folder(folder, 'page_unnamed')
+                trash_content_folder(folder, 'page', title=page.title)
         page.deleted_at = datetime.utcnow()
         db.session.commit()
         flash(f'Страница «{page_title}» перемещена в корзину.', 'info')
@@ -3097,6 +3231,32 @@ def create_app(config_class=Config):
             count += 1
         db.session.commit()
         flash(f'Удалено навсегда: {count}', 'warning')
+        return redirect(url_for('admin_pages_trash'))
+
+    @app.route('/admin/pages/empty-trash', methods=['POST'])
+    @login_required
+    @editor_required
+    def admin_pages_empty_trash():
+        """W60: очистить корзину страниц."""
+        pages = Page.query.filter(Page.deleted_at.isnot(None)).all()
+        count = 0
+        for pg in pages:
+            if pg.cloud_folder_id:
+                folder = CloudFile.query.get(pg.cloud_folder_id)
+                if folder:
+                    _purge_cloud_folder(folder, exclude_page_id=pg.id)
+            unregister_file_usages('page', pg.id)
+            from core.models import ContentFile
+            ContentFile.query.filter_by(target_type='page', target_id=pg.id).delete()
+            menu_item = pg.menu_item
+            if menu_item:
+                for child in menu_item.children:
+                    child.parent_id = menu_item.parent_id
+                db.session.delete(menu_item)
+            db.session.delete(pg)
+            count += 1
+        db.session.commit()
+        flash(f'Корзина очищена: удалено {count}', 'warning')
         return redirect(url_for('admin_pages_trash'))
 
     # --- Управление меню ---

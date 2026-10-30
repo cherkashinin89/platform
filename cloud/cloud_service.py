@@ -364,6 +364,18 @@ def trash_item(owner_id, item_id):
     # Публичный доступ (/s/<token>) будет закрыт в get_share_by_token.
     # Полное удаление шар — только в delete_item_permanently.
 
+    # W60: синхронизация со статьёй/страницей (симметрия)
+    try:
+        from core.models import Article, Page
+        art = Article.query.filter_by(cloud_folder_id=item.id).first()
+        if art and not art.deleted_at:
+            art.deleted_at = now
+        pg = Page.query.filter_by(cloud_folder_id=item.id).first()
+        if pg and not pg.deleted_at:
+            pg.deleted_at = now
+    except Exception:
+        pass
+
     # 5. Сохраняем
     db.session.commit()
 
@@ -540,6 +552,20 @@ def delete_item_permanently(owner_id, item_id):
     #    Порядок важен: сначала потомки, потом корень (для FK на parent_id)
     #    Но SQLAlchemy сам разберётся через cascade, если мы удалим корень.
     #    Проще: удалить всё явно.
+    # W60: синхронизация — удалить связанную статью/страницу навсегда
+    try:
+        from core.models import Article, Page, ContentFile
+        art = Article.query.filter_by(cloud_folder_id=item.id).first()
+        if art:
+            ContentFile.query.filter_by(target_type='article', target_id=art.id).delete()
+            db.session.delete(art)
+        pg = Page.query.filter_by(cloud_folder_id=item.id).first()
+        if pg:
+            ContentFile.query.filter_by(target_type='page', target_id=pg.id).delete()
+            db.session.delete(pg)
+    except Exception:
+        pass
+
     for d in descendants:
         db.session.delete(d)
 

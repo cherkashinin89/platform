@@ -207,7 +207,11 @@
             function updateImage() {
                 const img = images[currentIndex];
                 if (!img) return;
-                const fullSrc = img.dataset.full || img.src;
+                let fullSrc = img.dataset.full || img.src;
+                // W60: если превью (?thumb=1) — в лайтбоксе открываем оригинал
+                if (!img.dataset.full && fullSrc.includes('?thumb=1')) {
+                    fullSrc = fullSrc.replace('?thumb=1', '');
+                }
                 lightboxImage.src = fullSrc;
                 lightboxImage.alt = img.alt || '';
                 if (images.length > 1) {
