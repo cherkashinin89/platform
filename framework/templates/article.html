@@ -18,6 +18,11 @@
     </ol>
 </nav>
 
+    {# === W60: плашка «в архиве» === #}
+    {% if is_archived %}
+    <div class="alert alert-warning"><i class="bi bi-archive"></i> Статья в архиве</div>
+    {% endif %}
+
     {# === Заголовок === #}
     <h1 class="article-title">{{ article.title }}</h1>
 

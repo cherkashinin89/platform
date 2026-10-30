@@ -10,6 +10,9 @@
     </ol>
 </nav>
 
+{% if is_archived %}
+<div class="alert alert-warning"><i class="bi bi-archive"></i> Страница в архиве</div>
+{% endif %}
 <h1 class="mb-4">{{ page.title }}</h1>
 
 <!-- Содержимое рендерится как HTML (используем |safe) -->

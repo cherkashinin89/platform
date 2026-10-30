@@ -629,7 +629,9 @@ def create_app(config_class=Config):
 
         pagination = (
             Article.query
-            .filter_by(is_published=True)
+            .filter(Article.is_published.is_(True),
+                    Article.archived_at.is_(None),
+                    Article.deleted_at.is_(None))
             .order_by(Article.created_at.desc())
             .paginate(page=page, per_page=per_page, error_out=False)
         )
@@ -661,7 +663,9 @@ def create_app(config_class=Config):
 
         pagination = (
             Article.query
-            .filter_by(is_published=True)
+            .filter(Article.is_published.is_(True),
+                    Article.archived_at.is_(None),
+                    Article.deleted_at.is_(None))
             .order_by(Article.created_at.desc())
             .paginate(page=page, per_page=per_page, error_out=False)
         )
@@ -674,18 +678,22 @@ def create_app(config_class=Config):
 
     @app.route('/page/<slug>')
     def show_page(slug):
-        """Отображение статической страницы по slug"""
+        """Отображение статической страницы по slug (W60: архив/корзина)."""
         page = Page.query.filter_by(slug=slug).first_or_404()
-        return render_template('page.html', page=page)
+        if page.deleted_at:
+            abort(404)
+        return render_template('page.html', page=page, is_archived=bool(page.archived_at))
 
     @app.route('/article/<int:id>')
     def show_article(id):
-        """Отображение статьи по ID"""
+        """Отображение статьи по ID (W60: архив/корзина)."""
         article = Article.query.get_or_404(id)
-
+        if article.deleted_at:
+            abort(404)
         return render_template(
             'article.html',
             article=article,
+            is_archived=bool(article.archived_at),
         )
 
     @app.route('/files/<int:file_id>')
@@ -706,13 +714,14 @@ def create_app(config_class=Config):
         for link in links:
             if link.target_type == 'article':
                 art = Article.query.get(link.target_id)
-                if art and art.is_published:
+                if art and not art.deleted_at and (art.is_published or art.archived_at):
                     allowed = True
                     break
             elif link.target_type == 'page':
-                # Page всегда публична
-                allowed = True
-                break
+                pg = Page.query.get(link.target_id)
+                if pg and not pg.deleted_at:
+                    allowed = True
+                    break
 
         if not allowed:
             return '', 403
