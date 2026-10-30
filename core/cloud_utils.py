@@ -200,3 +200,122 @@ def list_folder_items(owner_id, parent_id=None, include_trashed=False):
     files = sorted([f for f in items if not f.is_folder], key=lambda f: (f.name or '').lower())
 
     return folders + files
+
+
+# ============================================================
+# W60: системные папки статей/страниц в облаке
+# ============================================================
+
+SYSTEM_FOLDERS = {
+    'article': 'Статьи',
+    'page': 'Страницы',
+}
+ARCHIVE_FOLDER = '_archive'
+
+
+def get_system_root(owner_id, kind):
+    """
+    Возвращает (или создаёт) корневую системную папку:
+    kind='article' → «Статьи», kind='page' → «Страницы».
+    """
+    from core.extensions import db
+    from core.models import CloudFile
+
+    name = SYSTEM_FOLDERS[kind]
+    folder = CloudFile.query.filter_by(
+        owner_id=owner_id, name=name, is_folder=True, parent_id=None, is_trashed=False,
+    ).first()
+    if folder:
+        return folder
+    folder = CloudFile(owner_id=owner_id, parent_id=None, name=name,
+                       is_folder=True, is_trashed=False)
+    db.session.add(folder)
+    db.session.flush()
+    return folder
+
+
+def ensure_content_folder(owner_id, kind, title, content_id):
+    """
+    Создаёт (или возвращает) папку контента: <Система>/<title>.
+    title — текущий заголовок (может быть untitled_<id>_<дата>).
+    content_id — id статьи/страницы (для уникальности при коллизии имён).
+    """
+    from core.extensions import db
+    from core.models import CloudFile
+
+    root = get_system_root(owner_id, kind)
+    folder = CloudFile.query.filter_by(
+        owner_id=owner_id, parent_id=root.id, is_folder=True, is_trashed=False,
+        name=title,
+    ).first()
+    if folder:
+        return folder
+    folder = CloudFile(owner_id=owner_id, parent_id=root.id, name=title,
+                       is_folder=True, is_trashed=False)
+    db.session.add(folder)
+    db.session.flush()
+    return folder
+
+
+def rename_content_folder(folder, new_title):
+    """Переименовывает папку контента (папка = текущий заголовок)."""
+    from core.extensions import db
+    if not folder:
+        return None
+    folder.name = new_title
+    db.session.flush()
+    return folder
+
+
+def archive_content_folder(owner_id, kind, folder):
+    """
+    Перемещает папку контента в <Система>/_archive/<имя>.
+    Создаёт _archive при необходимости.
+    """
+    from core.extensions import db
+    from core.models import CloudFile
+    if not folder:
+        return None
+    root = get_system_root(owner_id, kind)
+    arc = CloudFile.query.filter_by(
+        owner_id=owner_id, parent_id=root.id, name=ARCHIVE_FOLDER,
+        is_folder=True, is_trashed=False,
+    ).first()
+    if not arc:
+        arc = CloudFile(owner_id=owner_id, parent_id=root.id, name=ARCHIVE_FOLDER,
+                        is_folder=True, is_trashed=False)
+        db.session.add(arc)
+        db.session.flush()
+    folder.parent_id = arc.id
+    db.session.flush()
+    return folder
+
+
+def restore_content_folder(owner_id, kind, folder):
+    """Возвращает папку контента из _archive в корень системы."""
+    from core.extensions import db
+    if not folder:
+        return None
+    root = get_system_root(owner_id, kind)
+    folder.parent_id = root.id
+    db.session.flush()
+    return folder
+
+
+def trash_content_folder(folder, prefix):
+    """
+    Перемещает папку контента в корзину (is_trashed=True) с новым именем:
+    prefix = 'article_unnamed' или 'page_unnamed'.
+    Имя: <prefix>_<id>_<дата>.
+    """
+    from core.extensions import db
+    from datetime import datetime
+    if not folder:
+        return None
+    folder.is_trashed = True
+    folder.trashed_at = datetime.utcnow()
+    folder.name = f'{prefix}_{folder.id}_{datetime.utcnow().strftime("%d.%m.%y")}'
+    folder.parent_id = None
+    db.session.flush()
+    return folder
+

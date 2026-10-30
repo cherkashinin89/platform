@@ -18,7 +18,11 @@
             <!-- Заголовок -->
             <div class="mb-3">
                 {{ form.title.label(class="form-label") }}
+                {% if is_draft %}
+                {{ form.title(class="form-control" + (" is-invalid" if form.title.errors else ""), placeholder="статья без названия") }}
+                {% else %}
                 {{ form.title(class="form-control" + (" is-invalid" if form.title.errors else "")) }}
+                {% endif %}
                 {% for error in form.title.errors %}
                 <div class="invalid-feedback">{{ error }}</div>
                 {% endfor %}

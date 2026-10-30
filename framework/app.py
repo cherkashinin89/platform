@@ -2297,76 +2297,38 @@ def create_app(config_class=Config):
             q=q,
         )
 
-    @app.route('/admin/articles/create', methods=['GET', 'POST'])
+    @app.route('/admin/articles/create')
     @login_required
     @editor_required
     def admin_article_create():
-        form = ArticleForm()
+        """
+        W60: «Создать статью» сразу создаёт черновик в БД + папку в облаке,
+        затем редиректит на редактирование. Решает проблему «курицы и яйца»
+        (файлы можно грузить до первого сохранения).
+        """
+        from core.cloud_utils import ensure_content_folder
+        from datetime import datetime
 
-        if form.validate_on_submit():
-            article = Article(
-                title=form.title.data,
-                content=form.content.data,   # временно, заменим после flush
-                summary=form.summary.data,
-                is_published=form.is_published.data
-            )
-            article.authors.append(current_user)
+        # 1. Создаём черновик (временный title, потом заменим)
+        article = Article(
+            title='untitled',
+            content='',
+            summary=None,
+            is_published=False,
+        )
+        article.authors.append(current_user)
+        db.session.add(article)
+        db.session.flush()   # получаем article.id
 
-            # Привязка альбомов
-            album_ids = request.form.getlist('album_ids', type=int)
-            for aid in album_ids:
-                album = Album.query.get(aid)
-                if album:
-                    article.albums.append(album)
+        # 2. Финализируем title и создаём папку в облаке
+        title = f'untitled_{article.id}_{datetime.utcnow().strftime("%d.%m.%y")}'
+        article.title = title
+        folder = ensure_content_folder(current_user.id, 'article', title, article.id)
+        article.cloud_folder_id = folder.id
+        db.session.commit()
 
-            db.session.add(article)
-            db.session.flush()   # получаем article.id без commit
-
-            # W3: обработка прикреплённых файлов (data-file-id → data-share-token)
-            ok, new_content, err = _process_attached_files_in_html(
-                content_html=form.content.data,
-                target_type='article',
-                target_id=article.id,
-                user_id=current_user.id,
-            )
-            if not ok:
-                db.session.rollback()
-                flash(f'Ошибка обработки прикреплённых файлов: {err}', 'danger')
-                all_albums = Album.query.order_by(Album.title).all()
-                return render_template('admin/article_form.html',
-                                       form=form,
-                                       all_albums=all_albums,
-                                       selected_album_ids=[],
-                                       title='Создание статьи')
-
-            article.content = new_content
-            db.session.commit()
-
-            # W3: регистрируем использование облачных файлов в статье
-            try:
-                register_file_usages(
-                    content_html=article.content,
-                    entity_type='article',
-                    entity_id=article.id,
-                    user_id=current_user.id,
-                )
-                db.session.commit()
-            except Exception as e:
-                db.session.rollback()
-                current_app.logger.warning(
-                    f'register_file_usages (article create) failed: {e}'
-                )
-
-            flash('Статья создана!', 'success')
-            return redirect(url_for('admin_articles'))
-
-        # Список всех альбомов для чекбоксов
-        all_albums = Album.query.order_by(Album.title).all()
-        return render_template('admin/article_form.html',
-                               form=form,
-                               all_albums=all_albums,
-                               selected_album_ids=[],
-                               title='Создание статьи')
+        flash('Черновик создан. Заполните заголовок и сохраните.', 'info')
+        return redirect(url_for('admin_article_edit', id=article.id))
 
     @app.route('/admin/articles/<int:id>/edit', methods=['GET', 'POST'])
     @login_required
@@ -2377,8 +2339,15 @@ def create_app(config_class=Config):
         form = ArticleForm(obj=article)
 
         if form.validate_on_submit():
+            old_title = article.title
             article.title = form.title.data
             article.summary = form.summary.data
+            # W60: переименование папки в облаке (папка = текущий заголовок)
+            if article.cloud_folder_id:
+                from core.cloud_utils import rename_content_folder
+                folder = CloudFile.query.get(article.cloud_folder_id)
+                if folder and old_title != article.title:
+                    rename_content_folder(folder, article.title)
 
             # W3: обработка прикреплённых файлов (data-file-id → data-share-token)
             ok, new_content, err = _process_attached_files_in_html(
@@ -2391,12 +2360,16 @@ def create_app(config_class=Config):
                 flash(f'Ошибка обработки прикреплённых файлов: {err}', 'danger')
                 db.session.rollback()
                 all_albums = Album.query.order_by(Album.title).all()
+                is_draft = article.title.startswith('untitled_')
+                if is_draft:
+                    form.title.data = ''
                 return render_template('admin/article_form.html',
                                        form=form,
                                        article=article,
                                        all_albums=all_albums,
                                        selected_album_ids=[a.id for a in article.albums],
-                                       title=f'Редактирование: {article.title}')
+                                       is_draft=is_draft,
+                                       title=('Черновик' if is_draft else f'Редактирование: {article.title}'))
 
             article.content = new_content
             article.is_published = form.is_published.data
@@ -2431,12 +2404,17 @@ def create_app(config_class=Config):
 
         all_albums = Album.query.order_by(Album.title).all()
         selected_album_ids = [a.id for a in article.albums]
+        # W60: черновик (untitled_) — поле пустое с плейсхолдером
+        is_draft = article.title.startswith('untitled_')
+        if is_draft:
+            form.title.data = ''
         return render_template('admin/article_form.html',
                                form=form,
                                article=article,
                                all_albums=all_albums,
                                selected_album_ids=selected_album_ids,
-                               title=f'Редактирование: {article.title}')
+                               is_draft=is_draft,
+                               title=('Черновик' if is_draft else f'Редактирование: {article.title}'))
 
     @app.route('/admin/articles/<int:id>/delete', methods=['POST'])
     @login_required
@@ -2488,15 +2466,39 @@ def create_app(config_class=Config):
         pages = query.all()
         return render_template('admin/pages.html', pages=pages, q=q)
 
-    @app.route('/admin/pages/create', methods=['GET', 'POST'])
+    @app.route('/admin/pages/create')
     @login_required
     @editor_required
     def admin_page_create():
-        """Создание новой страницы"""
+        """
+        W60: «Создать страницу» сразу создаёт черновик + папку в облаке,
+        затем редирект на редактирование.
+        """
+        from core.cloud_utils import ensure_content_folder
+        from datetime import datetime
+
+        page = Page(title='untitled', slug='untitled', content='')
+        db.session.add(page)
+        db.session.flush()
+
+        title = f'untitled_{page.id}_{datetime.utcnow().strftime("%d.%m.%y")}'
+        page.title = title
+        page.slug = f'untitled-{page.id}-{datetime.utcnow().strftime("%d-%m-%y")}'
+        folder = ensure_content_folder(current_user.id, 'page', title, page.id)
+        page.cloud_folder_id = folder.id
+        db.session.commit()
+
+        flash('Черновик страницы создан. Заполните заголовок и сохраните.', 'info')
+        return redirect(url_for('admin_page_edit', id=page.id))
+
+    @app.route('/admin/pages/create-old', methods=['GET', 'POST'])
+    @login_required
+    @editor_required
+    def admin_page_create_old():
+        """Старый маршрут (не используется, оставлен для совместимости)."""
         form = PageForm()
         form.menu_parent_id.choices = _get_menu_parent_choices()
 
-        # При GET — дефолт "без родителя"
         if request.method == 'GET':
             form.menu_parent_id.data = 0
             form.menu_order.data = 0
@@ -2600,7 +2602,14 @@ def create_app(config_class=Config):
             else:
                 form.menu_parent_id.data = 0
 
+        # W60: черновик — поля пустые с плейсхолдерами
+        is_draft = page.title.startswith('untitled_')
+        if request.method == 'GET' and is_draft:
+            form.title.data = ''
+            form.slug.data = ''
+
         if form.validate_on_submit():
+            old_title = page.title
             slug = (form.slug.data or '').strip()
 
             if slug:
@@ -2614,8 +2623,9 @@ def create_app(config_class=Config):
                     return render_template(
                         'admin/page_form.html',
                         form=form,
-                        title=f'Редактирование: {page.title}',
+                        title=('Черновик' if is_draft else f'Редактирование: {page.title}'),
                         page=page,
+                        is_draft=is_draft,
                     )
             else:
                 # Автогенерация
@@ -2624,6 +2634,12 @@ def create_app(config_class=Config):
 
             page.title = form.title.data
             page.slug = slug
+            # W60: переименование папки (папка = текущий заголовок)
+            if page.cloud_folder_id and old_title != page.title:
+                from core.cloud_utils import rename_content_folder
+                folder = CloudFile.query.get(page.cloud_folder_id)
+                if folder:
+                    rename_content_folder(folder, page.title)
 
             _save_page_menu(page, form)
 
@@ -2640,8 +2656,9 @@ def create_app(config_class=Config):
                 return render_template(
                     'admin/page_form.html',
                     form=form,
-                    title=f'Редактирование: {page.title}',
+                    title=('Черновик' if is_draft else f'Редактирование: {page.title}'),
                     page=page,
+                    is_draft=is_draft,
                     menu_parent_choices_rich=_get_menu_parent_choices_rich(exclude_id=exclude_menu_id),
                 )
             page.content = new_content
@@ -2669,8 +2686,9 @@ def create_app(config_class=Config):
         return render_template(
             'admin/page_form.html',
             form=form,
-            title=f'Редактирование: {page.title}',
+            title=('Черновик' if is_draft else f'Редактирование: {page.title}'),
             page=page,
+            is_draft=is_draft,
             menu_parent_choices_rich=_get_menu_parent_choices_rich(exclude_id=exclude_menu_id),
         )
 
