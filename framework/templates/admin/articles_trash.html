@@ -1,0 +1,63 @@
+{% extends 'admin/base_admin.html' %}
+
+{% block title %}Корзина статей{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">Корзина статей</h2>
+    <div class="d-flex gap-2 align-items-center">
+        <form method="get" class="admin-search-form">
+            <i class="bi bi-search"></i>
+            <input type="text" name="q" value="{{ q or '' }}" placeholder="Поиск по корзине…" autocomplete="off">
+            {% if q %}<a href="{{ url_for('admin_articles_trash') }}" class="admin-search-clear"><i class="bi bi-x-lg"></i></a>{% endif %}
+        </form>
+        <a href="{{ url_for('admin_articles') }}" class="btn btn-outline-dark">← К активным</a>
+    </div>
+</div>
+
+{% if articles %}
+<form method="post" id="trashForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="mb-2 d-flex gap-2">
+        <button type="submit" class="btn btn-success btn-sm"
+                formaction="{{ url_for('admin_articles_restore_from_trash') }}"
+                onclick="return confirm('Восстановить выбранные статьи?');">Восстановить</button>
+        <button type="submit" class="btn btn-danger btn-sm"
+                formaction="{{ url_for('admin_articles_purge') }}"
+                onclick="return confirm('Удалить выбранные статьи НАВСЕГДА? Файлы будут удалены, упоминания в других статьях — вычищены.');">Удалить навсегда</button>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-striped align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th style="width:40px;"><input type="checkbox" id="checkAll"></th>
+                    <th style="width:50px;">ID</th>
+                    <th>Заголовок</th>
+                    <th style="width:140px;">Удалена</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in articles %}
+                <tr>
+                    <td><input type="checkbox" name="ids" value="{{ a.id }}" class="checkItem"></td>
+                    <td>{{ a.id }}</td>
+                    <td>{{ a.title }}</td>
+                    <td><small>{{ a.deleted_at.strftime('%d.%m.%Y %H:%M') if a.deleted_at else '—' }}</small></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</form>
+<script>
+document.getElementById('checkAll').addEventListener('change', function() {
+    document.querySelectorAll('.checkItem').forEach(function(cb) { cb.checked = this.checked; }, this);
+});
+</script>
+{% else %}
+<div class="alert alert-info text-center py-4">
+    <h5 class="mb-2">Корзина пуста</h5>
+    <a href="{{ url_for('admin_articles') }}" class="btn btn-primary">← К активным</a>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,82 @@
+{% extends 'admin/base_admin.html' %}
+{% from '_pagination.html' import render_pagination with context %}
+
+{% block title %}Архив статей{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">Архив статей</h2>
+    <div class="d-flex gap-2 align-items-center">
+        <form method="get" class="admin-search-form">
+            <i class="bi bi-search"></i>
+            <input type="text" name="q" value="{{ q or '' }}" placeholder="Поиск по архиву…" autocomplete="off">
+            <input type="hidden" name="sort" value="{{ sort or 'date' }}">
+            {% if q %}
+            <a href="{{ url_for('admin_articles_archive', sort=sort) }}" class="admin-search-clear" title="Сбросить">
+                <i class="bi bi-x-lg"></i>
+            </a>
+            {% endif %}
+        </form>
+        <div class="btn-group">
+            <a href="{{ url_for('admin_articles_archive', q=q, sort='date') }}"
+               class="btn btn-sm {{ 'btn-secondary' if sort == 'date' else 'btn-outline-secondary' }}">По дате</a>
+            <a href="{{ url_for('admin_articles_archive', q=q, sort='name') }}"
+               class="btn btn-sm {{ 'btn-secondary' if sort == 'name' else 'btn-outline-secondary' }}">По имени</a>
+        </div>
+        <a href="{{ url_for('admin_articles') }}" class="btn btn-outline-dark">← К активным</a>
+    </div>
+</div>
+
+{% if articles %}
+<form method="post" action="{{ url_for('admin_articles_restore_action') }}" id="restoreForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="mb-2">
+        <button type="submit" class="btn btn-success btn-sm"
+                onclick="return confirm('Восстановить выбранные статьи из архива?');">
+            Восстановить
+        </button>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-striped table-hover align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th style="width: 40px;"><input type="checkbox" id="checkAll"></th>
+                    <th style="width: 50px;">ID</th>
+                    <th>Заголовок</th>
+                    <th style="width: 120px;">Архивирована</th>
+                    <th style="width: 180px;">Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for article in articles %}
+                <tr>
+                    <td><input type="checkbox" name="ids" value="{{ article.id }}" class="checkItem"></td>
+                    <td>{{ article.id }}</td>
+                    <td>
+                        <a href="{{ url_for('show_article', id=article.id) }}" target="_blank"
+                           class="text-decoration-none fw-bold">{{ article.title }}</a>
+                    </td>
+                    <td><small>{{ article.archived_at.strftime('%d.%m.%Y') if article.archived_at else '—' }}</small></td>
+                    <td>
+                        <a href="{{ url_for('admin_article_edit', id=article.id) }}" class="btn btn-sm btn-outline-primary">Редактировать</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</form>
+{{ render_pagination(pagination, 'admin_articles_archive') }}
+<script>
+document.getElementById('checkAll').addEventListener('change', function() {
+    document.querySelectorAll('.checkItem').forEach(function(cb) { cb.checked = this.checked; }, this);
+});
+</script>
+{% else %}
+<div class="alert alert-info text-center py-4">
+    <h5 class="mb-2">Архив пуст</h5>
+    <p class="mb-3">Здесь будут статьи, отправленные в архив.</p>
+    <a href="{{ url_for('admin_articles') }}" class="btn btn-primary">← К активным</a>
+</div>
+{% endif %}
+{% endblock %}

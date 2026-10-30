@@ -148,6 +148,9 @@ class Article(db.Model):
     # W3: дата перевода в архив (None = не в архиве)
     archived_at = db.Column(db.DateTime, nullable=True, index=True)
 
+    # W60: дата перемещения в корзину (None = не в корзине)
+    deleted_at = db.Column(db.DateTime, nullable=True, index=True)
+
     # W60: папка статьи в облаке (системная папка «Статьи/<имя>»)
     cloud_folder_id = db.Column(
         db.Integer,
@@ -169,6 +172,12 @@ class Page(db.Model):
     slug = db.Column(db.String(200), unique=True, nullable=False)
     content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # W60: дата перевода в архив (None = не в архиве)
+    archived_at = db.Column(db.DateTime, nullable=True, index=True)
+
+    # W60: дата перемещения в корзину (None = не в корзине)
+    deleted_at = db.Column(db.DateTime, nullable=True, index=True)
 
     # W60: папка страницы в облаке (системная папка «Страницы/<имя>»)
     cloud_folder_id = db.Column(

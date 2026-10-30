@@ -1,0 +1,70 @@
+{% extends 'admin/base_admin.html' %}
+
+{% block title %}Архив страниц{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">Архив страниц</h2>
+    <div class="d-flex gap-2 align-items-center">
+        <form method="get" class="admin-search-form">
+            <i class="bi bi-search"></i>
+            <input type="text" name="q" value="{{ q or '' }}" placeholder="Поиск по архиву…" autocomplete="off">
+            <input type="hidden" name="sort" value="{{ sort or 'date' }}">
+            {% if q %}
+            <a href="{{ url_for('admin_pages_archive', sort=sort) }}" class="admin-search-clear" title="Сбросить"><i class="bi bi-x-lg"></i></a>
+            {% endif %}
+        </form>
+        <div class="btn-group">
+            <a href="{{ url_for('admin_pages_archive', q=q, sort='date') }}"
+               class="btn btn-sm {{ 'btn-secondary' if sort == 'date' else 'btn-outline-secondary' }}">По дате</a>
+            <a href="{{ url_for('admin_pages_archive', q=q, sort='name') }}"
+               class="btn btn-sm {{ 'btn-secondary' if sort == 'name' else 'btn-outline-secondary' }}">По имени</a>
+        </div>
+        <a href="{{ url_for('admin_pages') }}" class="btn btn-outline-dark">← К активным</a>
+    </div>
+</div>
+
+{% if pages %}
+<form method="post" action="{{ url_for('admin_pages_restore_action') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="mb-2">
+        <button type="submit" class="btn btn-success btn-sm"
+                onclick="return confirm('Восстановить выбранные страницы из архива?');">Восстановить</button>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-striped table-hover align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th style="width: 40px;"><input type="checkbox" id="checkAll"></th>
+                    <th style="width: 50px;">ID</th>
+                    <th>Название</th>
+                    <th style="width: 120px;">Архивирована</th>
+                    <th style="width: 180px;">Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for page in pages %}
+                <tr>
+                    <td><input type="checkbox" name="ids" value="{{ page.id }}" class="checkItem"></td>
+                    <td>{{ page.id }}</td>
+                    <td><strong>{{ page.title }}</strong></td>
+                    <td><small>{{ page.archived_at.strftime('%d.%m.%Y') if page.archived_at else '—' }}</small></td>
+                    <td><a href="{{ url_for('admin_page_edit', id=page.id) }}" class="btn btn-sm btn-outline-primary">Редактировать</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</form>
+<script>
+document.getElementById('checkAll').addEventListener('change', function() {
+    document.querySelectorAll('.checkItem').forEach(function(cb) { cb.checked = this.checked; }, this);
+});
+</script>
+{% else %}
+<div class="alert alert-info text-center py-4">
+    <h5 class="mb-2">Архив пуст</h5>
+    <a href="{{ url_for('admin_pages') }}" class="btn btn-primary">← К активным</a>
+</div>
+{% endif %}
+{% endblock %}

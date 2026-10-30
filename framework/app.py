@@ -495,6 +495,94 @@ def _archive_user_mailboxes_to_admin(user, admin_user):
 
     return True, archived, None
 
+
+def _scrub_file_references(file_id, exclude_article_id=None, exclude_page_id=None):
+    """
+    W60: удаляет упоминания облачного файла из HTML других статей/страниц.
+    Ищет по FileUsage и ContentFile, чистит теги <img>, <video>, <a> с этим файлом.
+    """
+    import re
+    from core.models import FileUsage, ContentFile, Article, Page
+
+    # какие статьи/страницы используют файл
+    usages = FileUsage.query.filter_by(file_id=file_id).all()
+    content_links = ContentFile.query.filter_by(file_id=file_id).all()
+
+    targets = set()
+    for u in usages:
+        if u.entity_type == 'article' and u.entity_id != exclude_article_id:
+            targets.add(('article', u.entity_id))
+        elif u.entity_type == 'page' and u.entity_id != exclude_page_id:
+            targets.add(('page', u.entity_id))
+    for c in content_links:
+        if c.target_type == 'article' and c.target_id != exclude_article_id:
+            targets.add(('article', c.target_id))
+        elif c.target_type == 'page' and c.target_id != exclude_page_id:
+            targets.add(('page', c.target_id))
+
+    # regex: теги, содержащие file_id (data-file-id или /files/<id>)
+    pat_img = re.compile(r'<img[^>]*?(?:data-file-id="%d"|/files/%d)[^>]*>' % (file_id, file_id), re.I)
+    pat_video = re.compile(r'<figure[^>]*class="[^"]*redactix-video[^"]*"[^>]*>.*?</figure>', re.I | re.S)
+    pat_a = re.compile(r'<a[^>]*?(?:data-file-id="%d"|/files/%d)[^>]*>.*?</a>' % (file_id, file_id), re.I | re.S)
+
+    changed = 0
+    for kind, cid in targets:
+        obj = Article.query.get(cid) if kind == 'article' else Page.query.get(cid)
+        if not obj or not obj.content:
+            continue
+        html = obj.content
+        new_html = html
+        new_html = pat_img.sub('', new_html)
+        new_html = pat_a.sub('', new_html)
+        # видео: ищем figure, внутри которого video src содержит file_id
+        def _rm_video(m):
+            block = m.group(0)
+            if ('data-file-id="%d"' % file_id) in block or ('/files/%d' % file_id) in block:
+                return ''
+            return block
+        new_html = pat_video.sub(_rm_video, new_html)
+        if new_html != html:
+            obj.content = new_html
+            changed += 1
+    return changed
+
+
+def _purge_cloud_folder(folder, exclude_article_id=None, exclude_page_id=None):
+    """
+    W60: рекурсивно удаляет папку облака (файлы с диска + записи БД),
+    предварительно вычищая упоминания файлов в других статьях/страницах.
+    """
+    from core.models import CloudFile, CloudFileVersion
+    import os
+    from core.cloud_utils import cloud_data_root
+
+    if not folder:
+        return
+
+    # 1. Дети
+    children = CloudFile.query.filter_by(parent_id=folder.id).all()
+    for ch in children:
+        if ch.is_folder:
+            _purge_cloud_folder(ch, exclude_article_id, exclude_page_id)
+        else:
+            # вычистить упоминания
+            _scrub_file_references(ch.id, exclude_article_id, exclude_page_id)
+            # удалить версии
+            CloudFileVersion.query.filter_by(file_id=ch.id).delete()
+            # удалить с диска
+            if ch.stored_name:
+                path = os.path.join(cloud_data_root(), str(ch.owner_id), ch.stored_name)
+                try:
+                    if os.path.exists(path):
+                        os.remove(path)
+                except Exception:
+                    pass
+            db.session.delete(ch)
+
+    # 2. Сама папка
+    db.session.delete(folder)
+
+
 def create_app(config_class=Config):
     """Создаёт и настраивает экземпляр Flask"""
     app = Flask(__name__)
@@ -2268,12 +2356,14 @@ def create_app(config_class=Config):
     @login_required
     @editor_required
     def admin_articles():
-        """Список статей с пагинацией и поиском"""
+        """Список активных (не архивных) статей: пагинация, поиск, сортировка."""
         page = get_page()
         per_page = app.config['ARTICLES_PER_PAGE']
         q = request.args.get('q', '').strip()
+        sort = request.args.get('sort', 'date')  # date | name
 
-        query = Article.query
+        # W60: архивные — отдельно
+        query = Article.query.filter(Article.archived_at.is_(None), Article.deleted_at.is_(None))
         if q:
             like = f'%{q}%'
             query = query.filter(
@@ -2284,9 +2374,10 @@ def create_app(config_class=Config):
                 )
             )
 
+        order = Article.title.asc() if sort == 'name' else Article.created_at.desc()
         pagination = (
             query
-            .order_by(Article.created_at.desc())
+            .order_by(order)
             .paginate(page=page, per_page=per_page, error_out=False)
         )
 
@@ -2295,7 +2386,103 @@ def create_app(config_class=Config):
             pagination=pagination,
             articles=pagination.items,
             q=q,
+            sort=sort,
         )
+
+    @app.route('/admin/articles/archive')
+    @login_required
+    @editor_required
+    def admin_articles_archive():
+        """W60: список архивных статей."""
+        page = get_page()
+        per_page = app.config['ARTICLES_PER_PAGE']
+        q = request.args.get('q', '').strip()
+        sort = request.args.get('sort', 'date')
+
+        query = Article.query.filter(Article.archived_at.isnot(None), Article.deleted_at.is_(None))
+        if q:
+            like = f'%{q}%'
+            query = query.filter(
+                db.or_(Article.title.ilike(like), Article.summary.ilike(like))
+            )
+
+        order = Article.title.asc() if sort == 'name' else Article.archived_at.desc()
+        pagination = (
+            query
+            .order_by(order)
+            .paginate(page=page, per_page=per_page, error_out=False)
+        )
+
+        return render_template(
+            'admin/articles_archive.html',
+            pagination=pagination,
+            articles=pagination.items,
+            q=q,
+            sort=sort,
+        )
+
+    @app.route('/admin/articles/archive-action', methods=['POST'])
+    @login_required
+    @editor_required
+    def admin_articles_archive_action():
+        """
+        W60: массовая архивация статей.
+        Форма: ids[] (список id). Перемещает папки в Статьи/_archive/<имя>,
+        ставит archived_at.
+        """
+        from core.cloud_utils import archive_content_folder
+        from datetime import datetime
+
+        ids = request.form.getlist('ids', type=int)
+        if not ids:
+            flash('Не выбрано ни одной статьи.', 'warning')
+            return redirect(url_for('admin_articles'))
+
+        count = 0
+        for aid in ids:
+            a = Article.query.get(aid)
+            if not a or a.archived_at:
+                continue
+            if a.cloud_folder_id:
+                folder = CloudFile.query.get(a.cloud_folder_id)
+                if folder:
+                    author = a.authors[0] if a.authors else current_user
+                    archive_content_folder(author.id,
+                                           'article', folder)
+            a.archived_at = datetime.utcnow()
+            count += 1
+        db.session.commit()
+        flash(f'В архив отправлено: {count}', 'success')
+        return redirect(url_for('admin_articles'))
+
+    @app.route('/admin/articles/restore-action', methods=['POST'])
+    @login_required
+    @editor_required
+    def admin_articles_restore_action():
+        """W60: массовое восстановление статей из архива."""
+        from core.cloud_utils import restore_content_folder
+
+        ids = request.form.getlist('ids', type=int)
+        if not ids:
+            flash('Не выбрано ни одной статьи.', 'warning')
+            return redirect(url_for('admin_articles_archive'))
+
+        count = 0
+        for aid in ids:
+            a = Article.query.get(aid)
+            if not a or not a.archived_at:
+                continue
+            if a.cloud_folder_id:
+                folder = CloudFile.query.get(a.cloud_folder_id)
+                if folder:
+                    author = a.authors[0] if a.authors else current_user
+                    restore_content_folder(author.id,
+                                           'article', folder)
+            a.archived_at = None
+            count += 1
+        db.session.commit()
+        flash(f'Восстановлено из архива: {count}', 'success')
+        return redirect(url_for('admin_articles_archive'))
 
     @app.route('/admin/articles/create')
     @login_required
@@ -2420,51 +2607,175 @@ def create_app(config_class=Config):
     @login_required
     @editor_required
     def admin_article_delete(id):
-        """Удаление статьи"""
+        """W60: перемещение статьи в корзину (не навсегда)."""
+        from core.cloud_utils import trash_content_folder
+        from datetime import datetime
+
         article = Article.query.get_or_404(id)
         article_title = article.title
 
-        # W3: снимаем реестр использования облачных файлов
-        try:
-            unregister_file_usages('article', article.id)
-        except Exception as e:
-            current_app.logger.warning(
-                f'unregister_file_usages (article delete) failed: {e}'
-            )
+        # Папка статьи → корзина облака
+        if article.cloud_folder_id:
+            folder = CloudFile.query.get(article.cloud_folder_id)
+            if folder:
+                trash_content_folder(folder, 'article_unnamed')
 
-        # W58: удаляем привязки файлов к статье
-        from core.models import ContentFile
-        ContentFile.query.filter_by(
-            target_type='article',
-            target_id=article.id,
-        ).delete()
-
-        db.session.delete(article)
+        article.deleted_at = datetime.utcnow()
         db.session.commit()
-
-        flash(f'Статья «{article_title}» удалена.', 'info')
+        flash(f'Статья «{article_title}» перемещена в корзину.', 'info')
         return redirect(url_for('admin_articles'))
+
+    @app.route('/admin/articles/trash')
+    @login_required
+    @editor_required
+    def admin_articles_trash():
+        """W60: корзина статей."""
+        q = request.args.get('q', '').strip()
+        query = Article.query.filter(Article.deleted_at.isnot(None))
+        if q:
+            query = query.filter(Article.title.ilike(f'%{q}%'))
+        articles = query.order_by(Article.deleted_at.desc()).all()
+        return render_template('admin/articles_trash.html', articles=articles, q=q)
+
+    @app.route('/admin/articles/restore-from-trash', methods=['POST'])
+    @login_required
+    @editor_required
+    def admin_articles_restore_from_trash():
+        """W60: восстановление статей из корзины."""
+        ids = request.form.getlist('ids', type=int)
+        count = 0
+        for aid in ids:
+            a = Article.query.get(aid)
+            if not a or not a.deleted_at:
+                continue
+            # вернуть папку из корзины облака
+            if a.cloud_folder_id:
+                folder = CloudFile.query.get(a.cloud_folder_id)
+                if folder:
+                    folder.is_trashed = False
+                    folder.trashed_at = None
+                    folder.name = a.title
+                    root = CloudFile.query.filter_by(
+                        owner_id=folder.owner_id, name='Статьи', is_folder=True, parent_id=None
+                    ).first()
+                    if root:
+                        folder.parent_id = root.id
+            a.deleted_at = None
+            count += 1
+        db.session.commit()
+        flash(f'Восстановлено из корзины: {count}', 'success')
+        return redirect(url_for('admin_articles_trash'))
+
+    @app.route('/admin/articles/purge', methods=['POST'])
+    @login_required
+    @editor_required
+    def admin_articles_purge():
+        """W60: удаление навсегда (из корзины)."""
+        ids = request.form.getlist('ids', type=int)
+        count = 0
+        for aid in ids:
+            a = Article.query.get(aid)
+            if not a or not a.deleted_at:
+                continue
+            # файлы папки — удалить физически
+            if a.cloud_folder_id:
+                folder = CloudFile.query.get(a.cloud_folder_id)
+                if folder:
+                    _purge_cloud_folder(folder, exclude_article_id=a.id)
+            unregister_file_usages('article', a.id)
+            from core.models import ContentFile
+            ContentFile.query.filter_by(target_type='article', target_id=a.id).delete()
+            db.session.delete(a)
+            count += 1
+        db.session.commit()
+        flash(f'Удалено навсегда: {count}', 'warning')
+        return redirect(url_for('admin_articles_trash'))
 
     # --- Управление страницами ---
 
     @app.route('/admin/pages/')
     @login_required
     def admin_pages():
-        """Список страниц с поиском"""
+        """Список активных (не архивных) страниц: поиск, сортировка."""
         q = request.args.get('q', '').strip()
+        sort = request.args.get('sort', 'date')
 
-        query = Page.query
+        query = Page.query.filter(Page.archived_at.is_(None), Page.deleted_at.is_(None))
         if q:
             like = f'%{q}%'
             query = query.filter(
-                db.or_(
-                    Page.title.ilike(like),
-                    Page.content.ilike(like),
-                )
+                db.or_(Page.title.ilike(like), Page.content.ilike(like))
             )
 
-        pages = query.all()
-        return render_template('admin/pages.html', pages=pages, q=q)
+        order = Page.title.asc() if sort == 'name' else Page.created_at.desc()
+        pages = query.order_by(order).all()
+        return render_template('admin/pages.html', pages=pages, q=q, sort=sort)
+
+    @app.route('/admin/pages/archive')
+    @login_required
+    @editor_required
+    def admin_pages_archive():
+        """W60: архивные страницы."""
+        q = request.args.get('q', '').strip()
+        sort = request.args.get('sort', 'date')
+        query = Page.query.filter(Page.archived_at.isnot(None), Page.deleted_at.is_(None))
+        if q:
+            like = f'%{q}%'
+            query = query.filter(Page.title.ilike(like))
+        order = Page.title.asc() if sort == 'name' else Page.archived_at.desc()
+        pages = query.order_by(order).all()
+        return render_template('admin/pages_archive.html', pages=pages, q=q, sort=sort)
+
+    @app.route('/admin/pages/archive-action', methods=['POST'])
+    @login_required
+    @editor_required
+    def admin_pages_archive_action():
+        """W60: массовая архивация страниц."""
+        from core.cloud_utils import archive_content_folder
+        from datetime import datetime
+        ids = request.form.getlist('ids', type=int)
+        if not ids:
+            flash('Не выбрано ни одной страницы.', 'warning')
+            return redirect(url_for('admin_pages'))
+        count = 0
+        for pid in ids:
+            pg = Page.query.get(pid)
+            if not pg or pg.archived_at:
+                continue
+            if pg.cloud_folder_id:
+                folder = CloudFile.query.get(pg.cloud_folder_id)
+                if folder:
+                    archive_content_folder(current_user.id, 'page', folder)
+            pg.archived_at = datetime.utcnow()
+            count += 1
+        db.session.commit()
+        flash(f'В архив отправлено: {count}', 'success')
+        return redirect(url_for('admin_pages'))
+
+    @app.route('/admin/pages/restore-action', methods=['POST'])
+    @login_required
+    @editor_required
+    def admin_pages_restore_action():
+        """W60: массовое восстановление страниц из архива."""
+        from core.cloud_utils import restore_content_folder
+        ids = request.form.getlist('ids', type=int)
+        if not ids:
+            flash('Не выбрано ни одной страницы.', 'warning')
+            return redirect(url_for('admin_pages_archive'))
+        count = 0
+        for pid in ids:
+            pg = Page.query.get(pid)
+            if not pg or not pg.archived_at:
+                continue
+            if pg.cloud_folder_id:
+                folder = CloudFile.query.get(pg.cloud_folder_id)
+                if folder:
+                    restore_content_folder(current_user.id, 'page', folder)
+            pg.archived_at = None
+            count += 1
+        db.session.commit()
+        flash(f'Восстановлено из архива: {count}', 'success')
+        return redirect(url_for('admin_pages_archive'))
 
     @app.route('/admin/pages/create')
     @login_required
@@ -2695,36 +3006,89 @@ def create_app(config_class=Config):
     @app.route('/admin/pages/<int:id>/delete', methods=['POST'])
     @login_required
     def admin_page_delete(id):
-        """Удаление страницы"""
+        """W60: перемещение страницы в корзину (не навсегда)."""
+        from core.cloud_utils import trash_content_folder
+        from datetime import datetime
+
         page = Page.query.get_or_404(id)
         page_title = page.title
-
-        # W3: снимаем реестр использования облачных файлов
-        try:
-            unregister_file_usages('page', page.id)
-        except Exception as e:
-            current_app.logger.warning(
-                f'unregister_file_usages (page delete) failed: {e}'
-            )
-
-        # W58: удаляем привязки файлов к странице
-        from core.models import ContentFile
-        ContentFile.query.filter_by(
-            target_type='page',
-            target_id=page.id,
-        ).delete()
-
-        menu_item = page.menu_item
-        if menu_item:
-            for child in menu_item.children:
-                child.parent_id = menu_item.parent_id
-            db.session.delete(menu_item)
-
-        db.session.delete(page)
+        if page.cloud_folder_id:
+            folder = CloudFile.query.get(page.cloud_folder_id)
+            if folder:
+                trash_content_folder(folder, 'page_unnamed')
+        page.deleted_at = datetime.utcnow()
         db.session.commit()
-
-        flash(f'Страница «{page_title}» удалена.', 'info')
+        flash(f'Страница «{page_title}» перемещена в корзину.', 'info')
         return redirect(url_for('admin_pages'))
+
+    @app.route('/admin/pages/trash')
+    @login_required
+    @editor_required
+    def admin_pages_trash():
+        """W60: корзина страниц."""
+        q = request.args.get('q', '').strip()
+        query = Page.query.filter(Page.deleted_at.isnot(None))
+        if q:
+            query = query.filter(Page.title.ilike(f'%{q}%'))
+        pages = query.order_by(Page.deleted_at.desc()).all()
+        return render_template('admin/pages_trash.html', pages=pages, q=q)
+
+    @app.route('/admin/pages/restore-from-trash', methods=['POST'])
+    @login_required
+    @editor_required
+    def admin_pages_restore_from_trash():
+        """W60: восстановление страниц из корзины."""
+        ids = request.form.getlist('ids', type=int)
+        count = 0
+        for pid in ids:
+            pg = Page.query.get(pid)
+            if not pg or not pg.deleted_at:
+                continue
+            if pg.cloud_folder_id:
+                folder = CloudFile.query.get(pg.cloud_folder_id)
+                if folder:
+                    folder.is_trashed = False
+                    folder.trashed_at = None
+                    folder.name = pg.title
+                    root = CloudFile.query.filter_by(
+                        owner_id=folder.owner_id, name='Страницы', is_folder=True, parent_id=None
+                    ).first()
+                    if root:
+                        folder.parent_id = root.id
+            pg.deleted_at = None
+            count += 1
+        db.session.commit()
+        flash(f'Восстановлено из корзины: {count}', 'success')
+        return redirect(url_for('admin_pages_trash'))
+
+    @app.route('/admin/pages/purge', methods=['POST'])
+    @login_required
+    @editor_required
+    def admin_pages_purge():
+        """W60: удаление навсегда (из корзины)."""
+        ids = request.form.getlist('ids', type=int)
+        count = 0
+        for pid in ids:
+            pg = Page.query.get(pid)
+            if not pg or not pg.deleted_at:
+                continue
+            if pg.cloud_folder_id:
+                folder = CloudFile.query.get(pg.cloud_folder_id)
+                if folder:
+                    _purge_cloud_folder(folder, exclude_page_id=pg.id)
+            unregister_file_usages('page', pg.id)
+            from core.models import ContentFile
+            ContentFile.query.filter_by(target_type='page', target_id=pg.id).delete()
+            menu_item = pg.menu_item
+            if menu_item:
+                for child in menu_item.children:
+                    child.parent_id = menu_item.parent_id
+                db.session.delete(menu_item)
+            db.session.delete(pg)
+            count += 1
+        db.session.commit()
+        flash(f'Удалено навсегда: {count}', 'warning')
+        return redirect(url_for('admin_pages_trash'))
 
     # --- Управление меню ---
 
