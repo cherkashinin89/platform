@@ -148,6 +148,15 @@ class Article(db.Model):
     # W3: дата перевода в архив (None = не в архиве)
     archived_at = db.Column(db.DateTime, nullable=True, index=True)
 
+    # W60: папка статьи в облаке (системная папка «Статьи/<имя>»)
+    cloud_folder_id = db.Column(
+        db.Integer,
+        db.ForeignKey('cloud_file.id', ondelete='SET NULL'),
+        nullable=True,
+        index=True,
+    )
+    cloud_folder = db.relationship('CloudFile', foreign_keys=[cloud_folder_id])
+
     def __repr__(self):
         return f'<Article {self.title}>'
 
@@ -160,6 +169,15 @@ class Page(db.Model):
     slug = db.Column(db.String(200), unique=True, nullable=False)
     content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # W60: папка страницы в облаке (системная папка «Страницы/<имя>»)
+    cloud_folder_id = db.Column(
+        db.Integer,
+        db.ForeignKey('cloud_file.id', ondelete='SET NULL'),
+        nullable=True,
+        index=True,
+    )
+    cloud_folder = db.relationship('CloudFile', foreign_keys=[cloud_folder_id])
 
     def __repr__(self):
         return f'<Page {self.title}>'
@@ -338,10 +356,6 @@ class SiteSettings(db.Model):
     # === Слайдер ===
     show_slider = db.Column(db.Boolean, default=False, nullable=False)
     slider_delay_seconds = db.Column(db.Integer, default=5, nullable=False)
-
-    # === W3: Архивация статей ===
-    archive_after_days = db.Column(db.Integer, default=0, nullable=False)
-    archive_retention_days = db.Column(db.Integer, default=0, nullable=False)
 
     # === Метаданные ===
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
