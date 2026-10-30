@@ -261,8 +261,10 @@ def _process_attached_files_in_html(content_html, user_id, target_type, target_i
     if not content_html:
         return True, content_html, None
 
-     # --- 1. Находим все href="/files/<id>" ---
-    file_id_pattern = re.compile(r'href="/files/(\d+)"')
+    # --- 1. Находим ссылки на файлы: /files/<id> и /media/<id> (W60) ---
+    file_id_pattern = re.compile(
+        r'(?:href|src)="/(?:files|media)/(\d+)(?:\?[^"]*)?"'
+    )
     file_ids_in_html = set(file_id_pattern.findall(content_html))
 
     # --- 2. HTML уже содержит href="/files/<id>" (модалка вставляет сразу) ---
