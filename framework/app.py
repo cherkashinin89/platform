@@ -4716,7 +4716,7 @@ def create_app(config_class=Config):
                 if f.parent_id:
                     alb = Album.query.filter_by(cloud_folder_id=f.parent_id).first()
                 result.append({'file': f, 'album': alb})
-            return {'slider_photos': result}
+            return {'slider_photos': result, 'CloudFile': CloudFile}
         except Exception as e:
             app.logger.warning(f'inject_slider_photos: {e}')
             return {'slider_photos': []}   

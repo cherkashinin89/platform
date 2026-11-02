@@ -19,20 +19,21 @@
         <a href="{{ url_for('show_article', id=article.id) }}" class="recent-article-card">
 
             {# === Обложка (уменьшенная). W3: файлы — облачные, /media/<file_id> === #}
-            {% set first_album = article.albums.first() if article.albums else None %}
-            {% if first_album %}
-                {% set cover_photo = first_album.cover_file %}
-                {% if not cover_photo and first_album.cloud_folder_id %}
-                    {% set cover_photo = first_album.cloud_folder.children.filter_by(is_folder=False, is_trashed=False).first() %}
-                {% endif %}
-                {% if cover_photo %}
+            {# W25: обложка статьи — первое фото папки статьи #}
+            {% set cover_photo = None %}
+            {% if article.cloud_folder_id %}
+                {% set cover_photo = article.cloud_folder.children.filter(
+                    CloudFile.is_folder.is_(False), CloudFile.is_trashed.is_(False),
+                    CloudFile.mime_type.ilike('image/%')
+                ).order_by(CloudFile.name).first() %}
+            {% endif %}
+            {% if cover_photo %}
                 <div class="recent-article-cover">
                     <img src="{{ url_for('serve_media', file_id=cover_photo.id) }}"
                          alt="{{ article.title }}"
                          loading="lazy"
                          decoding="async">
                 </div>
-                {% endif %}
             {% endif %}
 
             <div class="recent-article-body">

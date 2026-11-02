@@ -14,10 +14,13 @@
             <a href="{{ url_for('show_article', id=article.id) }}" class="article-card-link">
 
                 {# === Обложка. W3: файлы — облачные, /media/<file_id> === #}
-                {% set first_album = article.albums.first() if article.albums else None %}
-                {% set cover = first_album.cover_file if first_album else None %}
-                {% if not cover and first_album and first_album.cloud_folder_id %}
-                    {% set cover = first_album.cloud_folder.children.filter_by(is_folder=False, is_trashed=False).first() %}
+                {# W25: обложка статьи — первое фото папки статьи #}
+                {% set cover = None %}
+                {% if article.cloud_folder_id %}
+                    {% set cover = article.cloud_folder.children.filter(
+                        CloudFile.is_folder.is_(False), CloudFile.is_trashed.is_(False),
+                        CloudFile.mime_type.ilike('image/%')
+                    ).order_by(CloudFile.name).first() %}
                 {% endif %}
                 {% if cover %}
                     <div class="article-card-cover">
