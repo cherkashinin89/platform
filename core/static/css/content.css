@@ -58,3 +58,48 @@ figure.redactix-embed iframe {
     height: auto;
     border-radius: 8px;
 }
+
+/* Документы плитками (W60) */
+figure.redactix-docs {
+    margin: 1.5rem 0;
+}
+figure.redactix-docs .redactix-docs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+}
+figure.redactix-docs .redactix-doc-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 16px 12px;
+    border: 1px solid var(--color-border, #e0e0e0);
+    border-radius: 8px;
+    text-decoration: none;
+    color: inherit;
+    background: #fff;
+    transition: box-shadow 0.15s;
+    text-align: center;
+}
+figure.redactix-docs .redactix-doc-card:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+}
+figure.redactix-docs .redactix-doc-icon i {
+    font-size: 2rem;
+    color: #6c757d;
+}
+figure.redactix-docs .redactix-doc-name {
+    font-size: 0.9rem;
+    word-break: break-word;
+}
+figure.redactix-docs .redactix-doc-size {
+    font-size: 0.75rem;
+    color: #888;
+}
+figure.redactix-docs .redactix-doc-icon.doc-pdf i { color: #dc3545; }
+figure.redactix-docs .redactix-doc-icon.doc-word i { color: #0d6efd; }
+figure.redactix-docs .redactix-doc-icon.doc-excel i { color: #198754; }
+figure.redactix-docs .redactix-doc-icon.doc-ppt i { color: #fd7e14; }
+figure.redactix-docs .redactix-doc-icon.doc-archive i { color: #6f42c1; }
+

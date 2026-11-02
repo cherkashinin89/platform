@@ -263,7 +263,7 @@ def _process_attached_files_in_html(content_html, user_id, target_type, target_i
 
     # --- 1. Находим ссылки на файлы: /files/<id> и /media/<id> (W60) ---
     file_id_pattern = re.compile(
-        r'(?:href|src)="/(?:files|media)/(\d+)(?:\?[^"]*)?"'
+        r'(?:href|src)="/(?:files|media|view)/(\d+)(?:\?[^"]*)?"'
     )
     file_ids_in_html = set(file_id_pattern.findall(content_html))
 
@@ -1233,15 +1233,24 @@ def create_app(config_class=Config):
             return jsonify({'success': False, 'error': 'Не найден контекст'}), 400
 
         ftype = request.form.get('type', 'image')
-        prefix = 'video/' if ftype == 'video' else 'image/'
-        files = CloudFile.query.filter(
+        q = CloudFile.query.filter(
             CloudFile.parent_id == folder.id,
             CloudFile.is_folder.is_(False),
-            CloudFile.mime_type.ilike(prefix + '%'),
-        ).order_by(CloudFile.name).all()
+        )
+        if ftype == 'video':
+            q = q.filter(CloudFile.mime_type.ilike('video/%'))
+        elif ftype == 'doc':
+            # документы по расширению
+            doc_exts = ('pdf', 'txt', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+                        'zip', 'rar', '7z', 'tar', 'gz')
+            q = q.filter(db.or_(*[CloudFile.name.ilike('%.' + e) for e in doc_exts]))
+        else:
+            q = q.filter(CloudFile.mime_type.ilike('image/%'))
+        files = q.order_by(CloudFile.name).all()
 
         images = [
-            {'src': url_for('serve_media', file_id=f.id), 'alt': f.name, 'title': ''}
+            {'src': url_for('serve_media', file_id=f.id),
+             'alt': f.name, 'title': '', 'name': f.name, 'size': f.size}
             for f in files
         ]
         return jsonify({'success': True, 'images': images, 'allowDelete': False})
@@ -4125,6 +4134,52 @@ def create_app(config_class=Config):
         ]
 
         return jsonify(data)
+
+    @app.route('/admin/api/cloud-upload', methods=['POST'])
+    @csrf.exempt
+    @login_required
+    @editor_required
+    def admin_api_cloud_upload():
+        """W60: загрузка файлов в облако (для эксплорера) в папку parent_id."""
+        import os
+        from core.file_utils import make_stored_name, guess_mime
+        from core.cloud_utils import cloud_data_root
+
+        files = request.files.getlist('files')
+        files = [f for f in files if f and f.filename]
+        if not files:
+            return jsonify({'ok': False, 'error': 'Файлы не выбраны'}), 400
+
+        parent_id = request.form.get('parent_id')
+        parent_id = int(parent_id) if parent_id and parent_id not in ('', 'null') else None
+
+        # Проверка папки (владелец)
+        if parent_id:
+            folder = CloudFile.query.filter_by(id=parent_id, owner_id=current_user.id,
+                                                is_folder=True, is_trashed=False).first()
+            if not folder:
+                return jsonify({'ok': False, 'error': 'Папка не найдена'}), 404
+
+        user_dir = os.path.join(cloud_data_root(), str(current_user.id))
+        os.makedirs(user_dir, exist_ok=True)
+
+        uploaded = []
+        for f in files:
+            stored_name = make_stored_name(f.filename)
+            dst = os.path.join(user_dir, stored_name)
+            f.save(dst)
+            cf = CloudFile(
+                owner_id=current_user.id, parent_id=parent_id, name=f.filename,
+                is_folder=False, stored_name=stored_name,
+                size=os.path.getsize(dst), mime_type=f.mimetype or guess_mime(f.filename),
+            )
+            db.session.add(cf)
+            uploaded.append(cf)
+        db.session.commit()
+
+        return jsonify({'ok': True, 'uploaded': [
+            {'id': c.id, 'name': c.name, 'size': c.size} for c in uploaded
+        ]})
 
     @app.route('/admin/api/cloud-folder/<int:folder_id>')
     @login_required

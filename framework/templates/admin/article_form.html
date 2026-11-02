@@ -71,7 +71,7 @@
 {% endif %}
 <link rel="stylesheet" href="{{ url_for('static', filename='shared/vendor/redactix/Redactix.css') }}">
 <script type="module">
-    import Redactix from "{{ url_for('static', filename='shared/vendor/redactix/Redactix.js') }}";
+    import Redactix from "{{ url_for('static', filename='shared/vendor/redactix/Redactix.js') }}?v=61";
     const articleId = document.getElementById('redactix-article-id')?.value || '';
     new Redactix({
         selector: '.redactix-editor',

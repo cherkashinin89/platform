@@ -22,7 +22,7 @@
         const href = link.getAttribute('href') || '';
         let ext = getExt(href);
         if (!ext) {
-            const nameEl = link.querySelector('.attached-file-name');
+            const nameEl = link.querySelector('.attached-file-name, .redactix-doc-name');
             if (nameEl) {
                 const name = nameEl.textContent.trim();
                 ext = (name.split('.').pop() || '').toLowerCase();
@@ -109,12 +109,12 @@
 
     // Делегирование клика по документу
     document.addEventListener('click', function (e) {
-        const link = e.target.closest('.attached-file[href^="/files/"]');
+        const link = e.target.closest('.attached-file[href^="/files/"], .redactix-doc-card[href^="/view/"]');
         if (!link) return;
         if (!isOfficeFile(link)) return;
 
         // Берём file_id из href: /files/123
-        const m = link.getAttribute('href').match(/\/files\/(\d+)/);
+        const m = link.getAttribute('href').match(/\/(?:files|view)\/(\d+)/);
         if (!m) return;
 
         e.preventDefault();

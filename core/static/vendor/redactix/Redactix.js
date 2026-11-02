@@ -12,6 +12,7 @@ import List from './modules/List.js';
 import Link from './modules/Link.js';
 import Image from './modules/Image.js';
 import Gallery from './modules/Gallery.js';
+import Docs from './modules/Docs.js?v=2';
 import Video from './modules/Video.js';
 import Table from './modules/Table.js';
 import Embed from './modules/Embed.js';
@@ -95,7 +96,7 @@ export default class Redactix {
         this.elements = document.querySelectorAll(this.selector);
         this.instances = [];
         // List of module classes to connect
-        this.modulesConfig = [History, BaseStyles, BlockStyles, List, Link, Image, Gallery, Video, QuoteCard, Callout, Table, Embed, Separator, Code, Markdown, FindReplace, HtmlMode, Fullscreen, Attributes, BlockControl, BlockGap, FloatingToolbar, SlashCommands];
+        this.modulesConfig = [History, BaseStyles, BlockStyles, List, Link, Image, Gallery, Docs, Video, QuoteCard, Callout, Table, Embed, Separator, Code, Markdown, FindReplace, HtmlMode, Fullscreen, Attributes, BlockControl, BlockGap, FloatingToolbar, SlashCommands];
 
         this.init();
     }

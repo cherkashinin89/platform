@@ -37,7 +37,64 @@
     }
 
     // ============ ОТКРЫТИЕ / ЗАКРЫТИЕ ============
-    window.fmOpen = async function () {
+    // W60: загрузка файлов в текущую папку эксплорера
+    document.addEventListener('DOMContentLoaded', function () {
+        const upBtn = document.getElementById('fmUploadBtn');
+        const upInput = document.getElementById('fmUploadInput');
+        if (!upBtn || !upInput) return;
+        upBtn.addEventListener('click', () => upInput.click());
+        upInput.addEventListener('change', async () => {
+            const files = Array.from(upInput.files || []);
+            upInput.value = '';
+            if (!files.length) return;
+
+            const fd = new FormData();
+            files.forEach(f => fd.append('files', f));
+            if (state.currentFolderId) fd.append('parent_id', state.currentFolderId);
+
+            const total = files.length;
+            const origText = upBtn.textContent;
+            upBtn.disabled = true;
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/admin/api/cloud-upload', true);
+            xhr.withCredentials = true;
+
+            xhr.upload.onprogress = function (e) {
+                if (e.lengthComputable) {
+                    const pct = Math.round((e.loaded / e.total) * 100);
+                    upBtn.textContent = 'Загрузка ' + pct + '%';
+                }
+            };
+
+            xhr.onload = async function () {
+                upBtn.disabled = false;
+                upBtn.textContent = origText;
+                try {
+                    const data = JSON.parse(xhr.responseText);
+                    if (data.ok) {
+                        showToast('Загружено: ' + data.uploaded.length, 'success');
+                        await loadFolder(state.currentFolderId);
+                    } else {
+                        showToast('Ошибка: ' + (data.error || ''), 'danger');
+                    }
+                } catch (e) {
+                    showToast('Ошибка ответа сервера', 'danger');
+                }
+            };
+
+            xhr.onerror = function () {
+                upBtn.disabled = false;
+                upBtn.textContent = origText;
+                showToast('Ошибка сети', 'danger');
+            };
+
+            xhr.send(fd);
+        });
+    });
+
+    window.fmOpen = async function (onSelectCallback) {
+        window.__fmOnSelect = onSelectCallback || null;
         if (!el.overlay) {
             console.error('fmOpen: overlay не найден (партиал не подключён?)');
             return;
@@ -338,15 +395,24 @@
     // ============ ПРИКРЕПЛЕНИЕ ============
     async function attachSelected() {
         if (state.selected.size === 0) return;
+
+        const selectedItems = Array.from(state.selected.values());
+        const fileItems = selectedItems.filter(i => i.type === 'file');
+        if (fileItems.length === 0) return;
+
+        // W60: режим callback (для Docs) — вернуть файлы, не вставлять HTML
+        if (window.__fmOnSelect) {
+            const cb = window.__fmOnSelect;
+            window.__fmOnSelect = null;
+            closeModal();
+            cb(fileItems.map(i => ({ id: i.file_id, name: i.name })));
+            return;
+        }
+
         if (!window.__activeEditor) {
             showToast('Не найден активный редактор', 'danger');
             return;
         }
-
-        const selectedItems = Array.from(state.selected.values());
-        const fileItems = selectedItems.filter(i => i.type === 'file');
-
-        if (fileItems.length === 0) return;
 
         if (fileItems.length > 20) {
             if (!confirm(`Выбрано ${fileItems.length} файлов. Продолжить?`)) return;
