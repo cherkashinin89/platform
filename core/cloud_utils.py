@@ -209,6 +209,7 @@ def list_folder_items(owner_id, parent_id=None, include_trashed=False):
 SYSTEM_FOLDERS = {
     'article': 'Статьи',
     'page': 'Страницы',
+    'album': 'Альбомы',
 }
 ARCHIVE_FOLDER = '_archive'
 

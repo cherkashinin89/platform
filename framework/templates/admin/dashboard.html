@@ -320,12 +320,12 @@
                         <div class="col-6 col-md-3">
                             <a href="{{ url_for('admin_album_edit', id=album.id) }}"
                                class="text-decoration-none text-dark">
-                                {% set cover = album.cover_photo %}
-                                {% if not cover and album.photos %}
-                                    {% set cover = album.photos[0] %}
+                                {% set cover = album.cover_file %}
+                                {% if not cover and album.cloud_folder_id %}
+                                    {% set cover = album.cloud_folder.children.filter_by(is_folder=False, is_trashed=False).first() %}
                                 {% endif %}
                                 {% if cover %}
-                                    <img src="{{ url_for('serve_media', file_id=cover.file_id) }}"
+                                    <img src="{{ url_for('serve_media', file_id=cover.id) }}"
                                          class="img-fluid rounded mb-1"
                                          style="aspect-ratio: 4/3; object-fit: cover; width: 100%;"
                                          alt="{{ album.title }}">
@@ -337,7 +337,7 @@
                                 {% endif %}
                                 <small>
                                     <strong>{{ album.title }}</strong><br>
-                                    <span class="text-muted">{{ album.photos|length }} фото</span>
+                                    <span class="text-muted">{{ album.cloud_folder.children.filter_by(is_folder=False, is_trashed=False).count() if album.cloud_folder_id else 0 }} фото</span>
                                 </small>
                             </a>
                         </div>

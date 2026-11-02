@@ -32,7 +32,7 @@
 {% block footer_links %}
 <li><a href="{{ url_for('index') }}">Главная</a></li>
 <li><a href="{{ url_for('articles_list') }}">Статьи</a></li>
-<li><a href="{{ url_for('gallery_index') }}">Фотогалерея</a></li>
+<li><a href="{{ url_for('gallery_index') }}">Галерея</a></li>
 {% for node in header_menu %}
 {% set item = node.item %}
 <li><a href="{{ item.url }}">{{ item.title }}</a></li>
@@ -49,7 +49,7 @@
     <div class="fan-bg" id="fanBg">
         {% for photo in slider_photos %}
         <div class="fan-bg-image {% if loop.first %}is-active{% endif %}" data-index="{{ loop.index0 }}"
-            style="background-image: url('{{ url_for('serve_media', file_id=photo.file_id) }}');"></div>
+            style="background-image: url('{{ url_for('serve_media', file_id=photo.id) }}');"></div>
         {% endfor %}
     </div>
 
@@ -57,9 +57,9 @@
         {% for photo in slider_photos %}
         <div class="fan-slide-wrapper" style="--i: {{ loop.index0 }};">
             <div class="fan-slide" data-index="{{ loop.index0 }}">
-                <img src="{{ url_for('serve_media', file_id=photo.file_id) }}"
-                    data-thumb="{{ url_for('serve_media', file_id=photo.file_id) }}"
-                    data-full="{{ url_for('serve_media', file_id=photo.file_id) }}"
+                <img src="{{ url_for('serve_media', file_id=photo.id) }}"
+                    data-thumb="{{ url_for('serve_media', file_id=photo.id) }}"
+                    data-full="{{ url_for('serve_media', file_id=photo.id) }}"
                     alt="{{ photo.caption or site_settings.site_title }}" loading="lazy" decoding="async">
 
                 {% if photo.album %}
@@ -94,6 +94,12 @@
                 <a href="{{ url_for('articles_list') }}"
                     class="site-nav-link {% if request.endpoint == 'articles_list' %}is-active{% endif %}">
                     <i class="bi bi-file-text"></i> Статьи
+                </a>
+            </li>
+            <li class="site-nav-item">
+                <a href="{{ url_for('gallery_index') }}"
+                    class="site-nav-link {% if request.endpoint == 'gallery_index' %}is-active{% endif %}">
+                    <i class="bi bi-images"></i> Галерея
                 </a>
             </li>
             {{ render_header_menu(header_menu) }}

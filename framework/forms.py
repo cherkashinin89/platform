@@ -233,15 +233,6 @@ class AlbumForm(FlaskForm):
     submit = SubmitField('Сохранить')
 
 
-class AlbumPhotosForm(FlaskForm):
-    """Форма массового добавления фото в альбом из файлового менеджера"""
-    file_ids = SelectMultipleField(
-        'Файлы',
-        coerce=int,
-        validators=[Optional()]
-    )
-    submit = SubmitField('Добавить выбранные')
-
 
 # === НАСТРОЙКИ САЙТА ===
 

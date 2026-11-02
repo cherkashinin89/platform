@@ -1,0 +1,54 @@
+{% extends 'admin/base_admin.html' %}
+{% from '_pagination.html' import render_pagination with context %}
+{% block title %}Корзина альбомов{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">Корзина альбомов</h2>
+    <a href="{{ url_for('admin_albums') }}" class="btn btn-outline-dark">← К активным</a>
+</div>
+{% if albums %}
+<form method="post" action="{{ url_for('admin_albums_empty_trash') }}" class="mb-2"
+      onsubmit="return confirm('Очистить корзину полностью?');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn btn-danger btn-sm">Очистить корзину</button>
+</form>
+<div class="table-responsive">
+    <table class="table table-striped align-middle">
+        <thead class="table-dark">
+            <tr>
+                <th style="width:50px;">ID</th>
+                <th>Название</th>
+                <th style="width:140px;">Удалён</th>
+                <th style="width:220px;">Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in albums %}
+            <tr>
+                <td>{{ a.id }}</td>
+                <td>{{ a.title }}</td>
+                <td><small>{{ a.deleted_at.strftime('%d.%m.%Y %H:%M') if a.deleted_at else '—' }}</small></td>
+                <td>
+                    <form method="post" action="{{ url_for('admin_albums_restore_from_trash') }}" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="ids" value="{{ a.id }}">
+                        <button type="submit" class="btn btn-sm btn-success">Восстановить</button>
+                    </form>
+                    <form method="post" action="{{ url_for('admin_albums_purge') }}" class="d-inline"
+                          onsubmit="return confirm('Удалить альбом навсегда?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="ids" value="{{ a.id }}">
+                        <button type="submit" class="btn btn-sm btn-danger">Удалить</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{{ render_pagination(pagination, 'admin_albums_trash') }}
+{% else %}
+<div class="alert alert-info text-center py-4"><h5>Корзина пуста</h5>
+<a href="{{ url_for('admin_albums') }}" class="btn btn-primary">← К активным</a></div>
+{% endif %}
+{% endblock %}

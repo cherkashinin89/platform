@@ -284,15 +284,10 @@
                                        class="btn btn-sm btn-outline-primary" title="Редактировать">
                                         <i class="bi bi-pencil"></i>
                                     </a>
-                                    <form method="post"
-                                          action="{{ url_for('admin_mail_domain_delete', domain_id=item.domain.id) }}"
-                                          class="d-inline"
-                                          onsubmit="return confirm('Удалить домен {{ item.domain.name }}?');">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Удалить">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </form>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" title="Удалить"
+                                            onclick="deleteDomain({{ item.domain.id }}, '{{ item.domain.name }}');">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
                                 </div>
                             </div>
                             {% endfor %}
@@ -510,6 +505,25 @@
             }
         });
     })();
+</script>
+
+<script>
+async function deleteDomain(domainId, domainName) {
+    if (!confirm('Удалить домен ' + domainName + '?')) return;
+    try {
+        const resp = await fetch('/admin/mail/domains/' + domainId + '/delete', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': '{{ csrf_token() }}' }
+        });
+        if (resp.ok || resp.redirected) {
+            location.reload();
+        } else {
+            alert('Ошибка удаления');
+        }
+    } catch (e) {
+        alert('Ошибка сети');
+    }
+}
 </script>
 
 {% endblock %}

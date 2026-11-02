@@ -24,12 +24,15 @@
 {% if albums %}
 <div class="row g-4">
     {% for album in albums %}
-    {% set cover = album.cover_photo or (album.photos[0] if album.photos else None) %}
+    {% set cover = album.cover_file %}
+    {% if not cover and album.cloud_folder_id %}
+        {% set cover = album.cloud_folder.children.filter_by(is_folder=False, is_trashed=False).first() %}
+    {% endif %}
     <div class="col-12 col-sm-6 col-md-4 col-lg-3">
         <a href="{{ url_for('gallery_album', slug=album.slug) }}" class="album-card">
             <div class="album-card-cover">
                 {% if cover %}
-                <img src="{{ url_for('serve_media', file_id=cover.file_id) }}" alt="{{ album.title }}" loading="lazy"
+                <img src="{{ url_for('serve_media', file_id=cover.id) }}" alt="{{ album.title }}" loading="lazy"
                     decoding="async">
                 {% else %}
                 <div class="album-card-cover-empty">
@@ -39,7 +42,7 @@
 
                 {# Бейдж с количеством фото #}
                 <span class="album-card-badge">
-                    <i class="bi bi-camera"></i> {{ album.photos|length }}
+                    <i class="bi bi-camera"></i> {{ album.cloud_folder.children.filter_by(is_folder=False, is_trashed=False).count() if album.cloud_folder_id else 0 }}
                 </span>
             </div>
 

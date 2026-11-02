@@ -21,10 +21,13 @@
             {# === Обложка (уменьшенная). W3: файлы — облачные, /media/<file_id> === #}
             {% set first_album = article.albums.first() if article.albums else None %}
             {% if first_album %}
-                {% set cover_photo = first_album.cover_photo or (first_album.photos[0] if first_album.photos else None) %}
+                {% set cover_photo = first_album.cover_file %}
+                {% if not cover_photo and first_album.cloud_folder_id %}
+                    {% set cover_photo = first_album.cloud_folder.children.filter_by(is_folder=False, is_trashed=False).first() %}
+                {% endif %}
                 {% if cover_photo %}
                 <div class="recent-article-cover">
-                    <img src="{{ url_for('serve_media', file_id=cover_photo.file_id) }}"
+                    <img src="{{ url_for('serve_media', file_id=cover_photo.id) }}"
                          alt="{{ article.title }}"
                          loading="lazy"
                          decoding="async">

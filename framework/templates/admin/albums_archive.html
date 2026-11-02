@@ -1,0 +1,47 @@
+{% extends 'admin/base_admin.html' %}
+{% from '_pagination.html' import render_pagination with context %}
+{% block title %}Архив альбомов{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">Архив альбомов</h2>
+    <a href="{{ url_for('admin_albums') }}" class="btn btn-outline-dark">← К активным</a>
+</div>
+{% if albums %}
+<form method="post" action="{{ url_for('admin_albums_restore_action') }}" class="mb-2">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn btn-success btn-sm"
+            onclick="return confirm('Восстановить выбранные альбомы?');">Восстановить</button>
+<div class="table-responsive">
+    <table class="table table-striped align-middle">
+        <thead class="table-dark">
+            <tr>
+                <th style="width:40px;"><input type="checkbox" id="checkAll"></th>
+                <th style="width:50px;">ID</th>
+                <th>Название</th>
+                <th style="width:140px;">Архивирован</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in albums %}
+            <tr>
+                <td><input type="checkbox" name="ids" value="{{ a.id }}" class="checkItem"></td>
+                <td>{{ a.id }}</td>
+                <td>{{ a.title }}</td>
+                <td><small>{{ a.archived_at.strftime('%d.%m.%Y') if a.archived_at else '—' }}</small></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </form>
+</div>
+<script>
+document.getElementById('checkAll')?.addEventListener('change', function() {
+    document.querySelectorAll('.checkItem').forEach(cb => cb.checked = this.checked);
+});
+</script>
+{{ render_pagination(pagination, 'admin_albums_archive') }}
+{% else %}
+<div class="alert alert-info text-center py-4"><h5>Архив пуст</h5>
+<a href="{{ url_for('admin_albums') }}" class="btn btn-primary">← К активным</a></div>
+{% endif %}
+{% endblock %}

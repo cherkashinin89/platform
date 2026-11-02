@@ -93,7 +93,7 @@
         });
     });
 
-    window.fmOpen = async function (onSelectCallback) {
+    window.fmOpen = async function (onSelectCallback, startFolderId) {
         window.__fmOnSelect = onSelectCallback || null;
         if (!el.overlay) {
             console.error('fmOpen: overlay не найден (партиал не подключён?)');
@@ -101,7 +101,7 @@
         }
         // Сброс состояния при открытии
         state.selected.clear();
-        state.currentFolderId = null;
+        state.currentFolderId = startFolderId || null;
         updateCounter();
         renderTilesEmpty('Загрузка…');
 
@@ -111,7 +111,7 @@
         // Сначала загружаем дерево (нужно для папок в корне),
         // потом — содержимое корня
         await loadTree();
-        await loadFolder(null);
+        await loadFolder(state.currentFolderId || null);
     };
 
     function closeModal() {

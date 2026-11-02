@@ -33,12 +33,10 @@
     <div class="col-6 col-md-4 col-lg-3">
         {# W3: фото альбома — облачный файл, /media/<file_id> #}
         <div class="album-photo">
-            <img src="{{ url_for('serve_media', file_id=p.file_id) }}"
-                data-full="{{ url_for('serve_media', file_id=p.file_id) }}" data-lightbox
-                alt="{{ p.caption or album.title }}" loading="lazy" decoding="async">
-            {% if p.caption %}
-            <div class="album-photo-caption">{{ p.caption }}</div>
-            {% endif %}
+            <img src="{{ url_for('serve_media', file_id=p.id) }}"
+                data-full="{{ url_for('serve_media', file_id=p.id) }}" data-lightbox
+                alt="{{ p.name or album.title }}" loading="lazy" decoding="async">
+
         </div>
     </div>
     {% endfor %}

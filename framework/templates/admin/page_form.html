@@ -172,6 +172,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='shared/css/content.css') }}">
 {% if page %}
 <input type="hidden" id="redactix-page-id" value="{{ page.id }}">
+<input type="hidden" id="redactix-folder-id" value="{{ page.cloud_folder_id or '' }}">
 {% endif %}
 <link rel="stylesheet" href="{{ url_for('static', filename='shared/vendor/redactix/Redactix.css') }}">
 <script type="module">

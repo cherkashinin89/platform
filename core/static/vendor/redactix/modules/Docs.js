@@ -80,6 +80,8 @@ export default class Docs extends Module {
             alert('Модалка облака недоступна');
             return;
         }
+        const folderEl = document.getElementById('redactix-folder-id');
+        const startFolder = folderEl ? parseInt(folderEl.value, 10) || null : null;
         window.fmOpen(async (files) => {
             const ctxQuery = (this.uploadUrl.split('?')[1]) || '';
             const items = [];
@@ -98,7 +100,7 @@ export default class Docs extends Module {
                 this.insertFigure(items);
             }
             this.instance.sync();
-        });
+        }, startFolder);
     }
 
     readFigure(figure) {

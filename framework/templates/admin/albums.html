@@ -6,17 +6,27 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 class="mb-0"><i class="bi bi-images"></i> Альбомы</h2>
-    <a href="{{ url_for('admin_album_create') }}" class="btn btn-primary">
-        <i class="bi bi-plus-lg"></i> Создать альбом
-    </a>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('admin_albums_archive') }}" class="btn btn-outline-dark">Архив</a>
+        <a href="{{ url_for('admin_albums_trash') }}" class="btn btn-outline-danger">Корзина</a>
+        <a href="{{ url_for('admin_album_create') }}" class="btn btn-primary">
+            <i class="bi bi-plus-lg"></i> Создать альбом
+        </a>
+    </div>
 </div>
 
 {% if albums %}
 <div class="table-responsive">
+    <form method="post" action="{{ url_for('admin_albums_archive_action') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="mb-2">
+        <button type="submit" class="btn btn-warning btn-sm"
+                onclick="return confirm('Отправить выбранные альбомы в архив?');">В архив</button>
+    </div>
     <table class="table table-striped align-middle">
         <thead class="table-dark">
             <tr>
-                <th style="width: 40px;"></th>
+                <th style="width: 40px;"><input type="checkbox" id="checkAll"></th>
                 <th style="width: 80px;">Обложка</th>
                 <th>Название</th>
                 <th style="width: 200px;">Slug</th>
@@ -25,18 +35,17 @@
                 <th style="width: 180px;">Действия</th>
             </tr>
         </thead>
-        <tbody id="albumsSortable">
+        <tbody>
             {% for album in albums %}
-            <tr data-album-id="{{ album.id }}">
-                <td class="text-muted text-center">
-                    <i class="bi bi-grip-vertical" style="cursor: grab; font-size: 1.2rem;"
-                        title="Перетащите, чтобы изменить порядок"></i>
-                </td>
+            <tr>
+                <td><input type="checkbox" name="ids" value="{{ album.id }}" class="checkItem"></td>
                 <td>
-                    {% set cover = album.cover_photo or (album.photos[0] if album.photos else None) %}
+                    {% set cover = album.cover_file %}
+                    {% if not cover and album.cloud_folder_id %}
+                        {% set cover = album.cloud_folder.children.filter_by(is_folder=False, is_trashed=False).first() %}
+                    {% endif %}
                     {% if cover %}
-                    {# W3: обложка — облачный файл, /media/<file_id> #}
-                    <img src="{{ url_for('serve_media', file_id=cover.file_id) }}"
+                    <img src="{{ url_for('serve_media', file_id=cover.id) }}"
                         style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px;" alt="" loading="lazy">
                     {% else %}
                     <div class="bg-light d-flex align-items-center justify-content-center"
@@ -47,7 +56,10 @@
                 </td>
                 <td><strong>{{ album.title }}</strong></td>
                 <td><code>{{ album.slug }}</code></td>
-                <td><span class="badge bg-info text-dark">{{ album.photos|length }}</span></td>
+                <td>
+                    {% set cnt = album.cloud_folder.children.filter_by(is_folder=False, is_trashed=False).count() if album.cloud_folder_id else 0 %}
+                    <span class="badge bg-info text-dark">{{ cnt }}</span>
+                </td>
                 <td>
                     {% if album.is_published %}
                     <span class="badge bg-success">Опубликован</span>
@@ -63,24 +75,23 @@
                         class="btn btn-sm btn-outline-secondary">
                         <i class="bi bi-eye"></i>
                     </a>
-                    <form method="POST" action="{{ url_for('admin_album_delete', id=album.id) }}" class="d-inline"
-                        onsubmit="return confirm('Удалить альбом «{{ album.title }}»? Файлы в uploads/ останутся.');">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <button type="submit" class="btn btn-sm btn-outline-danger">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </form>
+                    <button type="submit" class="btn btn-sm btn-outline-danger"
+                            formaction="{{ url_for('admin_album_delete', id=album.id) }}"
+                            onclick="return confirm('Удалить альбом «{{ album.title }}»? Папка уйдёт в корзину облака.');">
+                        <i class="bi bi-trash"></i>
+                    </button>
                 </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
+    </form>
 </div>
-
-<small class="text-muted d-block mb-3">
-    <i class="bi bi-info-circle"></i> Перетаскивайте строки за <i class="bi bi-grip-vertical"></i>, чтобы изменить
-    порядок альбомов на публичной галерее.
-</small>
+<script>
+document.getElementById('checkAll')?.addEventListener('change', function() {
+    document.querySelectorAll('.checkItem').forEach(cb => cb.checked = this.checked);
+});
+</script>
 
 {{ render_pagination(pagination, 'admin_albums') }}
 {% else %}

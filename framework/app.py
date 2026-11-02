@@ -14,7 +14,7 @@ from jinja2 import ChoiceLoader, FileSystemLoader
 from config import Config
 from forms import (
     LoginForm, UserForm, ArticleForm, PageForm, MenuItemForm,
-    UploadFileForm, ArchiveForm, AlbumForm, AlbumPhotosForm,
+    UploadFileForm, ArchiveForm, AlbumForm,
     SiteSettingsForm
 )
 from search_service import (
@@ -1094,6 +1094,7 @@ def create_app(config_class=Config):
         """Возвращает (kind, content_obj, folder) по query-параметрам."""
         article_id = request.args.get('article_id', type=int)
         page_id = request.args.get('page_id', type=int)
+        album_id = request.args.get('album_id', type=int)
         if article_id:
             obj = Article.query.get(article_id)
             if obj and obj.cloud_folder_id:
@@ -1102,6 +1103,10 @@ def create_app(config_class=Config):
             obj = Page.query.get(page_id)
             if obj and obj.cloud_folder_id:
                 return 'page', obj, CloudFile.query.get(obj.cloud_folder_id)
+        elif album_id:
+            obj = Album.query.get(album_id)
+            if obj and obj.cloud_folder_id:
+                return 'album', obj, CloudFile.query.get(obj.cloud_folder_id)
         return None, None, None
 
     @app.route('/admin/redactix/upload', methods=['POST'])
@@ -3742,10 +3747,15 @@ def create_app(config_class=Config):
 
     @app.route('/gallery/<slug>')
     def gallery_album(slug):
-        """Страница альбома с миниатюрами и каруселью"""
-        album = Album.query.filter_by(slug=slug, is_published=True).first_or_404()
+        """W25: страница альбома — файлы папки альбома."""
+        album = Album.query.filter_by(slug=slug, is_published=True,
+                                      archived_at=None, deleted_at=None).first_or_404()
 
-        photos = album.photos  # уже отсортированы по order
+        photos = []
+        if album.cloud_folder_id:
+            photos = CloudFile.query.filter_by(
+                parent_id=album.cloud_folder_id, is_folder=False, is_trashed=False,
+            ).order_by(CloudFile.name).all()
 
         header_menu = MenuItem.query.filter_by(position='header', parent_id=None)\
             .order_by(MenuItem.order).all()
@@ -3767,6 +3777,7 @@ def create_app(config_class=Config):
 
         pagination = (
             Album.query
+            .filter(Album.deleted_at.is_(None), Album.archived_at.is_(None))
             .order_by(Album.order.asc(), Album.created_at.desc())
             .paginate(page=page, per_page=per_page, error_out=False)
         )
@@ -3775,76 +3786,172 @@ def create_app(config_class=Config):
                                pagination=pagination,
                                albums=pagination.items)
 
+    @app.route('/admin/albums/archive')
+    @login_required
+    @editor_required
+    def admin_albums_archive():
+        """W25: архивные альбомы."""
+        page = get_page()
+        per_page = app.config.get('ALBUMS_PER_PAGE', 12)
+        query = Album.query.filter(Album.archived_at.isnot(None), Album.deleted_at.is_(None))
+        pagination = query.order_by(Album.archived_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
+        return render_template('admin/albums_archive.html', pagination=pagination, albums=pagination.items)
+
+    @app.route('/admin/albums/archive-action', methods=['POST'])
+    @login_required
+    @editor_required
+    def admin_albums_archive_action():
+        """W25: массовая архивация альбомов."""
+        from core.cloud_utils import archive_content_folder
+        from datetime import datetime
+        ids = request.form.getlist('ids', type=int)
+        count = 0
+        for aid in ids:
+            a = Album.query.get(aid)
+            if not a or a.archived_at:
+                continue
+            if a.cloud_folder_id:
+                folder = CloudFile.query.get(a.cloud_folder_id)
+                if folder:
+                    archive_content_folder(current_user.id, 'album', folder)
+            a.archived_at = datetime.utcnow()
+            count += 1
+        db.session.commit()
+        flash(f'В архив отправлено: {count}', 'success')
+        return redirect(url_for('admin_albums'))
+
+    @app.route('/admin/albums/restore-action', methods=['POST'])
+    @login_required
+    @editor_required
+    def admin_albums_restore_action():
+        """W25: восстановление альбомов из архива."""
+        from core.cloud_utils import restore_content_folder
+        ids = request.form.getlist('ids', type=int)
+        count = 0
+        for aid in ids:
+            a = Album.query.get(aid)
+            if not a or not a.archived_at:
+                continue
+            if a.cloud_folder_id:
+                folder = CloudFile.query.get(a.cloud_folder_id)
+                if folder:
+                    restore_content_folder(current_user.id, 'album', folder)
+            a.archived_at = None
+            count += 1
+        db.session.commit()
+        flash(f'Восстановлено из архива: {count}', 'success')
+        return redirect(url_for('admin_albums_archive'))
+
+    @app.route('/admin/albums/trash')
+    @login_required
+    @editor_required
+    def admin_albums_trash():
+        """W25: корзина альбомов."""
+        page = get_page()
+        per_page = app.config.get('ALBUMS_PER_PAGE', 12)
+        query = Album.query.filter(Album.deleted_at.isnot(None))
+        pagination = query.order_by(Album.deleted_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
+        return render_template('admin/albums_trash.html', pagination=pagination, albums=pagination.items)
+
+    @app.route('/admin/albums/restore-from-trash', methods=['POST'])
+    @login_required
+    @editor_required
+    def admin_albums_restore_from_trash():
+        """W25: восстановление альбомов из корзины."""
+        ids = request.form.getlist('ids', type=int)
+        count = 0
+        for aid in ids:
+            a = Album.query.get(aid)
+            if not a or not a.deleted_at:
+                continue
+            if a.cloud_folder_id:
+                folder = CloudFile.query.get(a.cloud_folder_id)
+                if folder:
+                    folder.is_trashed = False
+                    folder.trashed_at = None
+                    folder.name = a.title
+                    root = CloudFile.query.filter_by(
+                        owner_id=folder.owner_id, name='Альбомы', is_folder=True, parent_id=None
+                    ).first()
+                    if root:
+                        folder.parent_id = root.id
+            a.deleted_at = None
+            count += 1
+        db.session.commit()
+        flash(f'Восстановлено из корзины: {count}', 'success')
+        return redirect(url_for('admin_albums_trash'))
+
+    @app.route('/admin/albums/purge', methods=['POST'])
+    @login_required
+    @editor_required
+    def admin_albums_purge():
+        """W25: удалить альбом навсегда (из корзины)."""
+        ids = request.form.getlist('ids', type=int)
+        count = 0
+        for aid in ids:
+            a = Album.query.get(aid)
+            if not a or not a.deleted_at:
+                continue
+            if a.cloud_folder_id:
+                folder = CloudFile.query.get(a.cloud_folder_id)
+                if folder:
+                    _purge_cloud_folder(folder)
+            db.session.delete(a)
+            count += 1
+        db.session.commit()
+        flash(f'Удалено навсегда: {count}', 'warning')
+        return redirect(url_for('admin_albums_trash'))
+
+    @app.route('/admin/albums/empty-trash', methods=['POST'])
+    @login_required
+    @editor_required
+    def admin_albums_empty_trash():
+        """W25: очистить корзину альбомов."""
+        albums = Album.query.filter(Album.deleted_at.isnot(None)).all()
+        count = 0
+        for a in albums:
+            if a.cloud_folder_id:
+                folder = CloudFile.query.get(a.cloud_folder_id)
+                if folder:
+                    _purge_cloud_folder(folder)
+            db.session.delete(a)
+            count += 1
+        db.session.commit()
+        flash(f'Корзина очищена: {count}', 'warning')
+        return redirect(url_for('admin_albums_trash'))
+
     @app.route('/admin/albums/create', methods=['GET', 'POST'])
     @login_required
     @editor_required
     def admin_album_create():
-        """Создание альбома"""
-        form = AlbumForm()
+        """W25: «Создать альбом» сразу создаёт черновик + папку → edit."""
+        from core.cloud_utils import ensure_content_folder
+        from datetime import datetime
 
-        if form.validate_on_submit():
-            slug = (form.slug.data or '').strip()
+        album = Album(title='untitled', slug='untitled', description=None,
+                      is_published=False, order=0, author_id=current_user.id)
+        db.session.add(album)
+        db.session.flush()
 
-            if slug:
-                # Пользователь ввёл slug вручную — проверяем уникальность
-                existing = Album.query.filter_by(slug=slug).first()
-                if existing:
-                    flash('Альбом с таким URL уже существует!', 'danger')
-                    return render_template(
-                        'admin/album_form.html',
-                        form=form,
-                        title='Создание альбома',
-                    )
-            else:
-                # Автогенерация
-                slug = slugify(form.title.data, allow_cyrillic=True)
-                slug = unique_slug(Album, slug)
+        title = f'untitled_{album.id}_{datetime.utcnow().strftime("%d.%m.%y")}'
+        album.title = title
+        album.slug = f'untitled-{album.id}-{datetime.utcnow().strftime("%d-%m-%y")}'
+        folder = ensure_content_folder(current_user.id, 'album', title, album.id)
+        album.cloud_folder_id = folder.id
+        db.session.commit()
 
-            album = Album(
-                title=form.title.data,
-                slug=slug,
-                description=form.description.data,
-                is_published=form.is_published.data,
-                order=form.order.data or 0,
-            )
-            db.session.add(album)
-            db.session.commit()
-
-            flash(f'Альбом «{album.title}» создан. Добавьте в него фотографии.', 'success')
-            return redirect(url_for('admin_album_edit', id=album.id))
-
-        return render_template('admin/album_form.html',
-                               form=form, title='Создание альбома')
+        flash('Черновик альбома создан. Заполните название и добавьте фото.', 'info')
+        return redirect(url_for('admin_album_edit', id=album.id))
 
     @app.route('/admin/albums/<int:id>/edit', methods=['GET', 'POST'])
     @login_required
     @editor_required
     def admin_album_edit(id):
-        """Редактирование альбома + управление фотографиями"""
+        """W25: редактирование альбома (папка = фото)."""
+        from core.cloud_utils import rename_content_folder
         album = Album.query.get_or_404(id)
         form = AlbumForm(obj=album)
-        photos_form = AlbumPhotosForm()
 
-        # - изображения из облака.
-        # - редактор видит только свои;
-        # - админ видит все (для модерации).
-        if current_user.is_admin:
-            image_files = (
-                CloudFile.query
-                .filter_by(is_folder=False, is_trashed=False)
-                .filter(CloudFile.mime_type.like('image/%'))
-                .order_by(CloudFile.created_at.desc())
-                .all()
-            )
-        else:
-            image_files = list_cloud_files(
-                owner_id=current_user.id,
-                file_type='image',
-                include_trashed=False,
-            )
-        photos_form.file_ids.choices = [(f.id, f.name) for f in image_files]
-
-        # === ВЕТКА 1: сохранение свойств альбома ===
         if 'save_album' in request.form:
             if not form.validate_on_submit():
                 for errors in form.errors.values():
@@ -3852,220 +3959,104 @@ def create_app(config_class=Config):
                         flash(e, 'danger')
                 return redirect(url_for('admin_album_edit', id=album.id))
 
-            slug = (form.slug.data or '').strip()
-
-            if slug:
-                # Пользователь ввёл slug вручную — проверяем уникальность
-                existing = Album.query.filter(
-                    Album.slug == slug,
-                    Album.id != album.id,
-                ).first()
-                if existing:
-                    flash('Альбом с таким URL уже существует!', 'danger')
-                    return redirect(url_for('admin_album_edit', id=album.id))
-            else:
-                # Автогенерация
-                slug = slugify(form.title.data, allow_cyrillic=True)
-                slug = unique_slug(Album, slug, exclude_id=album.id)
-
+            old_title = album.title
             album.title = form.title.data
-            album.slug = slug
             album.description = form.description.data
-            album.is_published = form.is_published.data
-            album.order = form.order.data or 0
+            # slug генерится из title (если title изменился или slug пуст)
+            new_slug = slugify(album.title, allow_cyrillic=True)
+            album.slug = unique_slug(Album, new_slug, exclude_id=album.id)
+
+            if album.cloud_folder_id and old_title != album.title:
+                folder = CloudFile.query.get(album.cloud_folder_id)
+                if folder:
+                    rename_content_folder(folder, album.title)
+
             db.session.commit()
             flash('Альбом обновлён.', 'success')
             return redirect(url_for('admin_album_edit', id=album.id))
 
-        # === ВЕТКА 2: добавление фотографий ===
-        if 'add_photos' in request.form:
-            # CSRF-проверка через photos_form
-            if not photos_form.validate_on_submit():
-                for errors in photos_form.errors.values():
-                    for e in errors:
-                        flash(e, 'danger')
-                return redirect(url_for('admin_album_edit', id=album.id))
-
-            selected = photos_form.file_ids.data or []
-            if not selected:
-                flash('Не выбрано ни одного файла.', 'warning')
-                return redirect(url_for('admin_album_edit', id=album.id))
-
-            added = 0
-            # Текущий максимальный order
-            max_order = (
-                db.session.query(db.func.max(Photo.order))
-                .filter_by(album_id=album.id)
-                .scalar()
-            ) or 0
-
-            added_file_ids = []
-            for fid in selected:
-                # Не добавлять повторно тот же файл
-                if Photo.query.filter_by(album_id=album.id, file_id=fid).first():
-                    continue
-                max_order += 1
-                db.session.add(Photo(
-                    album_id=album.id,
-                    file_id=fid,
-                    order=max_order
-                ))
-                added_file_ids.append(fid)
-                added += 1
-
+        # Публикация
+        if 'publish_album' in request.form:
+            album.is_published = not album.is_published
             db.session.commit()
-
-            db.session.commit()
-
-            # W3: если у альбома ещё нет обложки — ставим первое фото по order
-            if not album.cover_photo_id and added_file_ids:
-                first_photo = (
-                    Photo.query
-                    .filter_by(album_id=album.id)
-                    .order_by(Photo.order)
-                    .first()
-                )
-                if first_photo:
-                    album.cover_photo_id = first_photo.id
-                    db.session.commit()
-
-            # W3: регистрируем использование файлов в альбоме
-            try:
-                register_album_photos(album.id, added_file_ids, current_user.id)
-                db.session.commit()
-            except Exception as e:
-                db.session.rollback()
-                current_app.logger.warning(
-                    f'register_album_photos failed: {e}'
-                )
-
-            if added:
-                flash(f'Добавлено фотографий: {added}.', 'success')
-            else:
-                flash('Все выбранные файлы уже есть в альбоме.', 'info')
+            flash('Альбом ' + ('опубликован.' if album.is_published else 'снят с публикации.'), 'success')
             return redirect(url_for('admin_album_edit', id=album.id))
 
-        # === GET-запрос или POST без явных кнопок ===
+        # GET
+        # сброс slug/order в форме (не показываем/не валидируем)
+        form.slug.data = ''
+        form.order.data = 0
+        form.is_published.data = album.is_published
+
+        files = []
+        if album.cloud_folder_id:
+            files = CloudFile.query.filter_by(
+                parent_id=album.cloud_folder_id, is_folder=False, is_trashed=False,
+            ).order_by(CloudFile.name).all()
+        featured_ids = {f.file_id for f in SliderFeature.query.all()}
+
         return render_template('admin/album_form.html',
-                               form=form,
-                               photos_form=photos_form,
-                               album=album,
-                               image_files=image_files,
+                               form=form, album=album, files=files,
+                               featured_ids=featured_ids,
                                title=f'Редактирование: {album.title}')
 
     @app.route('/admin/albums/<int:id>/delete', methods=['POST'])
     @login_required
     def admin_album_delete(id):
-        """Удаление альбома (облачные файлы остаются в облаке)"""
+        """W25: альбом в корзину (папка → корзина облака)."""
+        from core.cloud_utils import trash_content_folder
+        from datetime import datetime
         album = Album.query.get_or_404(id)
         title = album.title
-
-        # W3: снимаем реестр использования файлов
-        try:
-            unregister_file_usages('album', album.id)
-        except Exception as e:
-            current_app.logger.warning(
-                f'unregister_file_usages (album delete) failed: {e}'
-            )
-
-        db.session.delete(album)
+        if album.cloud_folder_id:
+            folder = CloudFile.query.get(album.cloud_folder_id)
+            if folder:
+                trash_content_folder(folder, 'album', title=album.title)
+        album.deleted_at = datetime.utcnow()
         db.session.commit()
-        flash(f'Альбом «{title}» удалён.', 'info')
+        flash(f'Альбом «{title}» перемещён в корзину.', 'info')
         return redirect(url_for('admin_albums'))
 
-    @app.route('/admin/albums/<int:album_id>/photos/<int:photo_id>/delete', methods=['POST'])
+    @app.route('/admin/albums/<int:album_id>/cover/<int:file_id>', methods=['POST'])
     @login_required
-    def admin_album_photo_delete(album_id, photo_id):
-        """Удаление фото из альбома (облачный файл остаётся в облаке)"""
-        photo = Photo.query.filter_by(id=photo_id, album_id=album_id).first_or_404()
-        file_id = photo.file_id
-
-        db.session.delete(photo)
-        db.session.commit()
-
-        # W3: снимаем FileUsage для этого файла в этом альбоме
-        try:
-            FileUsage.query.filter_by(
-                file_id=file_id,
-                entity_type='album',
-                entity_id=album_id,
-            ).delete(synchronize_session=False)
-            db.session.commit()
-        except Exception as e:
-            db.session.rollback()
-            current_app.logger.warning(
-                f'FileUsage cleanup (album photo delete) failed: {e}'
-            )
-
-        flash('Фотография удалена из альбома.', 'info')
-        return redirect(url_for('admin_album_edit', id=album_id))
-
-    @app.route('/admin/albums/<int:album_id>/cover/<int:photo_id>', methods=['POST'])
-    @login_required
-    def admin_album_set_cover(album_id, photo_id):
-        """
-        W3: звезда — сделать фото обложкой И отправить в слайдер.
-        Повторный клик по тому же фото — снять с обложки и из слайдера.
-        Лимит слайдера — 10 фото; при превышении самое старое
-        (по added_at) вытесняется.
-        """
+    def admin_album_set_cover(album_id, file_id):
+        """W25: ★ — обложка + слайдер (файл), лимит 10."""
+        from datetime import datetime
         album = Album.query.get_or_404(album_id)
-        photo = Photo.query.filter_by(id=photo_id, album_id=album_id).first_or_404()
+        f = CloudFile.query.get_or_404(file_id)
+        if album.cloud_folder_id and f.parent_id != album.cloud_folder_id:
+            flash('Файл не из папки альбома.', 'warning')
+            return redirect(url_for('admin_album_edit', id=album_id))
 
-        # === Снятие (повторный клик) ===
-        if photo.is_featured:
-            photo.is_featured = False
-            first = (
-                Photo.query
-                .filter_by(album_id=album_id)
-                .order_by(Photo.order)
-                .first()
-            )
-            album.cover_photo_id = first.id if first else None
+        existing = SliderFeature.query.filter_by(file_id=f.id).first()
+        if existing:
+            db.session.delete(existing)
+            if album.cover_file_id == f.id:
+                first = CloudFile.query.filter_by(
+                    parent_id=album.cloud_folder_id, is_folder=False, is_trashed=False,
+                ).order_by(CloudFile.name).first()
+                album.cover_file_id = first.id if first else None
             db.session.commit()
             flash('Фото убрано из слайдера.', 'info')
             return redirect(url_for('admin_album_edit', id=album_id))
 
-        # === Установка ===
-        featured_count = Photo.query.filter_by(is_featured=True).count()
-        if featured_count >= 10:
-            oldest = (
-                Photo.query
-                .filter_by(is_featured=True)
-                .order_by(Photo.added_at.asc())
-                .first()
-            )
+        count = SliderFeature.query.count()
+        if count >= 10:
+            oldest = SliderFeature.query.order_by(SliderFeature.added_at.asc()).first()
             if oldest:
-                oldest.is_featured = False
-                if oldest.album.cover_photo_id == oldest.id:
-                    first_in_album = (
-                        Photo.query
-                        .filter_by(album_id=oldest.album_id)
-                        .order_by(Photo.order)
-                        .first()
-                    )
-                    oldest.album.cover_photo_id = (
-                        first_in_album.id if first_in_album else None
-                    )
+                for alb in Album.query.filter_by(cover_file_id=oldest.file_id).all():
+                    first = CloudFile.query.filter_by(
+                        parent_id=alb.cloud_folder_id, is_folder=False, is_trashed=False,
+                    ).order_by(CloudFile.name).first()
+                    alb.cover_file_id = first.id if first else None
+                db.session.delete(oldest)
 
-        photo.is_featured = True
-        album.cover_photo_id = photo.id
+        db.session.add(SliderFeature(file_id=f.id, added_by_id=current_user.id,
+                                     added_at=datetime.utcnow()))
+        album.cover_file_id = f.id
         db.session.commit()
         flash('Фото стало обложкой и добавлено в слайдер.', 'success')
         return redirect(url_for('admin_album_edit', id=album_id))
-
-    @app.route('/admin/albums/<int:album_id>/reorder', methods=['POST'])
-    @login_required
-    def admin_album_reorder(album_id):
-        """Сохранение нового порядка фото (перетаскивание, JSON)"""
-        data = request.get_json(silent=True) or {}
-        order_list = data.get('order', [])
-        for idx, photo_id in enumerate(order_list):
-            photo = Photo.query.filter_by(id=photo_id, album_id=album_id).first()
-            if photo:
-                photo.order = idx
-        db.session.commit()
-        return jsonify({'ok': True})
 
     # --- API для редактора (TinyMCE) ---
 
@@ -4723,59 +4714,6 @@ def create_app(config_class=Config):
             return {'slider_photos': []}   
 
 
-    @app.route('/admin/albums/reorder', methods=['POST'])
-    @login_required
-    @editor_required
-    def admin_albums_reorder():
-        """Сохранение нового порядка альбомов (JSON)"""
-        data = request.get_json(silent=True) or {}
-        order_list = data.get('order', [])
-
-        if not isinstance(order_list, list):
-            return jsonify({'ok': False, 'error': 'Неверный формат'}), 400
-
-        for idx, album_id in enumerate(order_list):
-            album = Album.query.get(album_id)
-            if album:
-                album.order = idx
-
-        db.session.commit()
-        return jsonify({'ok': True, 'count': len(order_list)})  
-
-    @app.context_processor
-    def inject_menus():
-        """Передаёт меню во все шаблоны автоматически."""
-        try:
-            header_all = (
-                MenuItem.query
-                .filter_by(position='header')
-                .order_by(MenuItem.order)
-                .all()
-            )
-            sidebar_all = (
-                MenuItem.query
-                .filter_by(position='sidebar')
-                .order_by(MenuItem.order)
-                .all()
-            )
-
-            # Дерево для верхнего меню
-            header_menu_tree = _build_menu_tree(header_all)
-            sidebar_menu_tree = _build_menu_tree(sidebar_all)
-
-            return {
-                'header_menu': header_menu_tree,
-                'sidebar_menu': sidebar_menu_tree,
-            }
-        except Exception as e:
-            app.logger.warning(f'inject_menus: {e}')
-            return {'header_menu': [], 'sidebar_menu': []}
-
-    @app.context_processor
-    def inject_now():
-        """Передаёт текущий год в шаблоны"""
-        from datetime import datetime
-        return {'now': datetime.now}
 
     @app.route('/admin/settings/restart', methods=['POST'])
     @login_required
