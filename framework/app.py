@@ -1161,6 +1161,63 @@ def create_app(config_class=Config):
             src = url_for('serve_media', file_id=cf.id)
         return jsonify({'success': True, 'src': src, 'srcset': '', 'alt': f.filename, 'title': ''})
 
+    @app.route('/admin/redactix/copy', methods=['POST'])
+    @csrf.exempt
+    @login_required
+    @editor_required
+    def admin_redactix_copy():
+        """
+        W60: копирование файла из облака в папку статьи/страницы.
+        Контекст: ?article_id= или ?page_id=. Параметр: file_id.
+        Если файл уже в папке — возвращает его (без копии).
+        Ответ: {success, file_id, src, name, size, mime}.
+        """
+        import os, shutil
+        from core.file_utils import make_stored_name
+        from core.cloud_utils import cloud_data_root
+
+        kind, obj, folder = _redactix_context()
+        if not folder:
+            return jsonify({'success': False, 'error': 'Не найден контекст'}), 400
+
+        file_id = request.form.get('file_id', type=int)
+        if not file_id:
+            return jsonify({'success': False, 'error': 'file_id не передан'}), 400
+
+        src_file = CloudFile.query.get(file_id)
+        if not src_file or src_file.is_folder or src_file.owner_id != current_user.id:
+            return jsonify({'success': False, 'error': 'Файл не найден'}), 404
+
+        # Уже в папке статьи — не копируем
+        if src_file.parent_id == folder.id:
+            return jsonify({'success': True, 'file_id': src_file.id,
+                            'src': url_for('serve_media', file_id=src_file.id),
+                            'name': src_file.name, 'size': src_file.size,
+                            'mime': src_file.mime_type})
+
+        # Копируем физически
+        user_dir = os.path.join(cloud_data_root(), str(current_user.id))
+        os.makedirs(user_dir, exist_ok=True)
+        src_path = os.path.join(user_dir, src_file.stored_name) if src_file.stored_name else None
+        if not src_path or not os.path.exists(src_path):
+            return jsonify({'success': False, 'error': 'Физический файл не найден'}), 404
+
+        new_stored = make_stored_name(src_file.name)
+        dst_path = os.path.join(user_dir, new_stored)
+        shutil.copy2(src_path, dst_path)
+
+        cf = CloudFile(
+            owner_id=current_user.id, parent_id=folder.id, name=src_file.name,
+            is_folder=False, stored_name=new_stored,
+            size=os.path.getsize(dst_path), mime_type=src_file.mime_type,
+        )
+        db.session.add(cf)
+        db.session.commit()
+
+        return jsonify({'success': True, 'file_id': cf.id,
+                        'src': url_for('serve_media', file_id=cf.id),
+                        'name': cf.name, 'size': cf.size, 'mime': cf.mime_type})
+
     @app.route('/admin/redactix/browse', methods=['POST'])
     @csrf.exempt
     @login_required
