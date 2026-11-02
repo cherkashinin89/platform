@@ -77,19 +77,20 @@ framework/cloud берут окружение из /home/deploy/apps/platform/.e
 
 ### 5.2. Контент и медиа
 
-- **Article** — title, content, summary, is_published, archived_at (W3).
-- **Page** — title, slug (unique), content.
+- **Article** — title, content, summary, is_published, archived_at, deleted_at (W60), cloud_folder_id (папка `Статьи/<имя>`).
+- **Page** — title, slug (unique), content, archived_at, deleted_at (W60), cloud_folder_id (папка `Страницы/<имя>`).
 - **MenuItem** — title, url, order, position (header/sidebar/footer), parent_id, page_id (one-to-one со страницей).
 - **UploadedFile** — системные файлы (лого, favicon): original_name, stored_name, mime_type, file_type, size, thumbnail_name.
-- **Album** — title, slug, cover_photo_id, is_published, order; M2M со статьями.
-- **Photo** — album_id, file_id (CloudFile), caption, order, is_featured (слайдер шапки).
-- **SiteSettings** — синглтон: site_title/subtitle/description/keywords; base_url сайта/облака/почты/collabora; показ header/sidebar/footer; тема; лого/favicon; слайдер; архивация статей (W3).
+- **Album** (W25) — title, slug, description, author_id, cloud_folder_id (папка `Альбомы/<имя>`), cover_file_id, is_published, order, archived_at, deleted_at; M2M со статьями.
+- **SliderFeature** (W25) — file_id (unique), added_by_id, added_at. ★ на фото (обложка + слайдер, лимит 10).
+- **SiteSettings** — синглтон: site_title/subtitle/description/keywords; base_url сайта/облака/почты/collabora; показ header/sidebar/footer; тема; лого/favicon; слайдер.
 
 ### 5.3. Облако
 
 - **CloudFile** — owner_id, parent_id, name, is_folder, stored_name, size, mime_type, is_trashed, trashed_at. Дерево папок (children).
 - **CloudShare** — token (unique), file_id, created_by_id, expires_at, password_hash, download_count, max_downloads, can_edit (W48), is_public (W35). Методы is_expired, set_password/check_password.
 - **ContentFile** (W58) — file_id, target_type (article/page), target_id. Замена ShareAttach; unique (file_id, target_type, target_id).
+- **Системные папки** (W60/W25): `Статьи`, `Страницы`, `Альбомы` (в корне облака) + `_archive` (архив). Связь через `cloud_folder_id` у Article/Page/Album.
 - **WopiToken** (W48) — token, file_id, user_id, share_id, can_write, expires_at. Токен доступа Collabora.
 - **CloudFileVersion** (W48) — file_id, stored_name, size, created_by_id, created_at. История версий файла.
 
@@ -119,7 +120,9 @@ framework/cloud берут окружение из /home/deploy/apps/platform/.e
 - Аутентификация: /login, /logout, /whoami.
 - Админка: /admin/* (статьи, страницы, меню, файлы, альбомы, настройки, пользователи, бэкапы).
 - Шары и файлы: /s/<token> (просмотр), /s/<token>/auth (пароль, W35), /s/<token>/download[/<file_id>], /files/<id> (X-Accel), /view/<id> (read-only, W59), /collabora (редактор).
-- Служебное: /uploads/, /attached, /media, /shares.
+- Служебное: /uploads/, /media, /shares.
+- Redactix (W60): /admin/redactix/upload (загрузка в папку статьи/страницы/альбома), /admin/redactix/browse (список файлов папки), /admin/redactix/copy (копирование из облака в папку). Контекст: ?article_id=, ?page_id=, ?album_id=.
+- Эксплорер: /admin/api/cloud-tree, /admin/api/cloud-folder/<id>, /admin/api/cloud-files, /admin/api/cloud-upload (загрузка в папку).
 
 ### 6.2. cloud
 
@@ -127,6 +130,7 @@ framework/cloud берут окружение из /home/deploy/apps/platform/.e
 - Шары (публичное): /s/<token>.
 - WOPI: /wopi/files/<id>[/contents] (CheckFileInfo/GetFile/PutFile), /api/wopi-token/<id>.
 - Internal API: /api/internal-share/<file_id> (X-Internal-Key, от framework — прикрепление файлов к статьям).
+- «Прикреплено» (W60/W25): /attached — вкладки Статьи/Страницы/Альбомы (системные папки, активные/архивные).
 
 ### 6.3. mail
 
