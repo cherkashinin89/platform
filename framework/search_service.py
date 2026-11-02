@@ -14,7 +14,7 @@ import re
 from html import unescape
 from markupsafe import Markup, escape
 from core.extensions import db
-from core.models import Article, Page, UploadedFile, Photo, Album
+from core.models import Article, Page, UploadedFile, Album, CloudFile
 
 
 # =============================================================
@@ -131,16 +131,17 @@ def get_public_file_names():
     for p in pages:
         public.update(_UPLOADS_RE.findall(p.content or ''))
 
-    # 3. Фото из опубликованных альбомов
-    photos = (
-        Photo.query
-        .join(Album, Photo.album_id == Album.id)
-        .filter(Album.is_published == True)
-        .all()
-    )
-    for ph in photos:
-        if ph.file and ph.file.stored_name:
-            public.add(ph.file.stored_name)
+    # 3. Файлы опубликованных альбомов (W25: альбом = папка облака)
+    albums = Album.query.filter_by(is_published=True).all()
+    for alb in albums:
+        if not alb.cloud_folder_id:
+            continue
+        files = CloudFile.query.filter_by(
+            parent_id=alb.cloud_folder_id, is_folder=False, is_trashed=False,
+        ).all()
+        for f in files:
+            if f.stored_name:
+                public.add(f.stored_name)
 
     return public
 

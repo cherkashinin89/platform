@@ -26,7 +26,7 @@ from core.auth import admin_required, editor_required, user_required, role_requi
 from core.extensions import db, login_manager, csrf, migrate
 from core.models import (
     User, Article, Page, MenuItem, UploadedFile,
-    Album, Photo, SiteSettings, CloudFile, CloudShare,
+    Album, SliderFeature, SiteSettings, CloudFile, CloudShare,
     FileUsage, AuditLog, MailDomain, Mailbox,
 )
 from core.file_utils import (
@@ -4697,15 +4697,16 @@ def create_app(config_class=Config):
                                mail_domains_data=mail_domains_data)
 
     def get_slider_photos(limit=10):
-        """Возвращает список Photo с is_featured=True (свежие вперёд)"""
+        """W25: список файлов из SliderFeature (свежие вперёд)."""
         try:
-            return (
-                Photo.query
-                .filter_by(is_featured=True)
-                .order_by(Photo.added_at.desc())
+            from core.models import SliderFeature
+            features = (
+                SliderFeature.query
+                .order_by(SliderFeature.added_at.desc())
                 .limit(limit)
                 .all()
             )
+            return [f.file for f in features if f.file and not f.file.is_trashed]
         except Exception as e:
             app.logger.warning(f'get_slider_photos: {e}')
             return []

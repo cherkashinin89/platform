@@ -25,7 +25,7 @@ article_authors = db.Table(
     db.Column('article_id', db.Integer, db.ForeignKey('article.id'), primary_key=True),
 )
 
-# Альбомы статей (M2M Article↔Album)
+# Альбомы статей (M2M Article↔Album, W25)
 article_albums = db.Table(
     'article_albums',
     db.Column('article_id', db.Integer, db.ForeignKey('article.id'), primary_key=True),
@@ -266,30 +266,34 @@ class UploadedFile(db.Model):
 # ============================================================
 
 class Album(db.Model):
-    """Фотоальбом."""
+    """W25: фотоальбом = папка облака (Альбомы/<имя>)."""
 
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(200), nullable=False)
     slug = db.Column(db.String(200), unique=True, nullable=False, index=True)
     description = db.Column(db.Text)
 
-    cover_photo_id = db.Column(
-        db.Integer,
-        db.ForeignKey('photo.id', use_alter=True, name='fk_album_cover'),
-    )
-    cover_photo = db.relationship('Photo', foreign_keys=[cover_photo_id], post_update=True)
+    author_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'),
+                          nullable=True, index=True)
+    author = db.relationship('User', foreign_keys=[author_id])
+
+    # Папка альбома в облаке
+    cloud_folder_id = db.Column(db.Integer, db.ForeignKey('cloud_file.id', ondelete='SET NULL'),
+                                nullable=True, index=True)
+    cloud_folder = db.relationship('CloudFile', foreign_keys=[cloud_folder_id])
+
+    # Обложка — файл (не Photo)
+    cover_file_id = db.Column(db.Integer, db.ForeignKey('cloud_file.id', ondelete='SET NULL'),
+                              nullable=True)
+    cover_file = db.relationship('CloudFile', foreign_keys=[cover_file_id])
 
     is_published = db.Column(db.Boolean, default=True, index=True)
     order = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
 
-    photos = db.relationship(
-        'Photo',
-        backref='album',
-        cascade='all, delete-orphan',
-        foreign_keys='Photo.album_id',
-        order_by='Photo.order',
-    )
+    # W25: архив/корзина (как у статей)
+    archived_at = db.Column(db.DateTime, nullable=True, index=True)
+    deleted_at = db.Column(db.DateTime, nullable=True, index=True)
 
     articles = db.relationship(
         'Article',
@@ -301,29 +305,28 @@ class Album(db.Model):
         return f'<Album {self.title}>'
 
 
-class Photo(db.Model):
-    """Фотография в альбоме — ссылка на облачный файл (CloudFile)."""
+class SliderFeature(db.Model):
+    """W25: файл, отмеченный для слайдера шапки (★ на фото)."""
+
+    __tablename__ = 'slider_feature'
 
     id = db.Column(db.Integer, primary_key=True)
-    album_id = db.Column(db.Integer, db.ForeignKey('album.id'), nullable=False)
-
-    # W3: облачный файл
-    file_id = db.Column(
-        db.Integer,
-        db.ForeignKey('cloud_file.id', ondelete='CASCADE'),
-        nullable=False,
-    )
+    file_id = db.Column(db.Integer, db.ForeignKey('cloud_file.id', ondelete='CASCADE'),
+                        nullable=False, index=True)
     file = db.relationship('CloudFile', foreign_keys=[file_id])
 
-    caption = db.Column(db.String(300))
-    order = db.Column(db.Integer, default=0)
-    added_at = db.Column(db.DateTime, default=datetime.utcnow)
+    added_by_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'),
+                            nullable=True)
+    added_by = db.relationship('User', foreign_keys=[added_by_id])
 
-    # Фото отмечено для показа в слайдере шапки
-    is_featured = db.Column(db.Boolean, default=False, nullable=False, index=True)
+    added_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    __table_args__ = (
+        db.UniqueConstraint('file_id', name='uq_slider_feature_file'),
+    )
 
     def __repr__(self):
-        return f'<Photo {self.id} in {self.album_id}>'
+        return f'<SliderFeature file={self.file_id}>'
 
 
 # ============================================================
@@ -384,14 +387,14 @@ class SiteSettings(db.Model):
         return f'themes/{self.active_theme}/style.css'
 
     def get_slider_photos(self):
-        """До 10 избранных фото, отсортированных по дате добавления."""
-        return (
-            Photo.query
-            .filter_by(is_featured=True)
-            .order_by(Photo.added_at.desc())
+        """W25: до 10 файлов из SliderFeature (свежие вперёд)."""
+        features = (
+            SliderFeature.query
+            .order_by(SliderFeature.added_at.desc())
             .limit(10)
             .all()
         )
+        return [f.file for f in features if f.file and not f.file.is_trashed]
 
     def __repr__(self):
         return f'<SiteSettings {self.site_title!r}>'
