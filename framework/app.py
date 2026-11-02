@@ -4704,11 +4704,19 @@ def create_app(config_class=Config):
 
     @app.context_processor
     def inject_slider_photos():
-        """Делает slider_photos доступными во всех шаблонах"""
+        """W25: slider_photos = [{file, album}] (файл + связанный альбом)."""
         try:
             settings = SiteSettings.get()
-            photos = get_slider_photos(10) if settings.show_slider else []
-            return {'slider_photos': photos}
+            if not settings.show_slider:
+                return {'slider_photos': []}
+            files = get_slider_photos(10)
+            result = []
+            for f in files:
+                alb = None
+                if f.parent_id:
+                    alb = Album.query.filter_by(cloud_folder_id=f.parent_id).first()
+                result.append({'file': f, 'album': alb})
+            return {'slider_photos': result}
         except Exception as e:
             app.logger.warning(f'inject_slider_photos: {e}')
             return {'slider_photos': []}   

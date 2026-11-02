@@ -49,7 +49,7 @@
     <div class="fan-bg" id="fanBg">
         {% for photo in slider_photos %}
         <div class="fan-bg-image {% if loop.first %}is-active{% endif %}" data-index="{{ loop.index0 }}"
-            style="background-image: url('{{ url_for('serve_media', file_id=photo.id) }}');"></div>
+            style="background-image: url('{{ url_for('serve_media', file_id=photo.file.id) }}');"></div>
         {% endfor %}
     </div>
 
@@ -57,10 +57,10 @@
         {% for photo in slider_photos %}
         <div class="fan-slide-wrapper" style="--i: {{ loop.index0 }};">
             <div class="fan-slide" data-index="{{ loop.index0 }}">
-                <img src="{{ url_for('serve_media', file_id=photo.id) }}"
-                    data-thumb="{{ url_for('serve_media', file_id=photo.id) }}"
-                    data-full="{{ url_for('serve_media', file_id=photo.id) }}"
-                    alt="{{ photo.caption or site_settings.site_title }}" loading="lazy" decoding="async">
+                <img src="{{ url_for('serve_media', file_id=photo.file.id) }}"
+                    data-thumb="{{ url_for('serve_media', file_id=photo.file.id) }}"
+                    data-full="{{ url_for('serve_media', file_id=photo.file.id) }}"
+                    alt="{{ photo.file.name or site_settings.site_title }}" loading="lazy" decoding="async">
 
                 {% if photo.album %}
                 <a href="{{ url_for('gallery_album', slug=photo.album.slug) }}" class="fan-album-link"
