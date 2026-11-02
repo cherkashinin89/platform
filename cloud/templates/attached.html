@@ -1,209 +1,80 @@
 {% extends 'base_cloud.html' %}
-
-{% block title %}MyCloud — Прикреплено к статьям{% endblock %}
+{% block title %}MyCloud — Прикреплено{% endblock %}
 
 {% block content %}
-
 <style>
-    /* W36: стили таблицы привязок (аналог shares.html) */
-    .items-table {
-        width: 100%;
-        border-collapse: collapse;
-        background: var(--color-bg);
-        border-radius: var(--radius-md);
-        overflow: hidden;
-        box-shadow: var(--shadow-sm);
-    }
-
-    .items-table th {
-        text-align: left;
-        padding: 12px 16px;
-        background: var(--color-bg-alt);
-        color: var(--color-text-muted);
-        font-size: 0.85rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.03em;
-        border-bottom: 1px solid var(--color-border);
-    }
-
-    .items-table td {
-        padding: 14px 16px;
-        border-bottom: 1px solid var(--color-border);
-        vertical-align: middle;
-        font-size: 0.92rem;
-    }
-
-    .items-table tr:last-child td {
-        border-bottom: none;
-    }
-
-    .items-table tr:hover td {
-        background: var(--color-primary-soft);
-    }
-
-    .item-icon {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 26px;
-        height: 26px;
-        font-size: 1.2rem;
-        vertical-align: middle;
-        margin-right: 8px;
-    }
-
-    .item-icon.folder { color: var(--color-primary); }
-
-    .item-link {
-        color: var(--color-text);
-        text-decoration: none;
-        font-weight: 500;
-    }
-
-    .item-link:hover { color: var(--color-primary); }
-
-    .attached-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 4px 10px;
-        background: var(--color-bg-alt);
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-pill);
-        font-size: 0.85rem;
-        margin: 2px 0;
-    }
-
-    .attached-badge i { color: var(--color-primary); }
-
-    .attached-badge a {
-        color: var(--color-text);
-        text-decoration: none;
-    }
-
-    .attached-badge a:hover { color: var(--color-primary); }
-
-    .row-actions {
-        display: flex;
-        gap: 6px;
-    }
-
-    .btn-icon-action {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 32px;
-        height: 32px;
-        border-radius: var(--radius-sm);
-        border: 1px solid var(--color-border);
-        background: var(--color-bg);
-        color: var(--color-text);
-        cursor: pointer;
-        text-decoration: none;
-        transition: var(--transition-fast);
-        font-size: 0.95rem;
-    }
-
-    .btn-icon-action:hover {
-        background: var(--color-primary-soft);
-        border-color: var(--color-primary);
-        color: var(--color-primary);
-    }
+    .attached-tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--color-border); }
+    .attached-tab { padding: 8px 16px; cursor: pointer; border: none; background: none; font-size: 1rem; color: var(--color-text-muted); border-bottom: 2px solid transparent; }
+    .attached-tab.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+    .attached-panel { display: none; }
+    .attached-panel.active { display: block; }
+    .attached-subtitle { font-size: 0.9rem; color: var(--color-text-muted); margin: 12px 0 8px; }
+    .attached-folder { display: flex; align-items: center; gap: 8px; padding: 8px; border-bottom: 1px solid var(--color-border); }
+    .attached-folder a { text-decoration: none; color: var(--color-text); }
+    .attached-folder a:hover { color: var(--color-primary); }
 </style>
 
-{# === ЗАГОЛОВОК === #}
 <h1 class="cloud-page-title">
-    <i class="bi bi-paperclip"></i>
-    Прикреплено к статьям
+    <i class="bi bi-paperclip"></i> Прикреплено
 </h1>
 
-{# === КНОПКА НАЗАД === #}
 <div class="mb-3">
     <a href="{{ url_for('index') }}" class="btn-cloud btn-cloud-back">
         <i class="bi bi-arrow-left"></i> К файлам
     </a>
 </div>
 
-{# === СПИСОК === #}
-{% if attached_list %}
-    <table class="items-table">
-        <thead>
-            <tr>
-                <th>Файл / папка</th>
-                <th>Прикреплено к</th>
-                <th style="width: 180px;">Дата</th>
-                <th style="width: 120px;">Действия</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for entry in attached_list %}
-                {% set f = entry.file %}
-                <tr>
-                    <td>
-                        {% if f.is_folder %}
-                            <span class="item-icon folder"><i class="bi bi-folder-fill"></i></span>
-                        {% else %}
-                            {% set icon_class, icon_color = f.name | icon_for_file() %}
-                            <span class="item-icon file" style="color: {{ icon_color }};">
-                                <i class="bi {{ icon_class }}"></i>
-                            </span>
-                        {% endif %}
-                        <a href="/files/{{ f.id }}" target="_blank" class="item-link">{{ f.name }}</a>
-                    </td>
+<div class="attached-tabs">
+    <button class="attached-tab active" data-tab="articles">Статьи</button>
+    <button class="attached-tab" data-tab="pages">Страницы</button>
+</div>
 
-                    <td>
-                        {% for a in entry.attachments %}
-                            <span class="attached-badge">
-                                {% if a.target_type == 'article' %}
-                                    <i class="bi bi-file-text"></i>
-                                {% else %}
-                                    <i class="bi bi-file-earmark"></i>
-                                {% endif %}
-                                <a href="{{ a.url }}" target="_blank">{{ a.title }}</a>
-                            </span>
-                        {% endfor %}
-                    </td>
-
-                    <td>
-                        {% if entry.attachments %}
-                            {{ entry.attachments[0].date.strftime('%d.%m.%Y %H:%M') }}
-                        {% else %}
-                            —
-                        {% endif %}
-                    </td>
-
-                    <td>
-                        <div class="row-actions">
-                            <button type="button"
-                                    class="btn-icon-action"
-                                    onclick="copyToClipboard('/files/{{ f.id }}')"
-                                    title="Скопировать ссылку">
-                                <i class="bi bi-link-45deg"></i>
-                            </button>
-                            <a href="/files/{{ f.id }}" target="_blank"
-                               class="btn-icon-action"
-                               title="Открыть">
-                                <i class="bi bi-box-arrow-up-right"></i>
-                            </a>
-                        </div>
-                    </td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <p class="text-muted text-center mt-4">
-        Всего: {{ attached_list|length }}
-    </p>
-{% else %}
-    <div class="cloud-empty-state">
-        <i class="bi bi-paperclip"></i>
-        <p>У вас пока нет файлов, прикреплённых к статьям или страницам.</p>
-        <p class="text-muted small">
-            Файлы появятся здесь, когда вы прикрепите их в редакторе статьи.
-        </p>
+{# ===== СТАТЬИ ===== #}
+<div class="attached-panel active" id="panel-articles">
+    <div class="attached-subtitle">Активные</div>
+    {% for a in articles_active %}
+    <div class="attached-folder">
+        <i class="bi bi-folder-fill" style="color: var(--color-primary);"></i>
+        <a href="{{ url_for('index', folder_id=a.cloud_folder_id) }}">{{ a.title }}</a>
     </div>
-{% endif %}
+    {% else %}<p class="text-muted">Нет активных статей.</p>{% endfor %}
 
+    <div class="attached-subtitle">Архивные</div>
+    {% for a in articles_archived %}
+    <div class="attached-folder">
+        <i class="bi bi-folder-fill" style="color: #999;"></i>
+        <a href="{{ url_for('index', folder_id=a.cloud_folder_id) }}">{{ a.title }}</a>
+    </div>
+    {% else %}<p class="text-muted">Нет архивных статей.</p>{% endfor %}
+</div>
+
+{# ===== СТРАНИЦЫ ===== #}
+<div class="attached-panel" id="panel-pages">
+    <div class="attached-subtitle">Активные</div>
+    {% for p in pages_active %}
+    <div class="attached-folder">
+        <i class="bi bi-folder-fill" style="color: var(--color-primary);"></i>
+        <a href="{{ url_for('index', folder_id=p.cloud_folder_id) }}">{{ p.title }}</a>
+    </div>
+    {% else %}<p class="text-muted">Нет активных страниц.</p>{% endfor %}
+
+    <div class="attached-subtitle">Архивные</div>
+    {% for p in pages_archived %}
+    <div class="attached-folder">
+        <i class="bi bi-folder-fill" style="color: #999;"></i>
+        <a href="{{ url_for('index', folder_id=p.cloud_folder_id) }}">{{ p.title }}</a>
+    </div>
+    {% else %}<p class="text-muted">Нет архивных страниц.</p>{% endfor %}
+</div>
+
+<script>
+document.querySelectorAll('.attached-tab').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+        document.querySelectorAll('.attached-tab').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.attached-panel').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+    });
+});
+</script>
 {% endblock %}

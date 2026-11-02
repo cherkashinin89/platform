@@ -521,14 +521,35 @@ def create_app(config_class=Config):
     @login_required
     @editor_required
     def attached():
-        """W36: страница «Прикреплено к статьям» — список привязанных файлов."""
-        from cloud_service import list_attached_shares
-        attached_list = list_attached_shares(current_user.id)
+        """
+        W60: «Прикреплено» — системные папки статей/страниц.
+        Вкладки: Статьи / Страницы; подразделы: Активные / Архивные.
+        """
+        from core.models import Article, Page
+
+        def _content_data(Model):
+            active = Model.query.filter(
+                Model.deleted_at.is_(None),
+                Model.archived_at.is_(None),
+                Model.cloud_folder_id.isnot(None),
+            ).order_by(Model.title).all()
+            archived = Model.query.filter(
+                Model.deleted_at.is_(None),
+                Model.archived_at.isnot(None),
+                Model.cloud_folder_id.isnot(None),
+            ).order_by(Model.title).all()
+            return active, archived
+
+        articles_active, articles_archived = _content_data(Article)
+        pages_active, pages_archived = _content_data(Page)
         quota = get_quota_info(current_user)
 
         return render_template(
             'attached.html',
-            attached_list=attached_list,
+            articles_active=articles_active,
+            articles_archived=articles_archived,
+            pages_active=pages_active,
+            pages_archived=pages_archived,
             quota=quota,
         )
 
